@@ -57,6 +57,8 @@ Describe 'Get-DuneGiveItemStatsJson' -Tag 'Pure' {
         @($augmented.AppliedAugmentQualities) | Should -Be @(5, 4)
         @($augmented.AppliedAugmentRollData).Count | Should -Be 2
         [double]$augmented.AppliedAugmentRollData[0].StatRolls[0] | Should -Be 1.003398
+        $stats.PSObject.Properties.Name | Should -Contain 'FWeaponItemStats'
+        $stats.FWeaponItemStats[1].PSObject.Properties.Name | Should -Contain 'CurrentAmmo'
         [int]$stats.FWeaponItemStats[1].CurrentAmmo | Should -Be 0
     }
 
