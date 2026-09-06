@@ -285,7 +285,8 @@ function Invoke-DuneRmqTeleportTo {
         [Parameter(Mandatory)] [double] $X,
         [Parameter(Mandatory)] [double] $Y,
         [Parameter(Mandatory)] [double] $Z,
-        [switch] $RepeatForReliability
+        [switch] $RepeatForReliability,
+        [string] $TraceId
     )
     $fields = @{
         ServerCommand = 'TeleportTo'
@@ -294,11 +295,12 @@ function Invoke-DuneRmqTeleportTo {
         Y             = $Y
         Z             = $Z
     }
+    $extra = if ($TraceId) { @{ trace_id = $TraceId } } else { $null }
     if ($RepeatForReliability) {
         return Send-DuneRmqServerCommandBatch -Fields @($fields, $fields) `
-            -SpacingMilliseconds 750 -Action 'teleport-live-repeat'
+            -SpacingMilliseconds 750 -Action 'teleport-live-repeat' -Extra $extra
     }
-    Send-DuneRmqServerCommand -Fields $fields -Action 'teleport-live'
+    Send-DuneRmqServerCommand -Fields $fields -Action 'teleport-live' -Extra $extra
 }
 
 function Invoke-DuneRmqTeleportToExact {
