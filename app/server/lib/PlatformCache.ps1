@@ -117,6 +117,21 @@ function Get-DunePlatformSnapshot {
     }
 }
 
+function Set-DunePlatformSnapshotError {
+    param([Parameter(Mandatory)][string]$LastErrorCode)
+
+    $state = Get-DunePlatformSnapshotState
+    [Threading.Monitor]::Enter($state.SyncRoot)
+    try {
+        # Keep any published generation and its timestamp when startup fails.
+        $state.lastErrorCode = $LastErrorCode
+        $state.revision = [long]$state.revision + 1
+    } finally {
+        [Threading.Monitor]::Exit($state.SyncRoot)
+    }
+    return Get-DunePlatformSnapshot
+}
+
 function ConvertTo-DunePlatformProcessArgument {
     param([Parameter(Mandatory)][string]$Value)
     if ($Value.IndexOf([char]0) -ge 0 -or $Value.Contains('"')) {
@@ -212,8 +227,10 @@ function Invoke-DunePlatformHelper {
     $start.RedirectStandardError = $true
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
+    $processStarted = $false
     try {
-        if (-not $process.Start()) {
+        $processStarted = $process.Start()
+        if (-not $processStarted) {
             throw 'The platform cache helper did not start.'
         }
         $stdoutTask = $process.StandardOutput.ReadToEndAsync()
@@ -273,7 +290,11 @@ function Invoke-DunePlatformHelper {
         }
         return $result
     } finally {
-        $process.Dispose()
+        try {
+            if ($processStarted -and -not $process.HasExited) { $process.Kill() }
+        } finally {
+            $process.Dispose()
+        }
     }
 }
 
@@ -303,15 +324,141 @@ function Initialize-DunePlatformCache {
         }
     } catch {
         $code = if ($_.Exception.Data['errorCode']) { [string]$_.Exception.Data['errorCode'] } else { 'cache-startup-failed' }
-        $state = Set-DunePlatformSnapshot -Snapshot $null -LastErrorCode $code
+        $state = Set-DunePlatformSnapshotError -LastErrorCode $code
         return [pscustomobject]@{
             ok = $false
-            available = $false
+            available = [bool]$state.available
             revision = [long]$state.revision
             lastErrorCode = $code
             message = $_.Exception.Message
         }
     }
+}
+
+function Start-DunePlatformCacheStartup {
+    param(
+        [Parameter(Mandatory)][string]$ServerDir,
+        [Parameter(Mandatory)][Threading.ManualResetEventSlim]$HttpReady,
+        [string]$AppDir = $script:AppDir,
+        [ValidateRange(0,30)][double]$DelaySec = 2
+    )
+
+    if ($script:DunePlatformStartupWorker) { return $false }
+    $state = Get-DunePlatformSnapshotState
+    $locks = Get-DunePlatformCoordinationTable
+    $cancellation = [Threading.CancellationTokenSource]::new()
+    $runspace = $null
+    $powershell = $null
+    try {
+        $runspace = [runspacefactory]::CreateRunspace()
+        $runspace.ApartmentState = 'MTA'
+        $runspace.ThreadOptions = 'ReuseThread'
+        $runspace.Open()
+        $powershell = [powershell]::Create()
+        $powershell.Runspace = $runspace
+        [void]$powershell.AddScript({
+            param($ServerDir, $AppDir, $SnapshotState, $LockTable, $HttpReady, $DelaySec, $CancellationToken, $LogPath)
+            $ErrorActionPreference = 'Stop'
+            try {
+                $HttpReady.Wait($CancellationToken)
+                if ($CancellationToken.WaitHandle.WaitOne([int]($DelaySec * 1000))) { return }
+                $watch = [Diagnostics.Stopwatch]::StartNew()
+                $script:AppDir = $AppDir
+                # Only the local cache bootstrap is needed here. The existing
+                # refresh workers load their own live-source dependencies later.
+                foreach ($name in @('DuneLog.ps1','PlatformCache.ps1','PlatformRuntime.ps1','MapPlatform.ps1','InventoryCache.ps1')) {
+                    $CancellationToken.ThrowIfCancellationRequested()
+                    . (Join-Path $ServerDir "lib\$name")
+                    if ($name -eq 'DuneLog.ps1' -and $LogPath) { Set-DuneLogPath -Path $LogPath }
+                }
+                $script:DunePlatformSnapshotState = $SnapshotState
+                $script:DuneApiLockTable = $LockTable
+                $result = Initialize-DunePlatformCache
+                if (-not $result.ok) {
+                    Write-DuneLog "Platform cache unavailable at startup: $($result.message)" 'WARN'
+                }
+                Write-DuneLog "Platform cache background hydration complete (+$($watch.ElapsedMilliseconds)ms; available=$($result.available))"
+                $CancellationToken.ThrowIfCancellationRequested()
+                try {
+                    [void](Start-DuneMapsPlatformStartupRefresh -ServerDir $ServerDir -AppDir $AppDir)
+                } catch {
+                    Write-DuneLog "Maps platform startup refresh could not be scheduled: $($_.Exception.Message)" 'WARN'
+                }
+                $CancellationToken.ThrowIfCancellationRequested()
+                try {
+                    [void](Start-DuneInventoryCacheStartupRefresh -ServerDir $ServerDir -AppDir $AppDir)
+                } catch {
+                    Write-DuneLog "Inventory cache startup refresh could not be scheduled: $($_.Exception.Message)" 'WARN'
+                }
+                # Own both refresh workers until shutdown, including headless
+                # runs where no browser ever sends a request.
+                [void]$CancellationToken.WaitHandle.WaitOne()
+            } catch {
+                if (-not $CancellationToken.IsCancellationRequested) {
+                    [Threading.Monitor]::Enter($SnapshotState.SyncRoot)
+                    try {
+                        $SnapshotState.lastErrorCode = 'cache-startup-failed'
+                        $SnapshotState.revision = [long]$SnapshotState.revision + 1
+                    } finally {
+                        [Threading.Monitor]::Exit($SnapshotState.SyncRoot)
+                    }
+                    if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
+                        Write-DuneLog "Platform cache background startup failed: $($_.Exception.Message)" 'ERROR'
+                    }
+                    throw
+                }
+            } finally {
+                if (Get-Command Stop-DuneInventoryCacheRefresh -ErrorAction SilentlyContinue) {
+                    [void](Stop-DuneInventoryCacheRefresh)
+                }
+                if (Get-Command Stop-DuneMapsPlatformRefresh -ErrorAction SilentlyContinue) {
+                    [void](Stop-DuneMapsPlatformRefresh)
+                }
+            }
+        }).AddArgument($ServerDir).AddArgument($AppDir).AddArgument($state).AddArgument($locks).AddArgument($HttpReady).AddArgument($DelaySec).AddArgument($cancellation.Token).AddArgument($script:DuneLogPath)
+        $handle = $powershell.BeginInvoke()
+        $script:DunePlatformStartupWorker = @{
+            powershell = $powershell
+            runspace = $runspace
+            handle = $handle
+            cancellation = $cancellation
+        }
+        return $true
+    } catch {
+        if ($powershell) { $powershell.Dispose() }
+        if ($runspace) { $runspace.Dispose() }
+        $cancellation.Dispose()
+        $null = Set-DunePlatformSnapshotError -LastErrorCode 'cache-startup-failed'
+        throw
+    }
+}
+
+function Stop-DunePlatformCacheStartup {
+    param([ValidateRange(1,30000)][int]$WaitMs = 15000)
+
+    $worker = $script:DunePlatformStartupWorker
+    if (-not $worker) { return $false }
+    $worker.cancellation.Cancel()
+    if (-not $worker.handle.AsyncWaitHandle.WaitOne([Math]::Min(1000, $WaitMs))) {
+        $null = $worker.powershell.BeginStop($null, $null)
+        if (-not $worker.handle.AsyncWaitHandle.WaitOne($WaitMs)) {
+            Write-DuneLog 'Platform cache startup worker did not stop within the shutdown timeout.' 'WARN'
+            return $false
+        }
+    }
+    try {
+        $null = $worker.powershell.EndInvoke($worker.handle)
+    } catch [Management.Automation.PipelineStoppedException] {
+        # Expected when cancelling hydration or a refresh worker at shutdown.
+    } catch {
+        Write-DuneLog "Platform cache startup worker failed: $($_.Exception.Message)" 'WARN'
+    } finally {
+        $worker.powershell.Dispose()
+        $worker.runspace.Dispose()
+        $worker.cancellation.Dispose()
+        $script:DunePlatformStartupWorker = $null
+    }
+    return $true
 }
 
 function Invoke-DunePlatformGenerationReplace {
