@@ -11,6 +11,13 @@ Patch releases within a major series are rolled up under the major's entry
 on GitHub still exist for each individual release; the consolidated entries
 here cover everything those tags shipped.
 
+## [Unreleased]
+
+### Added
+
+- Command Deck player admin now has a **Manage Player** tab between Stats and Specs for give/manage item actions as cards. Inventory is inventory only.
+- Solo Mode can export saved base blueprints (solidos) to portable DST JSON. Solo import stays disabled.
+
 ## [15.0.0-finalphase-1.2] - 2026-09-05
 
 ### Fixed

@@ -217,6 +217,32 @@ Register-DuneRoute -Method POST -Path '/api/solo/items/grant' -LocalOnly -Handle
     }
 }
 
+Register-DuneRoute -Method GET -Path '/api/solo/blueprints' -LocalOnly -Handler {
+    param($req, $res, $routeParams, $body)
+    try {
+        Write-DuneJson -Response $res -Body (Get-DuneSoloBlueprints)
+    } catch {
+        $status = if ($_.Exception.Message -like '*Connect a valid Solo save*') { 400 } else { 500 }
+        Write-DuneError -Response $res -Status $status -Message $_.Exception.Message
+    }
+}
+
+Register-DuneRoute -Method GET -Path '/api/solo/blueprints/export' -LocalOnly -Handler {
+    param($req, $res, $routeParams, $body)
+    try {
+        $idRaw = [string]$req.QueryString['id']
+        $id = 0L
+        if (-not [long]::TryParse($idRaw, [ref]$id) -or $id -le 0) {
+            Write-DuneError -Response $res -Status 400 -Message 'Choose a saved Solo blueprint to export.'
+            return
+        }
+        Write-DuneJson -Response $res -Body (Export-DuneSoloBlueprint -Id $id)
+    } catch {
+        $status = if ($_.Exception.Message -like '*still running*' -or $_.Exception.Message -like '*Connect a valid Solo save*') { 400 } else { 400 }
+        Write-DuneError -Response $res -Status $status -Message $_.Exception.Message
+    }
+}
+
 Register-DuneRoute -Method POST -Path '/api/solo/blueprints/import' -LocalOnly -Handler {
     param($req, $res, $routeParams, $body)
     try {

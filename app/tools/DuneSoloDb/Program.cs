@@ -86,6 +86,10 @@ internal static partial class Program
                     Require(options, "input"),
                     Require(options, "safety-backup"),
                     Require(options, "blueprint")),
+                "list-blueprints" => ListBlueprints(Require(options, "input")),
+                "export-blueprint" => ExportBlueprint(
+                    Require(options, "input"),
+                    ParseItemId(RequireValue(options, "id"))),
                 "set-currencies" => SetCurrencies(
                     Require(options, "input"),
                     Require(options, "safety-backup"),

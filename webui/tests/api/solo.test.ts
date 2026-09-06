@@ -119,6 +119,21 @@ describe('Solo Mode API contracts', () => {
     })
   })
 
+  it('lists and exports saved Solo blueprints', async () => {
+    await solo.getSoloBlueprints()
+    expect(last()).toEqual({
+      url: '/api/solo/blueprints',
+      method: undefined,
+      body: undefined,
+    })
+    await solo.exportSoloBlueprint(7)
+    expect(last()).toEqual({
+      url: '/api/solo/blueprints/export?id=7',
+      method: undefined,
+      body: undefined,
+    })
+  })
+
   it('imports portable blueprints with profile token and offline confirmation', async () => {
     const blueprint = {
       name: 'Compact Base',

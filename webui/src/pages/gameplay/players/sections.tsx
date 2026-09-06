@@ -2666,15 +2666,12 @@ function ProgressionUnlockForm({ busy, onUnlock, onReverse }: {
 }
 
 // ---------------------------------------------------------------------------
-// Items action block — the 'Items' group of ACTIONS, rendered inside the
-// Inventory section (between the inventory title and the items list).
-// Mirrors ActionsSection's per-group rendering, scoped to one group, with
-// its own openId/busy/give-item form state.
+// Items action block — the 'Items' group of ACTIONS, shown as cards on
+// Manage Player. Inventory stays inventory-only.
 // ---------------------------------------------------------------------------
 function ItemsActionBlock({ player, canWrite, flash, onChanged, onFlush }: {
   player: Player; canWrite: boolean; flash: Flash; onChanged: () => void; onFlush?: () => void
 }) {
-  const contextual = useCommandDeck()
   const [openId, setOpenId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -2696,7 +2693,6 @@ function ItemsActionBlock({ player, canWrite, flash, onChanged, onFlush }: {
     try {
       const r = await exec()
       flash(r.message || `${def.label} done.`, 'ok')
-      // Mark a deferred refresh; custom forms decide whether successful input resets.
       onChanged()
       return true
     } catch (e) {
@@ -2707,19 +2703,27 @@ function ItemsActionBlock({ player, canWrite, flash, onChanged, onFlush }: {
     }
   }
 
-  if (contextual) return <details className="player-inventory-actions"><summary><Icon name="PackagePlus" size={17} />Give or manage items</summary><ActionWorkbench
-    key={player.id} title="Inventory actions" target={player.name || 'Unnamed player'}
-    actions={acts} selectedId={openId} onSelect={openAction} busy={busy}
-    renderAction={action => <ActionRow key={action.id} def={action} player={player} busy={busy} stats={null}
-      open onToggle={() => openAction(action.id)} runAction={runAction} />}
-  /></details>
-
   return (
-    <div className="space-y-1.5 mb-2">
+    <div className="player-manage-grid mb-2">
       {acts.map(a => (
-        <ActionRow key={a.id} def={a} player={player} busy={busy} stats={null}
-          open={openId === a.id} onToggle={() => openAction(a.id)} runAction={runAction} />
+        <div key={a.id} data-expanded={openId === a.id ? 'true' : undefined}>
+          <ActionRow def={a} player={player} busy={busy} stats={null}
+            open={openId === a.id} onToggle={() => openAction(a.id)} runAction={runAction} />
+        </div>
       ))}
+    </div>
+  )
+}
+
+export function ManagePlayerSection({ player, canWrite, flash, onChanged, onFlush }: SectionProps) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-text-muted">
+        Give items, kits, packages, cosmetics, and repairs. The Inventory tab is the bag itself.
+      </p>
+      {canWrite
+        ? <ItemsActionBlock player={player} canWrite={canWrite} flash={flash} onChanged={onChanged} onFlush={onFlush} />
+        : <div className="text-sm text-text-dim">Connect the live database to manage this player.</div>}
     </div>
   )
 }
@@ -2790,8 +2794,7 @@ export function InventorySection({ player, canWrite, demo, refreshKey, flash, on
       <ItemList title={`Inventory (${fmtNum(groups.gear.length)})`} icon="Backpack" items={groups.gear}
         playerId={player.id}
         toolbar={contextual ? refreshButton : undefined}
-        canWrite={canWrite} busy={busy} run={run} isOnline={isOnline}
-        extra={<ItemsActionBlock player={player} canWrite={canWrite} flash={flash} onChanged={onChanged} onFlush={onFlush} />} />
+        canWrite={canWrite} busy={busy} run={run} isOnline={isOnline} />
       <ItemList title={`Emotes (${fmtNum(groups.emotes.length)})`} icon="Smile" items={groups.emotes} collapsed
         playerId={player.id} canWrite={canWrite} busy={busy} run={run} isOnline={isOnline} />
       <ItemList title={`Contract items (${fmtNum(groups.contracts.length)})`} icon="FileText" items={groups.contracts} collapsed
@@ -3736,10 +3739,11 @@ export function JourneySection({ player, canWrite, demo, refreshKey, flash, onCh
 }
 
 // Re-export the section component type for the tab shell.
-export type SectionId = 'stats' | 'specs' | 'tags' | 'history' | 'inventory' | 'landsraad' | 'journey' | 'actions'
+export type SectionId = 'stats' | 'manage' | 'specs' | 'tags' | 'history' | 'inventory' | 'landsraad' | 'journey' | 'actions'
 
 export const SECTIONS: Array<{ id: SectionId; label: string; icon: string }> = [
   { id: 'stats',     label: 'Stats',     icon: 'User' },
+  { id: 'manage',    label: 'Manage Player', icon: 'PackagePlus' },
   { id: 'specs',     label: 'Specs',     icon: 'Sparkles' },
   { id: 'inventory', label: 'Inventory', icon: 'Backpack' },
   { id: 'landsraad', label: 'Landsraad', icon: 'Landmark' },
@@ -3751,6 +3755,7 @@ export const SECTIONS: Array<{ id: SectionId; label: string; icon: string }> = [
 
 export const SECTION_COMPONENTS: Record<SectionId, (p: SectionProps) => ReactElement> = {
   stats:     StatsSection,
+  manage:    ManagePlayerSection,
   specs:     SpecsSection,
   tags:      TagsSection,
   history:   HistorySection,

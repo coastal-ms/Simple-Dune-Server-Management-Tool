@@ -324,6 +324,27 @@ export function grantSoloItems(
   })
 }
 
+export interface SoloSavedBlueprint {
+  id: number
+  itemId: number
+  name: string
+  instances: number
+  placeables: number
+  pentashields: number
+}
+
+export function getSoloBlueprints(): Promise<{ ok: boolean; blueprints: SoloSavedBlueprint[] }> {
+  return api('/api/solo/blueprints')
+}
+
+export function exportSoloBlueprint(id: number): Promise<{
+  ok: boolean
+  filename: string
+  blueprint: BlueprintFile
+}> {
+  return api(`/api/solo/blueprints/export?id=${encodeURIComponent(String(id))}`)
+}
+
 export function importSoloBlueprint(
   blueprint: BlueprintFile,
   expectedProfileToken: string,
