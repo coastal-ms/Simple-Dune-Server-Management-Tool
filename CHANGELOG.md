@@ -17,6 +17,8 @@ here cover everything those tags shipped.
 
 - Fixed ordinary item grants incorrectly failing augment validation when no augments were selected.
 - Diagnostics now include active backend and scheduler logs for chat-command failures.
+- Selected themes and custom colors now stay consistent across the globe,
+  navigation dock, and tool pages.
 - Solo save selection now displays and browses the selected Steam account's
   save folder instead of only the shared Saved directory.
 
@@ -29,6 +31,8 @@ here cover everything those tags shipped.
   dock. Map details never shift the scene or fetch a player-name roster.
 - Saved 3D camera zoom and user-arranged map emblems, keyboard/touch alternatives,
   hideable controls, and separate view/placement recovery actions.
+- Remembered globe auto-rotation and orientation across navigation and restarts.
+- Direct Solo Mode navigation from the shared Command Deck dock.
 - Layered regional terrain, grounded location models, fixed directional sunlight,
   readable readiness pulses, and optional cyan simulated travel. Graphics load
   on demand; motion respects reduced-motion and visibility settings.
@@ -42,6 +46,10 @@ here cover everything those tags shipped.
 
 ### Changed
 
+- Compact Command Deck workspaces with focused headings, section navigation,
+  tighter player inventories, and consistent square navigation docks.
+- Commands are grouped into seven task categories with relevant controls and
+  links for battlegroup, configuration, VM, and other administration tasks.
 - Load the classic sidebar and detailed overview on demand rather than
   including their implementations in initial navigation.
 

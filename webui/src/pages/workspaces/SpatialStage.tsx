@@ -6,6 +6,8 @@ import { useTheme } from '../../theme/ThemeContext'
 import { Icon } from '../../components/Icon'
 import { useGlobeLayout } from '../../hooks/useGlobeLayout'
 import { useGlobeZoom } from '../../hooks/useGlobeZoom'
+import { setGlobeAutoRotate, useGlobeAutoRotate } from '../../hooks/useGlobeAutoRotate'
+import { useGlobeOrientation } from '../../hooks/useGlobeOrientation'
 import { MAX_GLOBE_ZOOM, MIN_GLOBE_ZOOM } from './globeZoom'
 import { globePositionsForNodes, type GlobePositions } from './globeLayout'
 
@@ -30,11 +32,13 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
   const [ready, setReady] = useState(false)
   const [runners, setRunners] = useState(true)
   const [flights, setFlights] = useState(true)
-  const [rotating, setRotating] = useState(false)
+  const rotating = useGlobeAutoRotate()
   const [movingMaps, setMovingMaps] = useState(false)
   const [controlsHidden, setControlsHidden] = useState(false)
   const saved = useGlobeLayout()
   const zoom = useGlobeZoom()
+  const orientation = useGlobeOrientation()
+  const currentOrientation = useRef(orientation)
   const currentZoom = useRef(zoom)
   const layoutHelpId = useId()
   const { revision } = useTheme()
@@ -56,6 +60,7 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
   useEffect(() => { currentLayout.current = saved.layout; savePositions.current = saved.move }, [saved.layout, saved.move])
   useEffect(() => { currentMovingMaps.current = movingMaps }, [movingMaps])
   useEffect(() => { currentZoom.current = zoom }, [zoom])
+  useEffect(() => { currentOrientation.current = orientation }, [orientation])
   // Status updates must not rebuild geometry; the scene represents identity only.
   const { worlds, locations } = spatialLayers(nodes)
   const overLimit = locations.length > MAX_SPATIAL_LOCATIONS
@@ -83,6 +88,8 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
           label.current.style.visibility = position.visible ? 'visible' : 'hidden'
         }, {
           fitViewport,
+          orientation: currentOrientation.current.read(),
+          onOrientationChange: value => currentOrientation.current.save(value),
           onZoomChange: value => currentZoom.current.set(value),
           labelSize: () => ({
             width: Math.max(80, ...[...mapLabels.current.values()].map(element => element.offsetWidth)),
@@ -173,7 +180,7 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
           <button type="button" aria-label="Zoom in" disabled={!ready || zoom.value >= MAX_GLOBE_ZOOM} onClick={() => zoom.set(zoom.value + .1)}><Icon name="Plus" size={15} /></button>
           <button type="button" disabled={!ready} onClick={() => { zoom.set(1); engine.current?.fit() }}>Fit</button>
         </div>
-        <button disabled={!ready} onClick={() => { zoom.set(1); setRotating(false); engine.current?.reset() }} title="Release any gesture and restore fitted camera orientation and zoom; keep map placements">Reset view</button>
+        <button disabled={!ready} onClick={() => { zoom.set(1); setGlobeAutoRotate(false); engine.current?.reset() }} title="Release any gesture and restore fitted camera orientation and zoom; keep map placements">Reset view</button>
         <button disabled={!ready} onClick={saved.reset} title="Restore default icon positions without changing the camera">Reset map positions</button>
         <select aria-label="Select map" value={selected} onChange={event => onSelect(event.target.value)}>
           {!nodes.length && <option value="">No maps reported</option>}
@@ -182,7 +189,7 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
         <button disabled={!ready || !locations.length} aria-pressed={movingMaps} onClick={() => setMovingMaps(value => !value)}>{movingMaps ? 'Done moving' : 'Move maps'}</button>
         <button disabled={!ready || !hasConnections} aria-pressed={runners && hasConnections} title={hasConnections ? 'Hagga connections: green is ready, red is not ready. Pulses are decorative, not traffic; respects reduced motion.' : 'Connections require a reported Hagga instance and another map.'} onClick={() => setRunners(value => !value)}>Signal runners</button>
         <button disabled={!ready} aria-pressed={flights} title="Simulated travel dots and trails, not actual players or measured traffic. Respects reduced motion." onClick={() => setFlights(value => !value)}>Simulated travel</button>
-        <button disabled={!ready || movingMaps} aria-pressed={rotating && !movingMaps} title="Slow globe rotation. Paused while moving maps. Respects reduced motion." onClick={() => setRotating(value => !value)}>Auto rotate</button>
+        <button disabled={!ready || movingMaps} aria-pressed={rotating && !movingMaps} title="Slow globe rotation. Paused while moving maps. Respects reduced motion." onClick={() => setGlobeAutoRotate(!rotating)}>Auto rotate</button>
         <button onClick={() => { setEnabled(false); setReady(false); onExit?.() }}>Disable 3D</button>
         </div>
         <button ref={hideControls} aria-label="Hide globe controls" title="Hide controls without changing the current globe mode" onClick={() => {
@@ -206,6 +213,7 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
       </section>}
       {saved.notice && <p className="spatial-layout-notice" role="status" data-error={saved.failed}>{saved.notice}</p>}
       {zoom.error && <p className="spatial-layout-notice" role="status" data-error="true">{zoom.error}</p>}
+      {orientation.error && <p className="spatial-layout-notice" role="status" data-error="true">{orientation.error}</p>}
     </div>
   )
 }

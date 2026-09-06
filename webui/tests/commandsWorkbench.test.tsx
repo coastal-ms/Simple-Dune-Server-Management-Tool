@@ -6,6 +6,7 @@ import type { Command, CommandsResponse } from '../src/api/types'
 import type { PortalAccountRole } from '../src/auth/portalAccess'
 import { COMMAND_DECK_KEY } from '../src/hooks/useCommandDeck'
 import { Commands } from '../src/pages/Commands'
+import { COMMAND_CATEGORIES, getCommandCategory } from '../src/pages/commands/categories'
 
 const state = vi.hoisted(() => ({
   local: true,
@@ -93,48 +94,65 @@ afterEach(() => {
 })
 
 function choices() {
-  return within(screen.getByRole('navigation', { name: 'Command tasks choices' }))
+  return within(screen.getByRole('navigation', { name: 'Command categories' }))
 }
 function selectTask(name: RegExp) {
-  fireEvent.click(choices().getByRole('button', { name }))
+  const command = state.data?.commands.find(command => name.test(command.label || command.name))
+  const category = command ? getCommandCategory(command) : 'tools'
+  fireEvent.click(choices().getByRole('button', { name: COMMAND_CATEGORIES.find(group => group.id === category)!.label, exact: true }))
 }
 
 describe('Contextual Commands workbench', () => {
-  it('offers every existing local operation in saved section order without exposing a run-card wall', () => {
+  it('offers a mobile category picker and clears global search when choosing a category', () => {
     render(<Commands />)
-    expect(choices().getAllByRole('button').map(button => button.textContent)).toEqual([
-      'Start VMMy VM', 'Reboot VMMy VM', 'Delete VMMy VM',
-      'StartupGame services', 'Start battlegroupGame services', 'Restart battlegroupGame services',
-      'Apply INIsGame services', 'Update serverGame services', 'Stop battlegroupGame services',
-      'Inspect logsTools', 'Open PowerShellTools',
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search all commands' }), { target: { value: 'inspect/logs' } })
+    expect(screen.getByRole('combobox', { name: 'Category' })).toHaveValue('search')
+    fireEvent.change(screen.getByRole('combobox', { name: 'Category' }), { target: { value: 'vm' } })
+    expect(screen.getByRole('searchbox', { name: 'Search all commands' })).toHaveValue('')
+    expect(screen.getAllByRole('article')).toHaveLength(4)
+    expect(screen.queryByRole('button', { name: 'Run Inspect logs' })).not.toBeInTheDocument()
+    expect(api).not.toHaveBeenCalled()
+  })
+  it('opens a purpose-based category with several controls, and keeps all operations reachable', () => {
+    render(<Commands />)
+    expect(screen.getAllByRole('article').map(article => article.getAttribute('aria-label'))).toEqual([
+      'Start battlegroup', 'Restart battlegroup', 'Update server', 'Stop battlegroup',
     ])
-    expect(screen.getByRole('heading', { name: 'Select a task' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Run / })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run Reboot VM' })).not.toBeInTheDocument()
+    fireEvent.click(choices().getByRole('button', { name: 'All controls' }))
+    expect(screen.getAllByRole('article')).toHaveLength(11)
+    selectTask(/^Apply INIs/)
+    expect(screen.getAllByRole('article')).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'Configuration' })).toBeInTheDocument()
+    selectTask(/^Start VM/)
+    expect(screen.getAllByRole('article').map(article => article.getAttribute('aria-label'))).toEqual([
+      'Start VM', 'Reboot VM', 'Delete VM', 'Startup',
+    ])
     expect(screen.queryByRole('button', { name: /^Reorder / })).not.toBeInTheDocument()
     expect(api).not.toHaveBeenCalled()
     expect(state.navigate).not.toHaveBeenCalled()
   })
 
-  it('searches descriptions, command names, reasons, and saved categories without executing or losing selection', () => {
+  it('searches across every category and restores the category after clearing without executing', () => {
     const confirm = vi.spyOn(window, 'confirm')
     render(<Commands />)
-    const search = screen.getByRole('searchbox', { name: 'Search command tasks' })
+    const search = screen.getByRole('searchbox', { name: 'Search all commands' })
     fireEvent.change(search, { target: { value: 'game safely' } })
-    expect(choices().getAllByRole('button')).toHaveLength(1)
-    selectTask(/^Restart battlegroup/)
+    expect(screen.getAllByRole('article')).toHaveLength(1)
     const run = screen.getByRole('button', { name: 'Run Restart battlegroup' })
     expect(run).toBeEnabled()
     fireEvent.change(search, { target: { value: 'inspect/logs' } })
-    expect(choices().getAllByRole('button')).toHaveLength(1)
-    expect(choices().getByRole('button', { name: /^Inspect logs/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('article')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Run Inspect logs' })).toBeInTheDocument()
     fireEvent.change(search, { target: { value: 'VM is not running' } })
-    expect(choices().getByRole('button', { name: /^Stop battlegroup/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Stop battlegroup' })).toBeInTheDocument()
     fireEvent.change(search, { target: { value: 'no such operation' } })
-    expect(screen.getByText('No matching actions.')).toBeInTheDocument()
-    expect(run).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
-    fireEvent.change(screen.getByRole('combobox', { name: 'Action category' }), { target: { value: 'My VM' } })
-    expect(choices().getAllByRole('button')).toHaveLength(3)
+    expect(screen.getByText('No matching commands.')).toBeInTheDocument()
+    expect(screen.queryByRole('article')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(screen.getByRole('button', { name: 'Run Restart battlegroup' })).toBeInTheDocument()
+    fireEvent.change(search, { target: { value: 'My VM' } })
+    expect(screen.getAllByRole('article')).toHaveLength(3)
     expect(api).not.toHaveBeenCalled()
     expect(confirm).not.toHaveBeenCalled()
     expect(state.navigate).not.toHaveBeenCalled()
@@ -144,7 +162,7 @@ describe('Contextual Commands workbench', () => {
     vi.useRealTimers()
     const user = userEvent.setup()
     render(<Commands />)
-    choices().getByRole('button', { name: /^Inspect logs/ }).focus()
+    choices().getByRole('button', { name: 'Terminals & Tools' }).focus()
     await user.keyboard('{Enter}')
     expect(api).not.toHaveBeenCalled()
     vi.useFakeTimers()
@@ -175,6 +193,7 @@ describe('Contextual Commands workbench', () => {
       expect(api).toHaveBeenCalledExactlyOnceWith('/api/commands/run/restart', { method: 'POST' })
       expect(guard).toHaveBeenCalledOnce()
       expect(screen.getByRole('button', { name: 'Launching…' })).toBeDisabled()
+      expect(screen.getAllByRole('button', { name: /^Run / }).every(button => button.hasAttribute('disabled'))).toBe(true)
       expect(choices().getAllByRole('button').every(button => button.hasAttribute('disabled'))).toBe(true)
       fireEvent.click(screen.getByRole('button', { name: 'Launching…' }))
       expect(api).toHaveBeenCalledOnce()
@@ -198,7 +217,7 @@ describe('Contextual Commands workbench', () => {
   it('shows current VM requirements and unavailable reasons, updating the selected task from refreshed data', () => {
     const view = render(<Commands />)
     selectTask(/^Stop battlegroup/)
-    expect(screen.getByText('Requires a running VM.')).toBeInTheDocument()
+    expect(within(screen.getByRole('article', { name: 'Stop battlegroup' })).getByText('Requires a running VM.')).toBeInTheDocument()
     expect(screen.getByText('VM is not running.')).toBeInTheDocument()
     const run = screen.getByRole('button', { name: 'Run Stop battlegroup' })
     expect(run).toBeDisabled()
@@ -221,13 +240,14 @@ describe('Contextual Commands workbench', () => {
       data.sections[1] = data.sections[1].filter(name => name !== 'update')
       state.data = data
       render(<Commands />)
-      expect(choices().getAllByRole('button')).toHaveLength(role === 'owner' ? 7 : 6)
+      fireEvent.click(choices().getByRole('button', { name: 'All controls' }))
+      expect(screen.getAllByRole('article')).toHaveLength(role === 'owner' ? 7 : 6)
       for (const label of ['Start VM', 'Reboot VM', 'Startup', 'Start battlegroup', 'Restart battlegroup', 'Apply INIs']) {
-        expect(choices().getByRole('button', { name: new RegExp(`^${label}`) })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: `Run ${label}` })).toBeInTheDocument()
       }
-      expect(choices().queryByRole('button', { name: /^Update server/ }) !== null).toBe(role === 'owner')
+      expect(screen.queryByRole('button', { name: 'Run Update server' }) !== null).toBe(role === 'owner')
       expect(screen.queryByRole('button', { name: /Delete VM|Inspect logs|Stop battlegroup|Open PowerShell/ })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Edit layout' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Custom layout' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Reset layout' })).not.toBeInTheDocument()
       selectTask(/^Restart battlegroup/)
       expect(screen.getByRole('button', { name: 'Run Restart battlegroup' })).toBeEnabled()
@@ -245,11 +265,11 @@ describe('Contextual Commands workbench', () => {
     expect(api).not.toHaveBeenCalled()
   })
 
-  it('retains the local section editor and persists renames only from editing, returning to the selected task', async () => {
+  it('retains saved custom sections without overriding the purpose-based categories', async () => {
     render(<Commands />)
     selectTask(/^Restart battlegroup/)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit layout' }))
-    expect(screen.queryByRole('region', { name: 'Command tasks' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Custom layout' }))
+    expect(screen.queryByRole('region', { name: 'Command controls' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^Reorder / })).toHaveLength(10)
     expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument()
     expect(api).not.toHaveBeenCalled()
@@ -262,15 +282,15 @@ describe('Contextual Commands workbench', () => {
       method: 'PUT',
       body: JSON.stringify({ sectionNames: ['My VM', 'Server tasks', 'Tools'], sections: fixture().sections }),
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Done editing' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to categories' }))
     expect(screen.getByRole('button', { name: 'Run Restart battlegroup' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Server tasks' })).toBeInTheDocument()
+    expect(choices().getByRole('button', { name: 'Battlegroup', exact: true })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('retains the exact layout-reset confirmation and does not reset when declined', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<Commands />)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit layout' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom layout' }))
     fireEvent.click(screen.getByRole('button', { name: 'Reset layout' }))
     expect(confirm).toHaveBeenCalledExactlyOnceWith('Reset the Commands page to its default layout (section names, order, and assignments)?')
     expect(api).not.toHaveBeenCalled()
@@ -291,7 +311,7 @@ describe('Contextual Commands workbench', () => {
       return index < 0 ? getRect.call(this) : new DOMRect(0, index * 80, 300, 64)
     })
     render(<Commands />)
-    await user.click(screen.getByRole('button', { name: 'Edit layout' }))
+    await user.click(screen.getByRole('button', { name: 'Custom layout' }))
     screen.getByRole('button', { name: 'Reorder start-vm' }).focus()
     await user.keyboard('[Space][ArrowDown][Space]')
     await waitFor(() => expect(api).toHaveBeenCalledExactlyOnceWith('/api/commands/layout', {
@@ -307,7 +327,7 @@ describe('Contextual Commands workbench', () => {
     localStorage.setItem(COMMAND_DECK_KEY, '0')
     render(<Commands />)
     expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit layout' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Custom layout' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^Reorder / })).toHaveLength(10)
     expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Open PowerShell/ })).toBeInTheDocument()

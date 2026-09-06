@@ -7,12 +7,13 @@ import './platform/workspaceChrome.css'
 type SectionItem = {
   id: string
   label: string
+  element: HTMLElement
 }
 
 function sameSections(left: SectionItem[], right: SectionItem[]) {
   return left.length === right.length &&
     left.every((section, index) =>
-      section.id === right[index]?.id && section.label === right[index]?.label)
+      section.id === right[index]?.id && section.label === right[index]?.label && section.element === right[index]?.element)
 }
 
 export function SectionJumpNav({ containerRef }: { containerRef: RefObject<HTMLElement | null> }) {
@@ -20,16 +21,19 @@ export function SectionJumpNav({ containerRef }: { containerRef: RefObject<HTMLE
   const { pathname } = useLocation()
   const [sections, setSections] = useState<SectionItem[]>([])
   const [selected, setSelected] = useState('')
+  const [focused, setFocused] = useState(false)
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    setFocused(false)
 
     const collect = () => {
       const next = Array.from(container.querySelectorAll<HTMLElement>('[data-section-nav-id]'))
         .map(element => ({
           id: element.dataset.sectionNavId ?? '',
           label: element.dataset.sectionNavLabel ?? '',
+          element,
         }))
         .filter(section => section.id && section.label)
         .filter((section, index, all) => all.findIndex(item => item.id === section.id) === index)
@@ -46,28 +50,40 @@ export function SectionJumpNav({ containerRef }: { containerRef: RefObject<HTMLE
     return () => observer.disconnect()
   }, [containerRef, pathname])
 
+  useEffect(() => {
+    if (!contextual || !focused) return
+    const target = sections.find(section => section.id === selected)?.element
+    if (!target) return
+    const hidden = sections.filter(section => section.element !== target && !section.element.contains(target) && !target.contains(section.element))
+    hidden.forEach(section => section.element.setAttribute('data-portal-section-inactive', ''))
+    return () => hidden.forEach(section => section.element.removeAttribute('data-portal-section-inactive'))
+  }, [contextual, focused, sections, selected])
+
   if (sections.length < 2) return null
 
   const registeredElements = () =>
     Array.from(containerRef.current?.querySelectorAll<HTMLElement>('[data-section-nav-id]') ?? [])
 
   const collapseSections = (exceptId = '') => {
+    const target = registeredElements().find(section => section.dataset.sectionNavId === exceptId)
     for (const section of registeredElements()) {
-      if (section.dataset.sectionNavId === exceptId) continue
+      if (section === target || target?.contains(section) || (target && section.contains(target))) continue
       const toggle = section.querySelector<HTMLButtonElement>('button[data-section-nav-toggle]')
-      if (toggle?.getAttribute('aria-expanded') === 'true') toggle.click()
+      if (toggle?.closest('[data-section-nav-id]') === section && toggle.getAttribute('aria-expanded') === 'true') toggle.click()
     }
   }
 
   const jumpTo = (id: string) => {
     setSelected(id)
+    if (contextual) setFocused(true)
     const container = containerRef.current
     const target = Array.from(container?.querySelectorAll<HTMLElement>('[data-section-nav-id]') ?? [])
       .find(element => element.dataset.sectionNavId === id)
     if (!target) return
 
     collapseSections(id)
-    const sectionToggle = target.querySelector<HTMLButtonElement>('button[data-section-nav-toggle]')
+    const candidateToggle = target.querySelector<HTMLButtonElement>('button[data-section-nav-toggle]')
+    const sectionToggle = candidateToggle?.closest('[data-section-nav-id]') === target ? candidateToggle : null
     if (sectionToggle?.getAttribute('aria-expanded') === 'false') sectionToggle.click()
     const focusTarget: HTMLElement = sectionToggle ?? target
     if (focusTarget === target && !target.hasAttribute('tabindex')) target.tabIndex = -1
@@ -85,6 +101,7 @@ export function SectionJumpNav({ containerRef }: { containerRef: RefObject<HTMLE
     <select className="workspace-section-picker" aria-label="Jump to section" value={selected} onChange={event => jumpTo(event.target.value)}>
       {sections.map(section => <option key={section.id} value={section.id}>{section.label}</option>)}
     </select>
+    {focused && <button className="portal-sections-overview" type="button" onClick={() => setFocused(false)}>All sections</button>}
     <button className="workspace-section-collapse" type="button" aria-label="Collapse all sections" title="Collapse all sections" onClick={() => collapseSections()}><Icon name="ChevronsUp" size={17} /></button>
   </nav>
 

@@ -64,6 +64,70 @@ beforeEach(() => {
 afterEach(() => { engine.dispose(); canvas.remove(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('Globe renderer placement interaction', () => {
+  it('restores tilt and heading before drawing and preserves them through non-reset controls', () => {
+    engine.dispose()
+    const changed = vi.fn()
+    engine = createSpatialRenderer(canvas, nodes, selected, vi.fn(), label, {
+      positions: {}, onMove: moved, orientation: { pitch: .7, yaw: -1.2 }, onOrientationChange: changed,
+    })
+    draw()
+    expect(world().rotation.x).toBe(.7)
+    expect(world().rotation.y).toBe(-1.2)
+    engine.fit()
+    engine.select(nodes[0].id)
+    engine.status(nodes)
+    engine.palette()
+    engine.moveMaps(true)
+    engine.moveMaps(false)
+    state.resize()
+    draw()
+    expect(world().rotation.x).toBe(.7)
+    expect(world().rotation.y).toBe(-1.2)
+    expect(changed).not.toHaveBeenCalled()
+    engine.reset()
+    draw()
+    expect(changed).toHaveBeenLastCalledWith({ pitch: 0, yaw: 0 })
+    expect(world().rotation.x).toBe(0)
+    expect(world().rotation.y).toBe(0)
+  })
+  it('persists drag axes, checkpoints automatic rotation, and flushes the last orientation on exit', () => {
+    engine.dispose()
+    let now = 100
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const changed = vi.fn()
+    engine = createSpatialRenderer(canvas, nodes, selected, vi.fn(), label, { positions: {}, onMove: moved, onOrientationChange: changed })
+    draw()
+    pointer('pointerdown', 400, 400)
+    pointer('pointermove', 470, 360)
+    pointer('pointerup', 470, 360)
+    expect(changed.mock.lastCall![0].pitch).toBeCloseTo(-.24)
+    expect(changed.mock.lastCall![0].yaw).toBeCloseTo(.42)
+    engine.spin(true)
+    now += 2100
+    draw()
+    expect(changed).toHaveBeenCalledTimes(2)
+    expect(changed.mock.lastCall![0].pitch).toBeCloseTo(-.24)
+    expect(changed.mock.lastCall![0].yaw).toBeGreaterThan(.42)
+    engine.spin(true)
+    now += 100
+    draw()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(changed).toHaveBeenCalledTimes(3)
+    expect(changed.mock.lastCall![0].yaw).toBeCloseTo(world().rotation.y)
+    engine.spin(true)
+    now += 100
+    draw()
+    const yaw = world().rotation.y
+    engine.dispose()
+    expect(changed).toHaveBeenCalledTimes(4)
+    expect(changed.mock.lastCall![0].yaw).toBeCloseTo(yaw)
+    window.dispatchEvent(new Event('pagehide'))
+    expect(changed).toHaveBeenCalledTimes(4)
+    engine = createSpatialRenderer(canvas, nodes, selected, vi.fn(), label, { positions: {}, onMove: moved, orientation: changed.mock.lastCall![0] })
+    draw()
+    expect(world().rotation.y).toBeCloseTo(yaw)
+    expect(world().rotation.x).toBeCloseTo(-.24)
+  })
   it('uses a completely smooth, undisplaced base sphere with no noise texture or bump map', () => {
     const planet = world().children.find((object): object is T.Mesh<T.SphereGeometry, T.MeshStandardMaterial> => object instanceof T.Mesh
       && object.geometry instanceof T.SphereGeometry && object.material instanceof T.MeshStandardMaterial)!

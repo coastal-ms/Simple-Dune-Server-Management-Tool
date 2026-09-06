@@ -2732,6 +2732,7 @@ import { getPlayerDetail, type InventoryItem, type PlayerDetailResponse } from '
 import { qualityClass } from '../shared'
 
 export function InventorySection({ player, canWrite, demo, refreshKey, flash, onChanged, onFlush }: SectionProps) {
+  const contextual = useCommandDeck()
   const [detail, setDetail] = useState<PlayerDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -2779,15 +2780,16 @@ export function InventorySection({ player, canWrite, demo, refreshKey, flash, on
   if (loading && !detail) return <Loading label="Loading inventory…" />
   if (err) return <ErrorBox msg={err} />
 
+  const refreshButton = <button className="btn-secondary" disabled={loading || busy} onClick={() => { onFlush?.(); setTick(t => t + 1) }}>
+    <Icon name="RefreshCw" size={13} className={loading ? 'animate-spin' : ''} /> Refresh inventory
+  </button>
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <button className="btn-secondary" disabled={loading || busy} onClick={() => { onFlush?.(); setTick(t => t + 1) }}>
-          <Icon name="RefreshCw" size={13} className={loading ? 'animate-spin' : ''} /> Refresh inventory
-        </button>
-      </div>
+      {!contextual && <div className="flex items-center justify-end">{refreshButton}</div>}
       <ItemList title={`Inventory (${fmtNum(groups.gear.length)})`} icon="Backpack" items={groups.gear}
         playerId={player.id}
+        toolbar={contextual ? refreshButton : undefined}
         canWrite={canWrite} busy={busy} run={run} isOnline={isOnline}
         extra={<ItemsActionBlock player={player} canWrite={canWrite} flash={flash} onChanged={onChanged} onFlush={onFlush} />} />
       <ItemList title={`Emotes (${fmtNum(groups.emotes.length)})`} icon="Smile" items={groups.emotes} collapsed
@@ -2798,31 +2800,34 @@ export function InventorySection({ player, canWrite, demo, refreshKey, flash, on
   )
 }
 
-function ItemList({ title, icon, items, playerId, canWrite, busy, run, collapsed, extra, isOnline }: {
+function ItemList({ title, icon, items, playerId, canWrite, busy, run, collapsed, extra, isOnline, toolbar }: {
   title: string; icon: string; items: InventoryItem[]; canWrite: boolean; busy: boolean
   playerId: number
   run: (fn: () => Promise<{ message: string }>, label: string) => Promise<boolean>
   collapsed?: boolean
   extra?: React.ReactNode
+  toolbar?: React.ReactNode
   isOnline: boolean
 }) {
+  const contextual = useCommandDeck()
   const [open, setOpen] = useState(!collapsed)
   const [editingId, setEditingId] = useState<number | null>(null)
   if (collapsed && items.length === 0) return null
-  return (
-    <div>
-      <button type="button" onClick={() => setOpen(o => !o)}
+  const heading = <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
         className="flex w-full items-center gap-2 text-xs uppercase tracking-wider text-text-dim hover:text-text mb-2">
         <Icon name={open ? 'ChevronDown' : 'ChevronRight'} size={13} />
         <Icon name={icon} size={13} />
         <span>{title}</span>
       </button>
+  return (
+    <div>
+      {contextual ? <div className="player-inventory-toolbar">{heading}{toolbar}</div> : heading}
       {open && extra}
       {open && (
         items.length === 0 ? (
           <div className="text-sm text-text-dim italic py-1">No items.</div>
         ) : (
-          <div className="space-y-1">
+          <div className={contextual ? 'player-inventory-grid' : 'space-y-1'}>
             {items.map(it => {
               const curN = parseFloat(it.durability)
               const maxN = parseFloat(it.max_durability)
@@ -2845,16 +2850,17 @@ function ItemList({ title, icon, items, playerId, canWrite, busy, run, collapsed
                 setEditingId(prev => (prev === it.id ? null : it.id))
               }
               return (
-                <div key={it.id} className="bg-surface-2 rounded-lg border border-border/50">
+                <div key={it.id} data-expanded={isEditing} className="player-inventory-item bg-surface-2 rounded-lg border border-border/50">
                   <div
                     className={`flex items-center justify-between text-sm px-3 py-2 ${canEdit ? 'cursor-pointer hover:bg-surface-3/40' : ''}`}
                     onClick={canEdit ? toggleEdit : undefined}
                     role={canEdit ? 'button' : undefined}
+                    aria-expanded={canEdit ? isEditing : undefined}
                     tabIndex={canEdit ? 0 : undefined}
-                    onKeyDown={canEdit ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleEdit() } }) : undefined}
+                    onKeyDown={canEdit ? (e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleEdit() } }) : undefined}
                     title={canEdit ? (isEditing ? 'Hide item editor' : 'Click to edit stack / durability / water') : undefined}
                   >
-                    <span className="truncate max-w-[320px]">
+                    <span className="player-inventory-summary truncate max-w-[320px]">
                       {canEdit && (
                         <Icon name={isEditing ? 'ChevronDown' : 'ChevronRight'} size={11} className="inline-block mr-1 text-text-dim" />
                       )}
@@ -2893,15 +2899,18 @@ function ItemList({ title, icon, items, playerId, canWrite, busy, run, collapsed
                     )}
                   </div>
                   {isEditing && (
-                    <div>
+                    <div className="player-item-editors">
                       <StackEditor item={it} busy={busy} run={run} isOnline={isOnline} onClose={() => setEditingId(null)} />
+                      {contextual && hasAmmo && (
+                        <AmmoEditor item={it} playerId={playerId} busy={busy} run={run} isOnline={isOnline} onClose={() => setEditingId(null)} />
+                      )}
                       {it.durability !== 'N/A' && (
                         <DurabilityEditor item={it} busy={busy} run={run} isOnline={isOnline} onClose={() => setEditingId(null)} />
                       )}
                       {hasWater && (
                         <WaterEditor item={it} busy={busy} run={run} onClose={() => setEditingId(null)} />
                       )}
-                      {hasAmmo && (
+                      {!contextual && hasAmmo && (
                         <AmmoEditor item={it} playerId={playerId} busy={busy} run={run} isOnline={isOnline} onClose={() => setEditingId(null)} />
                       )}
                     </div>
@@ -2996,7 +3005,7 @@ function DurabilityEditor({ item, busy, run, isOnline, onClose }: {
   const valid = mN !== null && cN !== null && dN !== null
 
   return (
-    <div className="border-t border-border/50 px-3 py-3 bg-surface-1/60 rounded-b-lg space-y-3">
+    <div className="player-item-durability border-t border-border/50 px-3 py-3 bg-surface-1/60 rounded-b-lg space-y-3">
       <div className="text-[11px] text-text-dim italic flex items-start gap-1.5">
         <Icon name="Info" size={11} className="mt-0.5 shrink-0" />
         <span>
@@ -3093,7 +3102,7 @@ function WaterEditor({ item, busy, run, onClose }: {
   const valid = Number.isFinite(n) && n >= 0
 
   return (
-    <div className="border-t border-border/50 px-3 py-3 bg-surface-1/60 rounded-b-lg space-y-3">
+    <div className="player-item-water border-t border-border/50 px-3 py-3 bg-surface-1/60 rounded-b-lg space-y-3">
       <div className="text-[11px] text-warning flex items-start gap-1.5">
         <Icon name="AlertTriangle" size={11} className="mt-0.5 shrink-0" />
         <span>
@@ -3260,7 +3269,7 @@ function InlineForm({ fields, submitLabel, busy, note, onSubmit }: {
   })
   const inputCls = 'w-full px-3 py-2 rounded-lg bg-surface-2 border border-border text-text text-sm focus:outline-none focus:ring-2 focus:ring-ibad focus:border-ibad/50'
   return (
-    <div className="space-y-2">
+    <div className="inline-action-form space-y-2">
       {note}
       {fields.map(f => (
         <div key={f.key}>

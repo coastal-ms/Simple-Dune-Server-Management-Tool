@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getPlayerDetail, setWeaponAmmo, type Player } from '../src/api/gameplay'
 import { InventorySection } from '../src/pages/gameplay/players/sections'
+import { COMMAND_DECK_KEY } from '../src/hooks/useCommandDeck'
 
 vi.mock('../src/api/gameplay', async importOriginal => ({
   ...await importOriginal<typeof import('../src/api/gameplay')>(),
@@ -16,6 +17,7 @@ const player: Player = {
 }
 
 beforeEach(() => {
+  localStorage.clear()
   vi.mocked(getPlayerDetail).mockResolvedValue({
     source: 'live', specs: [], currency: [],
     inventory: [{
@@ -29,6 +31,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
   vi.clearAllMocks()
 })
 
@@ -70,6 +73,40 @@ describe('player loaded-ammo editor', () => {
   it('keeps editing disabled for an online player', async () => {
     expect(await openEditor(true)).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Save ammo' })).toBeDisabled()
+    expect(setWeaponAmmo).not.toHaveBeenCalled()
+  })
+  it.each([false, true])('preserves ammo safety and read-only selection in Command Deck (online=%s)', async online => {
+    localStorage.setItem(COMMAND_DECK_KEY, '1')
+    const field = await openEditor(online)
+    expect(screen.getByText(/only persists safely while the player is offline/)).toBeInTheDocument()
+    expect(field.closest('.player-item-editors')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Save ammo' }).hasAttribute('disabled')).toBe(online)
+    expect(setWeaponAmmo).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('uses the compact inventory grid only in Command Deck (enabled=%s)', async enabled => {
+    if (enabled) localStorage.setItem(COMMAND_DECK_KEY, '1')
+    await openEditor()
+    const item = screen.getByText('Test rifle').closest('.player-inventory-item')
+    expect(item).toHaveAttribute('data-expanded', 'true')
+    expect(!!item?.closest('.player-inventory-grid')).toBe(enabled)
+    fireEvent.click(screen.getByText('Test rifle'))
+    expect(item).toHaveAttribute('data-expanded', 'false')
+    fireEvent.keyDown(screen.getByTitle('Delete item'), { key: ' ' })
+    expect(item).toHaveAttribute('data-expanded', 'false')
+    expect(screen.queryByRole('spinbutton', { name: 'Loaded ammo' })).not.toBeInTheDocument()
+    expect(setWeaponAmmo).not.toHaveBeenCalled()
+  })
+
+  it('keeps read-only inventory compact without exposing write controls', async () => {
+    localStorage.setItem(COMMAND_DECK_KEY, '1')
+    render(<InventorySection player={player} canWrite={false} demo={false}
+      refreshKey={0} flash={vi.fn()} onChanged={vi.fn()} />)
+    const name = await screen.findByText('Test rifle')
+    expect(name.closest('.player-inventory-grid')).not.toBeNull()
+    fireEvent.click(name)
+    expect(screen.queryByRole('spinbutton', { name: 'Loaded ammo' })).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Delete item')).not.toBeInTheDocument()
     expect(setWeaponAmmo).not.toHaveBeenCalled()
   })
 })

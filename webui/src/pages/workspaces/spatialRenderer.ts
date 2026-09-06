@@ -10,6 +10,7 @@ import { createGlobeTopography } from './globeTopography'
 import { GLOBE_MATERIAL_BRIGHTNESS, GLOBE_SURFACE_COLOR } from './globePalette'
 import { TERRAIN_MAX_HEIGHT } from './globeTerrain'
 import { clampGlobeZoom } from './globeZoom'
+import type { GlobeOrientation } from '../../hooks/useGlobeOrientation'
 
 export function createSpatialRenderer(
   canvas: HTMLCanvasElement,
@@ -21,6 +22,8 @@ export function createSpatialRenderer(
     fitViewport?: boolean
     labelSize?: () => { width: number; height: number }
     onZoomChange?: (zoom: number) => void
+    orientation?: GlobeOrientation
+    onOrientationChange?: (orientation: GlobeOrientation) => void
     positions: GlobePositions
     onMove: (positions: GlobePositions) => void
     onDragChange?: (id: string | null) => void
@@ -60,7 +63,17 @@ export function createSpatialRenderer(
   fill.position.set(-8, 2, 10)
   scene.add(fill)
   const world = new T.Group()
+  world.rotation.set(placement?.orientation?.pitch ?? 0, placement?.orientation?.yaw ?? 0, 0)
   scene.add(world)
+  let savedOrientation = { pitch: world.rotation.x, yaw: world.rotation.y }
+  let lastOrientationSave = performance.now()
+  function saveOrientation(force = false) {
+    const orientation = { pitch: world.rotation.x, yaw: Math.atan2(Math.sin(world.rotation.y), Math.cos(world.rotation.y)) }
+    if (!force && orientation.pitch === savedOrientation.pitch && orientation.yaw === savedOrientation.yaw) return
+    placement?.onOrientationChange?.(orientation)
+    savedOrientation = orientation
+    lastOrientationSave = performance.now()
+  }
 
   const sphere = new T.SphereGeometry(ARRAKIS_RADIUS, 128, 80)
   sphere.computeBoundingSphere()
@@ -246,6 +259,7 @@ export function createSpatialRenderer(
     const simulatedTravel = flights && !reducedMotion.matches
     travel.update(now / 1000, simulatedTravel)
     if (rotate && !start) { world.rotation.y += delta * .085; shadowDirty = true }
+    if (rotate && !start && now - lastOrientationSave >= 2000) saveOrientation()
     // Conform once per rendered frame, not once per pointer event.
     dirtyEmblems.forEach(id => {
       const emblem = emblems.get(id)!
@@ -398,6 +412,7 @@ export function createSpatialRenderer(
       return
     }
     placement?.onDragChange?.(null)
+    if (ended.moved) saveOrientation()
     if (ended.moved || ended.button !== 0) return
     const hit = pick(event)
     onSelect(hit && typeof hit.object.userData.nodeId === 'string' ? hit.object.userData.nodeId : '')
@@ -408,6 +423,7 @@ export function createSpatialRenderer(
     start = null
     if (!cancelled) return
     if (cancelled.map && cancelled.moved) positionMap(cancelled.map.id, cancelled.map.original)
+    if (!cancelled.map) saveOrientation()
     selectedId = cancelled.selection
     placement?.onDragChange?.(null)
     updateRings()
@@ -431,7 +447,8 @@ export function createSpatialRenderer(
     placement.onZoomChange?.(camera.zoom)
   }
   function lost(event: Event) { event.preventDefault(); onFailure() }
-  function visibilityChange() { stopTimer(); lastDraw = performance.now(); requestDraw() }
+  function saveOnPageHide() { saveOrientation() }
+  function visibilityChange() { saveOrientation(); stopTimer(); lastDraw = performance.now(); requestDraw() }
   canvas.addEventListener('pointerdown', down)
   canvas.addEventListener('pointermove', move)
   canvas.addEventListener('pointerup', up)
@@ -442,6 +459,7 @@ export function createSpatialRenderer(
   document.addEventListener('keydown', keydown)
   canvas.addEventListener('webglcontextlost', lost)
   document.addEventListener('visibilitychange', visibilityChange)
+  window.addEventListener('pagehide', saveOnPageHide)
   reducedMotion.addEventListener('change', visibilityChange)
   palette()
   return {
@@ -478,12 +496,13 @@ export function createSpatialRenderer(
     },
     motion(enabled: boolean) { motion = enabled; stopTimer(); requestDraw() },
     flights(enabled: boolean) { flights = enabled; stopTimer(); requestDraw() },
-    spin(enabled: boolean) { spinning = enabled; lastDraw = performance.now(); stopTimer(); requestDraw() },
+    spin(enabled: boolean) { if (!enabled) saveOrientation(); spinning = enabled; lastDraw = performance.now(); stopTimer(); requestDraw() },
     reset() {
       cancel()
       spinning = false
       stopTimer()
       world.rotation.set(0, 0, 0)
+      saveOrientation(true)
       zoom(1)
       if (placement?.fitViewport) fitFrame()
       shadowDirty = true
@@ -491,12 +510,14 @@ export function createSpatialRenderer(
     },
     dispose() {
       cancel()
+      saveOrientation()
       disposed = true
       stopTimer()
       cancelAnimationFrame(frame)
       resize.disconnect()
       observer.disconnect()
       document.removeEventListener('visibilitychange', visibilityChange)
+      window.removeEventListener('pagehide', saveOnPageHide)
       reducedMotion.removeEventListener('change', visibilityChange)
       canvas.removeEventListener('pointerdown', down)
       canvas.removeEventListener('pointermove', move)

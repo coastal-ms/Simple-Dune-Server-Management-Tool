@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
+import { useContext, type ReactNode } from 'react'
 import { Icon } from './Icon'
 import { useCommandDeck } from '../hooks/useCommandDeck'
 import './platform/workspaceChrome.css'
+import { WorkspaceHeadingContext } from './platform/WorkspaceHeadingContext'
 
 type Props = {
   title: string
@@ -12,6 +13,10 @@ type Props = {
 
 export function PageHeader({ title, icon, description, actions }: Props) {
   const contextual = useCommandDeck()
+  const managedTitle = useContext(WorkspaceHeadingContext)
+  if (contextual && managedTitle === title) return actions
+    ? <div className="portal-heading-actions" aria-label={`${title} actions`}>{actions}</div>
+    : null
   if (contextual) return <header className="workspace-heading">
     <div><h1>{title}</h1>{description && <p>{description}</p>}</div>
     {actions && <div className="workspace-heading-actions">{actions}</div>}

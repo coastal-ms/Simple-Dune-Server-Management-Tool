@@ -82,7 +82,7 @@ beforeEach(() => {
   Object.assign(stageGeometry, { left: 700, top: 680, width: 350, height: 68, stageTop: 180, stageHeight: 760 })
   Object.assign(access, { owner: true, local: true, windows: true })
   localStorage.clear()
-  window.history.replaceState({}, '', '/players')
+  window.history.replaceState({}, '', '/')
   frames = new Map()
   let nextFrame = 0
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
@@ -141,6 +141,36 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('Single floating workspace dock', () => {
+  it.each([false, true])('links directly to Solo Mode from the dock (tools=%s)', tools => {
+    mount(tools)
+    const solo = within(elements().dock).getByRole('link', { name: 'Solo Mode' })
+    expect(solo).toHaveAttribute('href', '/solo')
+    expect(solo.querySelector('svg')).not.toBeNull()
+    fireEvent.click(solo)
+    expect(window.location.pathname).toBe('/solo')
+    expect(solo).toHaveAttribute('aria-current', 'page')
+  })
+
+  it.each([
+    { local: false, windows: true },
+    { local: true, windows: false },
+  ])('keeps Solo Mode hidden for unsupported viewers: %j', viewer => {
+    Object.assign(access, viewer)
+    mount()
+    expect(within(elements().dock).queryByRole('link', { name: 'Solo Mode' })).not.toBeInTheDocument()
+  })
+
+  it('reserves the dock for compact inner portal routes instead of covering task content', () => {
+    window.history.replaceState({}, '', '/players')
+    mount()
+    const { dock, anchor, root } = elements()
+    expect(anchor).not.toHaveAttribute('data-floating')
+    const portal = root.querySelector('.spatial-tool-portal')
+    expect(portal).not.toBeNull()
+    expect(portal?.querySelector('.spatial-tool-scroll')).toHaveAttribute('data-app-scroll-container')
+    expect(portal?.querySelector('.spatial-tool-scroll')?.contains(dock)).toBe(false)
+    expect(screen.getAllByRole('navigation', { name: 'Workspace dock' })).toHaveLength(1)
+  })
   it.each([false, true])('floats beyond the actual app scrollport, preserving the footer slot (tools=%s)', tools => {
     mount(tools)
     const { dock, anchor, root } = elements()
@@ -173,7 +203,7 @@ describe('Single floating workspace dock', () => {
     expect(anchor).toHaveAttribute('data-floating')
     expect(elements().dock).toBe(dock)
     expect(document.activeElement).toBe(allTools)
-    expect(within(dock).getByRole('link', { name: 'Players' })).toHaveAttribute('aria-current', 'page')
+    expect(within(dock).getByRole('link', { name: 'World' })).toHaveAttribute('aria-current', 'page')
     fireEvent.click(allTools)
     expect(screen.getByRole('dialog', { name: 'Find your next move.' })).toBeVisible()
   })
@@ -400,5 +430,17 @@ describe('Single floating workspace dock', () => {
     expect(dockCss).toContain('.spatial-workspace .fixed.bottom-4')
     expect(dockCss).toContain('translate: 0 var(--spatial-stage-dock-shift, 0px)')
     expect(dockCss).toContain('scroll-padding-bottom:')
+  })
+
+  it('shares square dock styling and inherits theme tokens instead of replacing selected palettes', () => {
+    const css = readFileSync(resolve('src', 'layout', 'portalWorkspace.css'), 'utf8')
+    expect(css).not.toMatch(/--color-[\w-]+\s*:/)
+    expect(css).toContain('--portal-selection:var(--color-accent)')
+    expect(css).toMatch(/\.spatial-workspace \.spatial-dock \{[^}]*border-radius:2px/)
+    expect(css).toMatch(/\.spatial-workspace \.spatial-dock :is\(a,button\) \{[^}]*border-radius:1px/)
+    expect(css).toContain('.spatial-workspace .spatial-dock a[aria-current="page"]')
+    expect(css).not.toMatch(/\.spatial-tool-portal \.spatial-dock[^{}]*\{[^}]*border-radius/)
+    const dashboardCss = readFileSync(resolve('src', 'layout', 'dashboardFrame.css'), 'utf8')
+    expect(dashboardCss).not.toMatch(/\.spatial-dock[^{}]*\{[^}]*\b(?:padding|gap|border-radius)\s*:/)
   })
 })

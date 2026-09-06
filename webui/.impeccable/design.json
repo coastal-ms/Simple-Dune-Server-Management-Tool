@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-05T18:36:43-07:00",
+  "title": "Design System: DST Command Portal",
+  "extensions": {
+    "colorMeta": {
+      "portal-selection": {
+        "role": "primary",
+        "displayName": "Selection Violet",
+        "tonalRamp": ["oklch(15% 0.09 310)", "oklch(26% 0.09 310)", "oklch(38% 0.09 310)", "oklch(49% 0.09 310)", "oklch(61% 0.09 310)", "oklch(72% 0.09 310)", "oklch(84% 0.09 310)", "oklch(95% 0.09 310)"]
+      },
+      "portal-selection-light": {
+        "role": "primary",
+        "displayName": "Light-tone Selection Violet",
+        "tonalRamp": ["oklch(15% 0.12 310)", "oklch(26% 0.12 310)", "oklch(38% 0.12 310)", "oklch(49% 0.12 310)", "oklch(61% 0.12 310)", "oklch(72% 0.12 310)", "oklch(84% 0.12 310)", "oklch(95% 0.12 310)"]
+      },
+      "house-accent": {
+        "role": "secondary",
+        "displayName": "Inherited House Accent",
+        "tonalRamp": ["oklch(from var(--color-accent) 15% c h)", "oklch(from var(--color-accent) 26% c h)", "oklch(from var(--color-accent) 38% c h)", "oklch(from var(--color-accent) 49% c h)", "oklch(from var(--color-accent) 61% c h)", "oklch(from var(--color-accent) 72% c h)", "oklch(from var(--color-accent) 84% c h)", "oklch(from var(--color-accent) 95% c h)"]
+      },
+      "portal-rule": {
+        "role": "secondary",
+        "displayName": "House-tinted Division Rule",
+        "tonalRamp": ["oklch(from var(--color-accent) 15% c h)", "oklch(from var(--color-accent) 26% c h)", "oklch(from var(--color-accent) 38% c h)", "oklch(from var(--color-accent) 49% c h)", "oklch(from var(--color-accent) 61% c h)", "oklch(from var(--color-accent) 72% c h)", "oklch(from var(--color-accent) 84% c h)", "oklch(from var(--color-accent) 95% c h)"]
+      },
+      "base": {
+        "role": "neutral",
+        "displayName": "Blue-black Base",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Blue-black Working Surface",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Blue-black Adjacent Surface",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "surface-3": {
+        "role": "neutral",
+        "displayName": "Blue-black Hover Surface",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Dark-tone Fine Border",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "border-bright": {
+        "role": "neutral",
+        "displayName": "Dark-tone Emphasized Border",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Light Ink on Blue-black",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Secondary Light Ink",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "base-light": {
+        "role": "neutral",
+        "displayName": "Light Mineral Base",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "surface-light": {
+        "role": "neutral",
+        "displayName": "Light Mineral Working Surface",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "surface-2-light": {
+        "role": "neutral",
+        "displayName": "Light Mineral Adjacent Surface",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "surface-3-light": {
+        "role": "neutral",
+        "displayName": "Light Mineral Hover Surface",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "border-light": {
+        "role": "neutral",
+        "displayName": "Light-tone Fine Border",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "border-bright-light": {
+        "role": "neutral",
+        "displayName": "Light-tone Emphasized Border",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "text-light": {
+        "role": "neutral",
+        "displayName": "Dark Ink on Mineral",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      },
+      "text-muted-light": {
+        "role": "neutral",
+        "displayName": "Secondary Dark Ink",
+        "tonalRamp": ["#141720", "#1c212d", "#272d3b", "#333b4c", "#d5dce7", "#e0e5ed", "#e9ecf1", "#f8f9fc"]
+      }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Workspace Heading", "purpose": "Compact domain and workspace titles; no portal hero tier." },
+      "subject": { "displayName": "Selected Identity", "purpose": "Selected player identity beside status." },
+      "title": { "displayName": "Panel Title", "purpose": "Compact dossier panel headings." },
+      "task": { "displayName": "Task Title", "purpose": "Action names in the task rail." },
+      "body": { "displayName": "Compact Body", "purpose": "Guidance, navigation labels, and explanations." },
+      "label": { "displayName": "Secondary Label", "purpose": "Categories, counts, and requirements." },
+      "button": { "displayName": "Action Label", "purpose": "Inherited shared button typography inside the system-font portal." }
+    },
+    "shadows": [
+      { "name": "working-plane", "value": "none", "purpose": "Ordinary portal panels and dock; not a ban on existing overlays." },
+      { "name": "selection-rule", "value": "inset 0 -2px var(--portal-selection)", "purpose": "Current subject/task, workspace section, dock destination, and primary action emphasis; not elevation." }
+    ],
+    "motion": [
+      { "name": "reduced-motion-scroll", "value": "auto", "purpose": "Section navigation and portal CSS scrolling respect reduced motion; no decorative motion system is introduced." }
+    ],
+    "breakpoints": [
+      { "name": "compact-rails-max", "value": "1100px" },
+      { "name": "mobile-max", "value": "767px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Visual specimen of an explicit primary action. Portal-local colors are resolved here; no save handler is attached.",
+      "html": "<button class=\"ds-primary\" type=\"button\">Save</button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;min-height:36px;border:0;border-radius:2px;font-family:'Segoe UI Variable','Segoe UI',sans-serif;font-size:14px;font-weight:500;line-height:20px;white-space:nowrap;color:#ececf0;background:color-mix(in srgb,#c3a0dc 24%,#1c212d);box-shadow:inset 0 -2px #c3a0dc;cursor:pointer;transition:color .15s,background-color .15s}.ds-primary:hover:not(:disabled){background:color-mix(in srgb,#c3a0dc 24%,#1c212d)}.ds-primary:focus-visible{outline:2px solid #c3a0dc;outline-offset:2px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}@media(max-width:767px){.ds-primary{min-height:44px}}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Neutral secondary action with brighter hover surface and border.",
+      "html": "<button class=\"ds-secondary\" type=\"button\">Refresh</button>",
+      "css": ".ds-secondary{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;min-height:36px;border:1px solid #414b5f;border-radius:2px;font-family:'Segoe UI Variable','Segoe UI',sans-serif;font-size:14px;font-weight:500;line-height:20px;color:#ececf0;background:#272d3b;cursor:pointer;transition:color .15s,background-color .15s,border-color .15s}.ds-secondary:hover:not(:disabled){background:#333b4c;border-color:#647087}.ds-secondary:focus-visible{outline:2px solid #c3a0dc;outline-offset:2px}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}@media(max-width:767px){.ds-secondary{min-height:44px}}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis shared action; hover reveals a neutral surface.",
+      "html": "<button class=\"ds-ghost\" type=\"button\">Cancel</button>",
+      "css": ".ds-ghost{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;min-height:36px;border:0;border-radius:2px;font-family:'Segoe UI Variable','Segoe UI',sans-serif;font-size:14px;font-weight:500;line-height:20px;color:#bac2d1;background:transparent;cursor:pointer;transition:color .15s,background-color .15s}.ds-ghost:hover:not(:disabled){color:#ececf0;background:#272d3b}.ds-ghost:focus-visible{outline:2px solid #c3a0dc;outline-offset:2px}.ds-ghost:disabled{opacity:.5;cursor:not-allowed}@media(max-width:767px){.ds-ghost{min-height:44px}}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Existing semantic danger treatment, deliberately excluded from violet primary recoloring. Specimen only; no operation attached.",
+      "html": "<button class=\"ds-danger\" type=\"button\">Delete</button>",
+      "css": ".ds-danger{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;min-height:36px;border:1px solid color-mix(in oklab,var(--color-danger,#f87171) 40%,transparent);border-radius:2px;font-family:'Segoe UI Variable','Segoe UI',sans-serif;font-size:14px;font-weight:500;line-height:20px;color:var(--color-danger,#f87171);background:color-mix(in oklab,var(--color-danger,#f87171) 15%,transparent);cursor:pointer;transition:color .15s,background-color .15s,border-color .15s}.ds-danger:hover:not(:disabled){background:color-mix(in oklab,var(--color-danger,#f87171) 25%,transparent)}.ds-danger:focus-visible{outline:2px solid #c3a0dc;outline-offset:2px}.ds-danger:disabled{opacity:.5;cursor:not-allowed}@media(max-width:767px){.ds-danger{min-height:44px}}"
+    },
+    {
+      "name": "Action Search",
+      "kind": "input",
+      "refersTo": "search-input",
+      "description": "Search narrows the task list, not the selected editor. The specimen has no filtering runtime.",
+      "html": "<label class=\"ds-search\"><svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input type=\"search\" aria-label=\"Search actions\" placeholder=\"Find an action...\"></label>",
+      "css": ".ds-search{display:flex;align-items:center;gap:8px;min-width:0;padding:0 9px;background:#141720;color:#ececf0;border:1px solid #414b5f;font-family:'Segoe UI Variable','Segoe UI',sans-serif}.ds-search svg{flex-shrink:0}.ds-search input{width:100%;min-width:0;height:36px;border:0;border-radius:2px;background:transparent;color:#ececf0;font-family:inherit;font-size:13px}.ds-search input::placeholder{color:color-mix(in oklab,currentColor 50%,transparent)}.ds-search input:hover{background:transparent}.ds-search input:focus-visible{outline:2px solid #c3a0dc;outline-offset:-2px}@media(max-width:767px){.ds-search input{min-height:44px}}"
+    },
+    {
+      "name": "Player Section Navigation",
+      "kind": "nav",
+      "refersTo": "section-navigation",
+      "description": "Compact dossier section tabs. The selected underline remains visible independently of the tint; specimen state is static.",
+      "html": "<nav class=\"ds-sections\" aria-label=\"Player sections\"><button type=\"button\" aria-pressed=\"true\">Stats</button><button type=\"button\" aria-pressed=\"false\">Inventory</button><button type=\"button\" aria-pressed=\"false\">Actions</button></nav>",
+      "css": ".ds-sections{display:flex;gap:2px;max-width:100%;overflow-x:auto;border-bottom:1px solid #414b5f;background:#141720;font-family:'Segoe UI Variable','Segoe UI',sans-serif}.ds-sections button{display:flex;align-items:center;gap:6px;padding:7px 10px;min-height:36px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;font-family:inherit;font-size:12px;color:#bac2d1;white-space:nowrap;cursor:pointer}.ds-sections button[aria-pressed=true]{color:#ececf0;border-bottom-color:#c3a0dc;background:color-mix(in srgb,#c3a0dc 12%,transparent)}.ds-sections button:hover{color:#ececf0;background:#272d3b}.ds-sections button:focus-visible{outline:2px solid #c3a0dc;outline-offset:-2px}@media(max-width:767px){.ds-sections button{min-height:44px}}"
+    },
+    {
+      "name": "Semantic Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Inherited non-interactive semantic pill. Rounded status chips are not normalized into angular task selectors.",
+      "html": "<span class=\"ds-status-chip\">Online</span>",
+      "css": ".ds-status-chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border:1px solid color-mix(in oklab,var(--color-success,#4ade80) 30%,transparent);border-radius:9999px;font-family:'Segoe UI Variable','Segoe UI',sans-serif;font-size:12px;line-height:16px;font-weight:500;color:var(--color-success,#4ade80);background:color-mix(in oklab,var(--color-success,#4ade80) 10%,transparent)}"
+    },
+    {
+      "name": "Working Surface Panel",
+      "kind": "card",
+      "refersTo": "surface-panel",
+      "description": "Flat shared panel; grouping is structural rather than a floating decorative card. Example text is specimen content.",
+      "html": "<section class=\"ds-panel\" aria-label=\"Workspace panel specimen\"><h3>Configuration</h3><p>Related settings share one working surface.</p></section>",
+      "css": ".ds-panel{padding:12px;border:1px solid #414b5f;border-radius:2px;background:#1c212d;color:#ececf0;box-shadow:none;font-family:'Segoe UI Variable','Segoe UI',sans-serif}.ds-panel h3{margin:0 0 8px;font-size:14px;font-weight:550}.ds-panel p{margin:0;font-size:12px;color:#bac2d1}"
+    },
+    {
+      "name": "Selected Task Row",
+      "kind": "custom",
+      "refersTo": "task-row",
+      "description": "Workbench selection, not execution. The violet inset rule and corner diamond recur in selected directory rows.",
+      "html": "<nav class=\"ds-task-list\" aria-label=\"Task specimen\"><button class=\"ds-task-row\" type=\"button\" aria-pressed=\"true\"><span><strong>Selected task</strong><small>Online session required</small></span><svg aria-hidden=\"true\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg></button></nav>",
+      "css": ".ds-task-list{background:#141720;font-family:'Segoe UI Variable','Segoe UI',sans-serif}.ds-task-row{position:relative;display:flex;align-items:center;gap:8px;width:100%;min-height:48px;padding:7px 10px;text-align:left;border:0;border-bottom:1px solid #414b5f;border-radius:0;font-family:inherit;color:#ececf0;background:transparent;cursor:pointer}.ds-task-row>span{flex:1;min-width:0}.ds-task-row strong{display:block;font-size:13px;font-weight:550;overflow-wrap:anywhere}.ds-task-row small{display:block;margin-top:2px;font-size:11px;color:#bac2d1}.ds-task-row svg{flex-shrink:0;color:#bac2d1}.ds-task-row:hover:not(:disabled){background:#272d3b}.ds-task-row[aria-pressed=true]{background:color-mix(in srgb,#c3a0dc 18%,#1c212d);box-shadow:inset 0 -2px #c3a0dc}.ds-task-row[aria-pressed=true]::after{content:'';position:absolute;bottom:3px;right:3px;width:5px;height:5px;background:#c3a0dc;transform:rotate(45deg)}.ds-task-row:focus-visible{outline:2px solid #c3a0dc;outline-offset:-2px}.ds-task-row:disabled{opacity:.55;cursor:not-allowed}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Subject Beside Task",
+    "overview": "The Command Portal is a compact, software-like administration workspace: blue-black or light mineral planes, fine house-color rules, and selective violet states. Density comes from aligning the subject, context, task selection, and editor instead of repeating large headers and decorative card shells. This records the completed implementation, not a new concept or a global redesign mandate.\n\n**Scope:** only opted-in, non-home tool workspaces. The browser-local preference `dst.experience.command-deck.v1` enables Command Deck when its value is `1`; absent or unreadable storage initially falls back to Classic. The portal skin is applied by `SpatialFrame` to tool routes other than `/`, not its dashboard mode. Default/Classic and the approved spatial globe/dashboard remain separate visual contexts. Do not apply these palette or density rules to them. Existing theme choices remain available and supply the inherited accent and semantic colors.\n\nThe visual reference is the **Dune: Awakening game**, specifically its inventory, skills, and crafting screens inspected in the [Game UI Database reference](https://www.gameuidatabase.com/gameData.php?id=2167). Its information hierarchy and selection grammar are inspiration, not a template. DST uses original admin compositions, without copied game assets or bundled reference screenshots. No authorship of the game's UI is attributed to Territory Studio. Film/book aesthetics, no-computer rules, and tactile-cockpit requirements do not govern this skin.",
+    "keyCharacteristics": [
+      "Adjacent subject context and task editor, with restrained headings.",
+      "Paired mineral palettes with inherited house accents and violet selection.",
+      "Flat angular working surfaces, separated by fine rules.",
+      "Reserved navigation space and a single main content scrollport.",
+      "Explicit execution, visible requirements, and recoverable navigation."
+    ],
+    "rules": [
+      { "name": "The Local Palette Rule", "body": "Portal neutral and selection overrides stay on the portal frame; house accents and semantic states continue to inherit the active theme.", "section": "colors" },
+      { "name": "The Selection Is Not Safety Rule", "body": "Violet marks the current choice or primary affordance; requirements, warnings, danger labels, and existing confirmation guards determine whether execution is permitted.", "section": "colors" },
+      { "name": "The Task Before Display Rule", "body": "Keep headings subordinate to the working content; do not turn compact domain or identity rows into promotional banners.", "section": "typography" },
+      { "name": "The Reserved Dock Rule", "body": "Navigation must consume layout space outside the main content scrollport; it must not cover the last field, confirmation, or Save action.", "section": "layout" },
+      { "name": "The Subject Continuity Rule", "body": "Filters and opening the mobile directory do not clear the selected subject or remount its editor; choosing another subject or task remains an explicit change.", "section": "layout" },
+      { "name": "The Working Plane Rule", "body": "Use tonal separation and borders for ordinary workspace hierarchy; do not rebuild the task editor as a stack of floating decorative cards.", "section": "elevation" },
+      { "name": "The Angular Work Surface Rule", "body": "Apply the compact corner language to portal controls and working panels, not indiscriminately to every status or overlay primitive.", "section": "shapes" }
+    ],
+    "dos": [
+      "**Do** keep the portal skin scoped to opted-in non-home workspaces and preserve Classic and the approved globe.",
+      "**Do** align subject context, task selection, and editor before adding another header or container.",
+      "**Do** keep the dock in its reserved row and the final action reachable.",
+      "**Do** preserve mounted selection while filtering or opening the mobile player directory.",
+      "**Do** retain visible requirements, recoverable navigation, full safety guidance, and explicit execution.",
+      "**Do** use the game's hierarchy as inspiration for original DST admin compositions."
+    ],
+    "donts": [
+      "**Don't** promote this skin into the default/global app theme or overwrite the approved spatial dashboard.",
+      "**Don't** confuse selection, search, or filtering with permission or action execution.",
+      "**Don't** hide a warning or remove a confirmation to achieve density.",
+      "**Don't** replace system text with cinematic display type or impose film/book no-computer and cockpit rules.",
+      "**Don't** copy game assets, bundle reference screenshots, or claim unverified game-UI authorship.",
+      "**Don't** turn isolated dimensions, legacy branding details, or inline guard styles into reusable portal tokens."
+    ]
+  }
+}

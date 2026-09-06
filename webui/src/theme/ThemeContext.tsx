@@ -10,6 +10,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { TOKEN_KEYS, TOKEN_KEY_SET, isValidHex, normalizeHex } from './tokens'
 import { DEFAULT_PRESET_ID, PRESETS, getPreset } from './presets'
+import { colorSchemeForBase } from './colorScheme'
 
 export const THEME_STORAGE_KEY = 'dst-theme'
 export const THEME_SCHEMA_VERSION = 1
@@ -59,12 +60,7 @@ export function computeResolved(presetId: string, overrides: Record<string, stri
 
 export function applyResolvedToRoot(resolved: Record<string, string>): void {
   const root = document.documentElement
-  const base = normalizeHex(resolved['--color-base'] || '#0c0a09').slice(1, 7)
-  const channels = [0, 2, 4].map(offset => {
-    const value = parseInt(base.slice(offset, offset + 2), 16) / 255
-    return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4
-  })
-  root.style.colorScheme = channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722 > .179 ? 'light' : 'dark'
+  root.style.colorScheme = colorSchemeForBase(resolved['--color-base'] || '#0c0a09')
   for (const key of TOKEN_KEYS) {
     const v = resolved[key]
     if (v) root.style.setProperty(key, v)

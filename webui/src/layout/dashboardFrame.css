@@ -56,13 +56,6 @@
   transform: none;
   width: 100%;
   max-width: 100%;
-  padding: 6px;
-}
-
-.spatial-dashboard-frame .spatial-dock :is(a, button) {
-  min-height: 44px;
-  padding-block: 8px;
-  gap: 5px;
 }
 
 .spatial-dashboard-frame .spatial-header-actions > :is(button, a) {
@@ -79,11 +72,6 @@
 .spatial-dashboard-frame[data-dashboard-compact] > .spatial-header {
   min-height: 56px;
   padding-block: 6px;
-}
-
-.spatial-dashboard-frame[data-dashboard-compact] .spatial-dock :is(a, button) {
-  padding-block: 6px;
-  gap: 4px;
 }
 
 @media (max-width: 1100px) {
@@ -109,10 +97,5 @@
 
   .spatial-dashboard-frame .spatial-dock-slot {
     width: 100%;
-  }
-
-  .spatial-dashboard-frame .spatial-dock :is(a, button) {
-    padding-block: 6px;
-    gap: 4px;
   }
 }

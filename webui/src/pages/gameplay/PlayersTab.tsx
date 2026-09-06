@@ -40,6 +40,7 @@ export function PlayersTab() {
   })
   const [selectedId, setSel]    = useState<number | null>(null)
   const [section, setSection]   = useState<SectionId>('stats')
+  const [directoryOpen, setDirectoryOpen] = useState(false)
   const [flash, setFlash]       = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
   const [refreshKey, setRefresh] = useState(0)
   const [summary, setSummary]   = useState<PlayerSummaryResponse | null>(null)
@@ -204,13 +205,9 @@ export function PlayersTab() {
   </nav>
 
   return (
-    <div className={contextual ? 'players-desk' : undefined}>
+    <div className={contextual ? 'players-desk' : undefined} data-player-selected={contextual && !!selected} data-directory-open={directoryOpen}>
       {/* Top-of-tab stat cards */}
-      {contextual ? <header className="players-desk-overview">
-        <div><h2>Player directory</h2><p>Select a person. Inspect their state, then choose a task.</p></div>
-        <dl><div><dt>Players</dt><dd>{loading && !players.length ? '...' : fmtNum(visiblePlayers.length)}</dd></div><div><dt>Online</dt><dd>{loading && !players.length ? '...' : fmtNum(onlineCount)}</dd></div></dl>
-        <SourceBadge source={source} />
-      </header> : <section className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+      {!contextual && <section className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
         <StatCard label="Players"    value={fmtNum(visiblePlayers.length)}                                                icon="Users" />
         <StatCard label="Online now" value={fmtNum(onlineCount)}                                                          icon="Wifi" />
         <StatCard label="Factions"   value={fmtNum(displaySummary?.totals.factions ?? new Set(visiblePlayers.map(p => p.faction_name).filter(Boolean)).size)} icon="Flag" />
@@ -263,14 +260,20 @@ export function PlayersTab() {
       <div className={contextual ? 'players-desk-body' : 'grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4'}>
         {/* Left rail */}
         <aside aria-label="Player directory" className={contextual ? 'player-directory' : 'space-y-3 min-w-0'}>
+          {contextual && <header className="player-directory-heading">
+            <h2 className="sr-only">Player directory</h2>
+            <span><b>{loading && !players.length ? '...' : fmtNum(visiblePlayers.length)}</b> players · <b>{fmtNum(onlineCount)}</b> online</span>
+            <SourceBadge source={source} />
+            {selected && <button className="player-directory-close" onClick={() => setDirectoryOpen(false)} aria-label="Return to selected player"><Icon name="X" size={16} /></button>}
+          </header>}
           {contextual && rosterControls}
           {/* Player list */}
           <div className={contextual ? 'player-directory-list' : 'card p-0 overflow-hidden'}>
-            <div className="px-3 py-2 border-b border-border text-[11px] uppercase tracking-wider text-text-dim flex items-center justify-between">
+            {(!contextual || filtered.length !== visiblePlayers.length) && <div className="player-directory-count px-3 py-2 border-b border-border text-[11px] uppercase tracking-wider text-text-dim flex items-center justify-between">
               <span>{contextual ? 'Matching players' : 'Players'}</span>
               <span className="font-mono text-text-muted">{fmtNum(filtered.length)}</span>
-            </div>
-            <div className="max-h-[60vh] overflow-y-auto">
+            </div>}
+            <div className="player-directory-results max-h-[60vh] overflow-y-auto">
               {loading && filtered.length === 0 ? (
                 <div className="px-3 py-6 text-center text-text-dim text-sm">
                   <Icon name="Loader2" size={15} className="animate-spin inline" /> Loading…
@@ -279,7 +282,7 @@ export function PlayersTab() {
                 <div className="px-3 py-6 text-center text-text-dim text-sm">No players match.</div>
               ) : (
                 filtered.map(p => (
-                  <button key={p.id} type="button" onClick={() => { flushRefresh(); setSel(cur => cur === p.id ? null : p.id) }}
+                  <button key={p.id} type="button" onClick={() => { flushRefresh(); setSel(cur => cur === p.id ? null : p.id); setDirectoryOpen(false) }}
                     aria-pressed={selectedId === p.id} aria-label={`Inspect ${p.name || 'Unnamed player'} (${p.id})`}
                     title={selectedId === p.id ? 'Click again to close and return to Server Overview' : undefined}
                     className={contextual ? 'player-directory-row' : `w-full flex items-center justify-between gap-2 px-3 py-2 text-left border-b border-border/30 hover:bg-surface-2 ${selectedId === p.id ? 'bg-surface-2 border-l-2 border-l-accent' : ''}`}>
@@ -305,7 +308,7 @@ export function PlayersTab() {
           {flash && (
             <div
               role="status"
-              className={`fixed bottom-4 right-4 z-50 max-w-sm card p-3 text-xs flex items-start gap-2 shadow-lg break-words border-l-2 ${flash.kind === 'ok' ? 'text-success border-success' : 'text-danger border-danger'}`}
+              className={`player-action-notice fixed bottom-4 right-4 z-50 max-w-sm card p-3 text-xs flex items-start gap-2 shadow-lg break-words border-l-2 ${flash.kind === 'ok' ? 'text-success border-success' : 'text-danger border-danger'}`}
             >
               <Icon name={flash.kind === 'ok' ? 'CheckCircle2' : 'AlertCircle'} size={14} className="mt-0.5 shrink-0" />
               <span>{flash.msg}</span>
@@ -313,8 +316,8 @@ export function PlayersTab() {
             </div>
           )}
           {selected ? (
-            <div className="space-y-3">
-              <PlayerHeader player={selected} contextual={contextual} onClose={() => { flushRefresh(); setSel(null) }} />
+            <div className={contextual ? 'player-dossier-stack' : 'space-y-3'}>
+              <PlayerHeader player={selected} contextual={contextual} onChoosePlayer={() => setDirectoryOpen(true)} onClose={() => { flushRefresh(); setSel(null) }} />
               {contextual && sectionNavigation}
               {contextual && !filtered.some(player => player.id === selected.id) && <p className="player-filter-notice">This player is outside the current directory filter. Their dossier remains open.</p>}
               <div className={contextual ? 'player-dossier-content' : undefined}>
@@ -351,13 +354,17 @@ export function PlayersTab() {
   )
 }
 
-function PlayerHeader({ player, onClose, contextual = false }: { player: Player; onClose: () => void; contextual?: boolean }) {
+function PlayerHeader({ player, onClose, onChoosePlayer, contextual = false }: { player: Player; onClose: () => void; onChoosePlayer?: () => void; contextual?: boolean }) {
   if (contextual) return <header className="player-dossier-header">
-    <div className="player-dossier-title"><div><h2>{player.name || 'Unnamed player'}</h2><p>{player.class || 'Class not reported'}<span>{player.faction_name || 'Unaligned'}</span></p></div>
-      <button type="button" onClick={onClose} aria-label="Close player dossier"><Icon name="X" size={18} /></button>
+    <div className="player-dossier-identity">
+      <h2>{player.name || 'Unnamed player'}</h2>
+      <span data-online={isOnline(player.online_status)}><Icon name={isOnline(player.online_status) ? 'Wifi' : 'WifiOff'} size={14} />{player.online_status || 'Unknown'}</span>
+      <span><Icon name="MapPin" size={14} />{player.map ? mapLabel(player.map) : 'Map not reported'}</span>
+      <span>{player.class || 'Class not reported'} · {player.faction_name || 'Unaligned'}</span>
     </div>
-    <div className="player-dossier-context"><span data-online={isOnline(player.online_status)}><Icon name={isOnline(player.online_status) ? 'Wifi' : 'WifiOff'} size={15} />{player.online_status || 'Unknown'}</span><span><Icon name="MapPin" size={15} />{player.map ? mapLabel(player.map) : 'Map not reported'}</span></div>
-    <details className="player-dossier-identifiers"><summary>Character identifiers</summary><dl><div><dt>Pawn</dt><dd>{player.id}</dd></div><div><dt>Account</dt><dd>{player.account_id}</dd></div><div><dt>Controller</dt><dd>{player.controller_id}</dd></div></dl></details>
+    <button type="button" className="player-change-directory" onClick={onChoosePlayer}>Change player</button>
+    <details className="player-dossier-identifiers"><summary title="Character identifiers">IDs</summary><dl><div><dt>Pawn</dt><dd>{player.id}</dd></div><div><dt>Account</dt><dd>{player.account_id}</dd></div><div><dt>Controller</dt><dd>{player.controller_id}</dd></div></dl></details>
+    <button type="button" className="player-dossier-close" onClick={onClose} aria-label="Close player dossier"><Icon name="X" size={17} /></button>
   </header>
   return (
     <div className="card p-3 flex items-start justify-between gap-3">

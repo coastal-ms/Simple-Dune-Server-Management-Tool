@@ -9,11 +9,13 @@ import { PRESETS, useTheme } from '../theme/ThemeContext'
 import { getDeckDestinations, searchDeck } from './commandDeckModel'
 import { useFloatingDock } from './useFloatingDock'
 import { useDashboardViewport } from './useDashboardViewport'
+import { colorSchemeForBase } from '../theme/colorScheme'
 import '../pages/workspaces/spatial.css'
 import './floatingDock.css'
 import './dashboardFrame.css'
+import './portalWorkspace.css'
 
-const DOCK = ['/', '/players', '/bases', '/vehicles', '/economy', '/commands', '/database']
+const DOCK = ['/', '/solo', '/players', '/bases', '/vehicles', '/economy', '/commands', '/database']
 const NEUTRAL_PALETTES = new Set(['world-control', 'daylight', 'signal'])
 
 export default function SpatialFrame({ children, onDetails, tools = false, dashboard = false }: {
@@ -31,8 +33,10 @@ export default function SpatialFrame({ children, onDetails, tools = false, dashb
   const dialog = useRef<HTMLDialogElement>(null)
   const input = useRef<HTMLInputElement>(null)
   const opener = useRef<HTMLElement | null>(null)
-  const { dockRef, dockAnchorRef } = useFloatingDock({ enabled: !dashboard })
-  const frameRef = useDashboardViewport(dashboard)
+  const portal = tools && !dashboard && pathname !== '/'
+  const toolScroll = useRef<HTMLDivElement>(null)
+  const { dockRef, dockAnchorRef } = useFloatingDock({ enabled: !dashboard && !portal })
+  const frameRef = useDashboardViewport(dashboard || portal)
   const destinations = getDeckDestinations({ local: isLocalViewer(), windows: isWindowsViewer(), canAccessOwnerSurfaces })
   const results = searchDeck(destinations, query)
   const current = destinations.find(item => item.to === pathname)
@@ -57,9 +61,13 @@ export default function SpatialFrame({ children, onDetails, tools = false, dashb
     return () => window.removeEventListener('keydown', keyboard)
   }, [])
   useEffect(() => { dialog.current?.close() }, [pathname, search])
+  useEffect(() => {
+    if (portal && toolScroll.current) toolScroll.current.scrollTop = 0
+  }, [portal, pathname, search])
 
   return (
-    <div ref={frameRef} className={`spatial-workspace${tools && !dashboard ? ' spatial-tool-workspace' : ''}${dashboard ? ' spatial-dashboard-frame' : ''}`}>
+    <div ref={frameRef} data-portal-tone={colorSchemeForBase(theme.resolved['--color-base'] || '#0c0a09')}
+      className={`spatial-workspace${tools && !dashboard ? ' spatial-tool-workspace' : ''}${dashboard ? ' spatial-dashboard-frame' : ''}${portal ? ' spatial-tool-portal' : ''}`}>
       <header className="spatial-header">
         <Link to="/" className="spatial-brand" aria-label="DST home"><span>◈</span><strong>DST<span>WORLD CONTROL</span></strong></Link>
         <div className="spatial-server-name"><span>{status?.serverName || 'Server connection'}</span><small>{error ? 'Last known snapshot' : loading ? 'Refreshing snapshot' : 'Observed snapshot'}</small></div>
@@ -84,12 +92,16 @@ export default function SpatialFrame({ children, onDetails, tools = false, dashb
         </div>
       </header>
       <div className="spatial-workarea">
-        {tools && !dashboard && <nav className="spatial-tool-path" aria-label="Workspace location">
+        {tools && !dashboard && !portal && <nav className="spatial-tool-path" aria-label="Workspace location">
           <Link to="/"><Icon name="ArrowLeft" size={15} />World control</Link>
           <span aria-hidden="true">/</span><span aria-current="page">{current?.label || 'Workspace'}</span>
         </nav>}
-        {tools && !dashboard && error && <p className="spatial-error" role="status">{error}. Server indicators show the last available observation.</p>}
-        <div className={dashboard ? 'spatial-dashboard-body' : tools ? 'spatial-tool-content' : undefined}>{children}</div>
+        {tools && !dashboard && !portal && error && <p className="spatial-error" role="status">{error}. Server indicators show the last available observation.</p>}
+        <div ref={portal ? toolScroll : undefined} data-app-scroll-container={portal ? '' : undefined}
+          className={portal ? 'spatial-tool-scroll' : dashboard ? 'spatial-dashboard-body' : tools ? 'spatial-tool-content' : undefined}>
+          {portal && error && <p className="portal-status-error" role="status">{error}. Server indicators show the last available observation.</p>}
+          {children}
+        </div>
         <footer className="spatial-bottom">
           {!dashboard && <div className="spatial-infrastructure"><span>VM <b>{status ? status.vm.running ? 'Running' : status.vm.state || 'Unknown' : 'Unknown'}</b></span><span>Database <b>{status?.bg?.info?.database || 'Unknown'}</b></span></div>}
           <div ref={dockAnchorRef} className="spatial-dock-slot">

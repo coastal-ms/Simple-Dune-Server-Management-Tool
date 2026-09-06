@@ -22,7 +22,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { PageHeader } from '../components/PageHeader'
 import { Icon } from '../components/Icon'
-import { ActionWorkbench } from '../components/platform/ActionWorkbench'
+import { CommandCategoryPages } from './commands/CommandCategoryPages'
+import { getCommandCategory, type CommandCategory } from './commands/categories'
 import { useCommandDeck } from '../hooks/useCommandDeck'
 import { useStatus } from '../hooks/useStatus'
 import { useApi } from '../hooks/useApi'
@@ -46,8 +47,7 @@ type SectionIndex = 0 | 1 | 2
 type CommandTask = {
   id: string
   label: string
-  icon: string
-  group: string
+  group: CommandCategory
   rowNote: string
 } & (
   | { kind: 'command'; command: Command }
@@ -78,6 +78,7 @@ function CommandButtonInner({
   dragHandleListeners,
   onLaunch,
   contextual = false,
+  blocked = false,
 }: {
   cmd: Command
   busy: boolean
@@ -85,8 +86,9 @@ function CommandButtonInner({
   dragHandleListeners?: Record<string, unknown>
   onLaunch?: () => void
   contextual?: boolean
+  blocked?: boolean
 }) {
-  const disabled = !cmd.available || busy
+  const disabled = !cmd.available || busy || blocked
   const presentation = (
     <>
       <div className="flex items-center justify-between gap-2">
@@ -166,17 +168,19 @@ function CommandPageLinkButton({
   link,
   onOpen,
   contextual = false,
+  disabled = false,
 }: {
   link: CommandPageLink
   onOpen: () => void
   contextual?: boolean
+  disabled?: boolean
 }) {
   if (contextual) {
     return (
       <div className="space-y-4">
         <h4 className="font-medium text-base text-text">{link.label}</h4>
         <p className="text-sm text-text-muted leading-relaxed">{link.description}</p>
-        <button type="button" className="btn-primary max-w-full whitespace-normal text-left" onClick={onOpen} title={link.description}>
+        <button type="button" className="btn-primary max-w-full whitespace-normal text-left" onClick={onOpen} title={link.description} disabled={disabled}>
           <Icon name={link.icon} size={15} className="shrink-0" /> {link.label}
         </button>
       </div>
@@ -354,7 +358,7 @@ export function Commands() {
   const navigate = useNavigate()
   const commandDeck = useCommandDeck()
   const [editingLayout, setEditingLayout] = useState(false)
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [commandCategory, setCommandCategory] = useState('battlegroup')
   const portalAuth = usePortalAuth()
   const portalRole = portalAuth?.status.account?.role ?? null
   const { forceRefresh } = useStatus()
@@ -594,17 +598,15 @@ export function Commands() {
       kind: 'command',
       id: `command:${command.name}`,
       label: command.label || command.name,
-      icon: SECTION_ICONS[idx],
-      group: effective.names[idx],
-      rowNote: `${command.name} ${command.desc} ${command.reason}`,
+      group: getCommandCategory(command),
+      rowNote: `${command.name} ${command.desc} ${command.reason} ${effective.names[idx]}`,
       command,
     })),
     ...(idx === 2 ? pageLinks : []).map((link): CommandTask => ({
       kind: 'page',
       id: `page:${link.to}`,
       label: link.label,
-      icon: link.icon,
-      group: effective.names[idx],
+      group: 'tools',
       rowNote: link.description,
       link,
     })),
@@ -616,7 +618,7 @@ export function Commands() {
         title="Commands"
         icon="Zap"
         description={showWorkbench
-          ? 'Find a task, review its requirements, then run it. Availability follows the current VM and battlegroup state.'
+          ? 'Choose a category to see related controls together. Review requirements before running a command.'
           : 'Quick actions for the VM, battlegroup, and supporting tools. Click a section title to rename it. Drag the grip on any card to reorder within a section or move it to another — sections grow and shrink as you go.'}
         actions={
           <div className={commandDeck ? 'flex flex-wrap items-center gap-2' : 'flex items-center gap-2'}>
@@ -631,10 +633,11 @@ export function Commands() {
                 className="btn-secondary"
                 onClick={() => setEditingLayout(value => !value)}
                 aria-pressed={editingLayout}
-                disabled={savingLayout}
+                disabled={savingLayout || running.size > 0}
+                title="Switch between purpose-based categories and your saved, editable three-section layout"
               >
                 <Icon name={editingLayout ? 'Check' : 'Pencil'} size={14} />
-                {editingLayout ? 'Done editing' : 'Edit layout'}
+                {editingLayout ? 'Back to categories' : 'Custom layout'}
               </button>
             )}
             {!readOnly && !showWorkbench && (
@@ -677,22 +680,21 @@ export function Commands() {
 
       {showWorkbench ? (
         <>
-          <ActionWorkbench
-            actions={tasks}
-            selectedId={selectedTaskId}
-            onSelect={setSelectedTaskId}
+          <CommandCategoryPages
+            tasks={tasks}
+            category={commandCategory}
+            onCategory={setCommandCategory}
             busy={running.size > 0}
-            title="Command tasks"
-            target="the VM, battlegroup, and supporting tools"
-            renderAction={task => task.kind === 'command' ? (
+            renderTask={task => task.kind === 'command' ? (
               <CommandButtonInner
                 contextual
                 cmd={task.command}
                 busy={running.has(task.command.name)}
+                blocked={running.size > 0}
                 onLaunch={() => { void runCommand(task.command) }}
               />
             ) : (
-              <CommandPageLinkButton contextual link={task.link} onOpen={() => navigate(task.link.to)} />
+              <CommandPageLinkButton contextual link={task.link} disabled={running.size > 0} onOpen={() => navigate(task.link.to)} />
             )}
           />
           {cmdsState.loading && !cmdsState.data && (

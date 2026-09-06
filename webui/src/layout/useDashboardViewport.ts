@@ -5,7 +5,7 @@ export function useDashboardViewport(enabled: boolean) {
 
   useLayoutEffect(() => {
     const frame = frameRef.current
-    const root = frame?.closest<HTMLElement>('[data-app-scroll-container]')
+    const root = frame?.closest<HTMLElement>('[data-app-scroll-container], [data-app-scroll-host]')
     if (!enabled || !frame || !root) return
 
     const heightProperty = '--spatial-dashboard-height'

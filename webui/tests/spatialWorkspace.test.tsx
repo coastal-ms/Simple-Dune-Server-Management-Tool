@@ -7,10 +7,12 @@ import type { StatusSnapshot } from '../src/api/types'
 import SpatialHome from '../src/pages/workspaces/SpatialHome'
 import SpatialStage from '../src/pages/workspaces/SpatialStage'
 import { spatialNodes, spatialConnections, spatialSceneLayout, spatialLayers, MAX_SPATIAL_LOCATIONS, locationScale, spatialLocationKind, LOCATION_VISUALS } from '../src/pages/workspaces/spatialModel'
-import { ThemeProvider } from '../src/theme/ThemeContext'
+import { PRESETS, ThemeProvider } from '../src/theme/ThemeContext'
 import SpatialFrame from '../src/layout/SpatialFrame'
 import { GLOBE_LAYOUT_STORAGE_KEY, globePositionsForNodes } from '../src/pages/workspaces/globeLayout'
 import { GLOBE_ZOOM_KEY } from '../src/pages/workspaces/globeZoom'
+import { GLOBE_AUTO_ROTATE_KEY } from '../src/hooks/useGlobeAutoRotate'
+import { GLOBE_ORIENTATION_KEY } from '../src/hooks/useGlobeOrientation'
 
 function render(ui: ReactNode) {
   return renderUI(<ThemeProvider>{ui}</ThemeProvider>)
@@ -61,6 +63,112 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('Spatial object workspace', () => {
+  it.each(PRESETS)('keeps the complete $name theme selected across globe and tool frames', preset => {
+    const home = render(<SpatialFrame><p>Globe</p></SpatialFrame>)
+    fireEvent.change(screen.getByRole('combobox', { name: 'Workspace palette' }), { target: { value: preset.id } })
+    for (const [key, value] of Object.entries(preset.tokens)) {
+      expect(document.documentElement.style.getPropertyValue(key)).toBe(value)
+    }
+    home.unmount()
+    window.history.replaceState({}, '', '/players')
+    render(<SpatialFrame tools><p>Players</p></SpatialFrame>)
+    expect(screen.getByRole('combobox', { name: 'Workspace palette' })).toHaveValue(preset.id)
+    for (const [key, value] of Object.entries(preset.tokens)) {
+      expect(document.documentElement.style.getPropertyValue(key)).toBe(value)
+    }
+  })
+
+  it('saves both rotation axes and restores them on remount and renderer recreation', async () => {
+    localStorage.setItem(GLOBE_ORIENTATION_KEY, JSON.stringify({ version: 1, pitch: .6, yaw: -1.2 }))
+    const nodes = spatialNodes(state.status!.bg!.gameServers!, value => value)
+    const stage = <SpatialStage nodes={nodes} selected={nodes[0].id} onSelect={() => {}} initiallyEnabled />
+    let view = render(stage)
+    await waitFor(() => expect(state.create).toHaveBeenCalledOnce())
+    expect(state.create.mock.lastCall![5].orientation).toEqual({ pitch: .6, yaw: -1.2 })
+    act(() => state.create.mock.lastCall![5].onOrientationChange({ pitch: -.4, yaw: 2.1 }))
+    expect(JSON.parse(localStorage.getItem(GLOBE_ORIENTATION_KEY)!)).toEqual({ version: 1, pitch: -.4, yaw: 2.1 })
+    expect(state.create).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Disable 3D' }))
+    fireEvent.click(screen.getByRole('button', { name: /Enter spatial view/ }))
+    await waitFor(() => expect(state.create).toHaveBeenCalledTimes(2))
+    expect(state.create.mock.lastCall![5].orientation).toEqual({ pitch: -.4, yaw: 2.1 })
+    view.unmount()
+    view = render(stage)
+    await waitFor(() => expect(state.create).toHaveBeenCalledTimes(3))
+    expect(state.create.mock.lastCall![5].orientation).toEqual({ pitch: -.4, yaw: 2.1 })
+    const extra = spatialNodes([...state.status!.bg!.gameServers!, { map: 'Another', phase: 'Running', ready: 'True', players: '0', age: '1m' }], value => value)
+    view.rerender(<ThemeProvider><SpatialStage nodes={extra} selected={extra[0].id} onSelect={() => {}} initiallyEnabled /></ThemeProvider>)
+    await waitFor(() => expect(state.create).toHaveBeenCalledTimes(4))
+    expect(state.create.mock.lastCall![5].orientation).toEqual({ pitch: -.4, yaw: 2.1 })
+    expect(state.reset).not.toHaveBeenCalled()
+  })
+  it.each(['{bad', '{"version":1,"pitch":9,"yaw":0}', '{"version":1,"pitch":"0","yaw":0}'])('reports invalid orientation storage %s and can save a valid view', async raw => {
+    localStorage.setItem(GLOBE_ORIENTATION_KEY, raw)
+    const nodes = spatialNodes(state.status!.bg!.gameServers!, value => value)
+    render(<SpatialStage nodes={nodes} selected={nodes[0].id} onSelect={() => {}} initiallyEnabled />)
+    expect(screen.getByText(/Saved globe orientation could not be read/)).toBeInTheDocument()
+    await waitFor(() => expect(state.create).toHaveBeenCalledOnce())
+    expect(state.create.mock.lastCall![5].orientation).toEqual({ pitch: 0, yaw: 0 })
+    act(() => state.create.mock.lastCall![5].onOrientationChange({ pitch: .3, yaw: .8 }))
+    expect(screen.queryByText(/Saved globe orientation could not be read/)).not.toBeInTheDocument()
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Blocked', 'SecurityError') })
+    act(() => state.create.mock.lastCall![5].onOrientationChange({ pitch: .4, yaw: .9 }))
+    expect(screen.getByText(/Globe orientation changed for this view only/)).toBeInTheDocument()
+  })
+  it('uses the same light/dark color scope on the globe and tool pages without sharing their layout', () => {
+    const home = render(<SpatialFrame dashboard><p>Globe</p></SpatialFrame>)
+    expect(home.container.querySelector('.spatial-dashboard-frame')).toHaveAttribute('data-portal-tone', 'dark')
+    fireEvent.change(screen.getByRole('combobox', { name: 'Workspace palette' }), { target: { value: 'daylight' } })
+    expect(home.container.querySelector('.spatial-dashboard-frame')).toHaveAttribute('data-portal-tone', 'light')
+    expect(home.container.querySelector('.spatial-tool-portal')).toBeNull()
+    home.unmount()
+    window.history.replaceState({}, '', '/commands')
+    const tools = render(<SpatialFrame tools><p>Commands</p></SpatialFrame>)
+    expect(tools.container.querySelector('.spatial-tool-portal')).toHaveAttribute('data-portal-tone', 'light')
+    fireEvent.change(screen.getByRole('combobox', { name: 'Workspace palette' }), { target: { value: 'world-control' } })
+    expect(tools.container.querySelector('.spatial-tool-portal')).toHaveAttribute('data-portal-tone', 'dark')
+  })
+  it('remembers auto rotate on and off when the globe is reopened', async () => {
+    const nodes = spatialNodes(state.status!.bg!.gameServers!, value => value)
+    const stage = <SpatialStage nodes={nodes} selected={nodes[0].id} onSelect={() => {}} initiallyEnabled />
+    let view = render(stage)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Auto rotate' })).toBeEnabled())
+    expect(screen.getByRole('button', { name: 'Auto rotate' })).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Auto rotate' }))
+    expect(localStorage.getItem(GLOBE_AUTO_ROTATE_KEY)).toBe('1')
+    view.unmount()
+    view = render(stage)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Auto rotate' })).toBeEnabled())
+    expect(screen.getByRole('button', { name: 'Auto rotate' })).toHaveAttribute('aria-pressed', 'true')
+    expect(state.spin).toHaveBeenLastCalledWith(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Auto rotate' }))
+    expect(localStorage.getItem(GLOBE_AUTO_ROTATE_KEY)).toBe('0')
+    view.unmount()
+    render(stage)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Auto rotate' })).toBeEnabled())
+    expect(screen.getByRole('button', { name: 'Auto rotate' })).toHaveAttribute('aria-pressed', 'false')
+    expect(state.spin).toHaveBeenLastCalledWith(false)
+  })
+  it('restores stored rotation at startup and preserves it while moving maps or disabling 3D', async () => {
+    localStorage.setItem(GLOBE_AUTO_ROTATE_KEY, '1')
+    const nodes = spatialNodes(state.status!.bg!.gameServers!, value => value)
+    render(<SpatialStage nodes={nodes} selected={nodes[0].id} onSelect={() => {}} initiallyEnabled />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Auto rotate' })).toBeEnabled())
+    expect(state.spin).toHaveBeenLastCalledWith(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Move maps' }))
+    expect(screen.getByRole('button', { name: 'Auto rotate' })).toBeDisabled()
+    expect(localStorage.getItem(GLOBE_AUTO_ROTATE_KEY)).toBe('1')
+    fireEvent.click(screen.getByRole('button', { name: 'Done moving' }))
+    expect(screen.getByRole('button', { name: 'Auto rotate' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Disable 3D' }))
+    fireEvent.click(screen.getByRole('button', { name: /Enter spatial view/ }))
+    await waitFor(() => expect(state.create).toHaveBeenCalledTimes(2))
+    expect(state.spin).toHaveBeenLastCalledWith(true)
+    expect(localStorage.getItem(GLOBE_AUTO_ROTATE_KEY)).toBe('1')
+    fireEvent.click(screen.getByRole('button', { name: 'Reset view' }))
+    expect(localStorage.getItem(GLOBE_AUTO_ROTATE_KEY)).toBe('0')
+    expect(state.spin).toHaveBeenLastCalledWith(false)
+  })
   it('restores and saves camera zoom without rebuilding the scene', async () => {
     localStorage.setItem(GLOBE_ZOOM_KEY, JSON.stringify({ version: 1, zoom: 1.7 }))
     const nodes = spatialNodes(state.status!.bg!.gameServers!, value => value)
@@ -433,7 +541,8 @@ describe('Spatial object workspace', () => {
     render(<SpatialFrame tools><h1>Inventory tools</h1><button>Existing guarded action</button></SpatialFrame>)
     expect(screen.getByRole('heading', { name: 'Inventory tools' })).toBeInTheDocument()
     expect(within(screen.getByRole('navigation', { name: 'Workspace dock' })).getByRole('link', { name: 'Players' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'World control' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'DST home' })).toHaveAttribute('href', '/')
+    expect(screen.queryByRole('navigation', { name: 'Workspace location' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Daylight/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Atreides' })).toBeInTheDocument()
     expect(state.create).not.toHaveBeenCalled()

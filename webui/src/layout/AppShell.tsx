@@ -54,7 +54,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           {canAccessOwnerSurfaces && <UpdateBanner />}
           {!commandDeck && <StatusBar />}
-          <main ref={mainRef} data-app-scroll-container className="flex-1 min-h-0 min-w-0 max-w-full overflow-x-hidden overflow-y-auto overscroll-y-contain">
+          <main ref={mainRef} data-app-scroll-container={commandDeck && !spatialHome ? undefined : ''}
+            data-app-scroll-host={commandDeck && !spatialHome ? '' : undefined}
+            className={`flex-1 min-h-0 min-w-0 max-w-full overflow-x-hidden ${commandDeck && !spatialHome ? 'overflow-y-hidden' : 'overflow-y-auto'} overscroll-y-contain`}>
             <div className={commandDeck ? 'w-full min-w-0' : 'w-full min-w-0 max-w-7xl mx-auto px-3 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4 md:px-6 md:py-6'}>
               {commandDeck && !spatialHome
                 ? <Suspense fallback={<div role="status" className="p-6">Opening workspace...</div>}>
