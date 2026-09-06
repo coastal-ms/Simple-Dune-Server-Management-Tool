@@ -634,6 +634,37 @@ Describe 'Invoke-DunePlayerResetJourneyNodes orchestration' -Tag 'Pure' {
     }
 }
 
+Describe 'Invoke-DunePlayerMarkNpeCompleted transport' -Tag 'Pure' {
+    BeforeEach {
+        $script:npeSql = ''
+        $script:npeBulk = $false
+        function global:Get-DuneNpeCompletionNodes {
+            return @('DA_MQ_ANewBeginning', 'DA_MQ_NPEAutocompleted')
+        }
+        function global:Invoke-DuneSqlQuery {
+            param($Ip, $Sql, $ReadOnly, $MaxRows, $TimeoutSec, [switch]$Bulk)
+            $script:npeSql = $Sql
+            $script:npeBulk = [bool]$Bulk
+            return @{ ok = $true; message = 'COMMIT' }
+        }
+    }
+
+    AfterEach {
+        Remove-Item function:global:Get-DuneNpeCompletionNodes -ErrorAction SilentlyContinue
+        Remove-Item function:global:Invoke-DuneSqlQuery -ErrorAction SilentlyContinue
+    }
+
+    It 'streams the multi-node transaction through the bulk SQL transport' {
+        $result = Invoke-DunePlayerMarkNpeCompleted -Ip '1.2.3.4' -CharacterId 8
+
+        $result.ok | Should -BeTrue -Because ([string]$result.error)
+        $script:npeBulk | Should -BeTrue
+        $script:npeSql | Should -Match 'BEGIN;'
+        $script:npeSql | Should -Match 'COMMIT;'
+        $script:npeSql | Should -Match 'DA_MQ_ANewBeginning'
+    }
+}
+
 Describe 'Invoke-DunePlayerSetStarterClass persistence' -Tag 'Pure' {
     BeforeEach {
         $script:starterClassUpdateSql = ''
@@ -777,6 +808,43 @@ Describe 'Invoke-DunePlayerResetFaction tag coverage' -Tag 'Pure' {
         $body | Should -Match "tag LIKE 'DialogueFlags\.Factions\.%'"
         $body | Should -Match "tag LIKE 'Faction\.%'"
         $body | Should -Match "tag LIKE 'FactionStoryline%'"
+    }
+}
+
+Describe 'Invoke-DunePlayerProgressionReverse transport' -Tag 'Pure' {
+    BeforeEach {
+        $script:reverseSql = ''
+        $script:reverseBulk = $false
+        $script:originalAccountFromActor = (Get-Command Get-DuneAccountIdFromActor).ScriptBlock
+        $script:originalPresetNodes = (Get-Command Get-DuneNodesForPreset).ScriptBlock
+        function global:Get-DuneAccountIdFromActor { return 55L }
+        function global:Get-DuneFactionDisplayName { return 'Atreides' }
+        function global:Get-DuneNodesForPreset {
+            return @('DA_FQ_ClimbTheRanks.A', 'DA_FQ_ClimbTheRanks.B')
+        }
+        function global:Invoke-DuneSqlQuery {
+            param($Ip, $Sql, $ReadOnly, $MaxRows, $TimeoutSec, [switch]$Bulk)
+            $script:reverseSql = $Sql
+            $script:reverseBulk = [bool]$Bulk
+            return @{ ok = $true; message = 'COMMIT' }
+        }
+    }
+
+    AfterEach {
+        Set-Item function:global:Get-DuneAccountIdFromActor $script:originalAccountFromActor
+        Set-Item function:global:Get-DuneNodesForPreset $script:originalPresetNodes
+        Remove-Item function:global:Get-DuneFactionDisplayName -ErrorAction SilentlyContinue
+        Remove-Item function:global:Invoke-DuneSqlQuery -ErrorAction SilentlyContinue
+    }
+
+    It 'streams the generated node-reset transaction through the bulk SQL transport' {
+        $result = Invoke-DunePlayerProgressionReverse -Ip '1.2.3.4' -ActorId 8 -Faction 'atreides' -Preset 'ch3_start'
+
+        $result.ok | Should -BeTrue -Because ([string]$result.error)
+        $script:reverseBulk | Should -BeTrue
+        $script:reverseSql | Should -Match 'BEGIN;'
+        $script:reverseSql | Should -Match 'DA_FQ_ClimbTheRanks\.A'
+        $script:reverseSql | Should -Match 'COMMIT;'
     }
 }
 

@@ -1,5 +1,5 @@
 import * as T from 'three'
-import { MAX_SPATIAL_LOCATIONS, spatialConnections, spatialSceneLayout, spatialLayers, spatialLocationKind, type SpatialLocationKind, type SpatialNode } from './spatialModel'
+import { MAX_SPATIAL_LOCATIONS, spatialConnections, spatialSceneLayout, spatialLayers, spatialLocationKind, type SpatialNode } from './spatialModel'
 import { createSpatialLandmark } from './spatialLandmarks'
 import { ARRAKIS_RADIUS, ARRAKIS_VIEW_SIZE, arrangeGlobeLocations, GlobeArc } from './arrakisGlobe'
 import { createGlobeRoute, globeSignalColor, routeColor, routeEndpointColors } from './globeRoutes'
@@ -31,7 +31,8 @@ export function createSpatialRenderer(
   },
 ) {
   const { worlds, locations } = spatialLayers(nodes)
-  if (locations.length > MAX_SPATIAL_LOCATIONS) throw new Error('Too many map instances for 3D; use the complete 2D map list')
+  const reportedLocations = locations.filter(node => node.reported !== false)
+  if (reportedLocations.length > MAX_SPATIAL_LOCATIONS) throw new Error('Too many map instances for 3D; use the complete 2D map list')
   const layout = spatialSceneLayout(nodes)
   const globeLocations = arrangeGlobeLocations(layout.placements, placement?.positions)
   const densityScale = globeEmblemDensityScale(locations.length)
@@ -90,8 +91,10 @@ export function createSpatialRenderer(
   const stone = new T.MeshStandardMaterial({ color: 0x4e6c66, roughness: .8, metalness: .05, flatShading: true })
   const strata = new T.MeshStandardMaterial({ color: 0x2e423f, roughness: .9, metalness: .05, flatShading: true })
   const baseMaterial = new T.MeshStandardMaterial({ color: 0x19232d, roughness: .5, metalness: .5, transparent: true, opacity: .28, depthWrite: false })
-  const templates = new Map<SpatialLocationKind, T.Group>()
-  const emblems = new Map<string, { group: T.Group; symbol: T.Group; landmark: T.Group; normal: T.Vector3; template: T.Group; scale: number }>()
+  const dormantStone = new T.MeshStandardMaterial({ color: 0xd5d1dc, roughness: 1, metalness: 0, transparent: true, opacity: .72 })
+  const dormantStrata = new T.MeshStandardMaterial({ color: 0x8f8998, roughness: 1, metalness: 0, transparent: true, opacity: .56 })
+  const templates = new Map<string, T.Group>()
+  const emblems = new Map<string, { group: T.Group; symbol: T.Group; landmark: T.Group; normal: T.Vector3; template: T.Group; scale: number; reported: boolean }>()
   const anchors = new Map<string, { object: T.Object3D; normal: T.Vector3 }>()
   const rings = new Map<string, T.MeshBasicMaterial>()
   const normals = new Map<string, T.Vector3>()
@@ -103,16 +106,18 @@ export function createSpatialRenderer(
     const emblemScale = scale * .48 * densityScale
     normals.set(node.id, normal)
     const group = new T.Group()
+    const reported = node.reported !== false
     group.position.copy(normal).multiplyScalar(globeSurfaceRadius(normal))
     group.quaternion.setFromUnitVectors(axis, normal)
     group.scale.setScalar(emblemScale)
     const base = new T.Mesh(new T.SphereGeometry(.16, 8, 6), baseMaterial)
     group.add(base)
     const kind = spatialLocationKind(node.map)
-    let template = templates.get(kind)
+    const templateKey = `${kind}:${reported ? 'reported' : 'dormant'}`
+    let template = templates.get(templateKey)
     if (!template) {
-      template = createSpatialLandmark(kind, stone, strata)
-      templates.set(kind, template)
+      template = createSpatialLandmark(kind, reported ? stone : dormantStone, reported ? strata : dormantStrata)
+      templates.set(templateKey, template)
     }
     const landmark = conformGlobeLandmark(template, normal, emblemScale)
     landmark.traverse(object => { if (object instanceof T.Mesh) { object.castShadow = true; object.receiveShadow = true } })
@@ -123,27 +128,32 @@ export function createSpatialRenderer(
     const ringMaterial = new T.MeshBasicMaterial({ color: 0x9edce5 })
     const ring = new T.Mesh(new T.TorusGeometry(.42, .035, 5, 32), ringMaterial)
     ring.rotation.x = Math.PI / 2
+    ring.visible = reported
     group.add(ring)
     rings.set(node.id, ringMaterial)
     const beaconMaterial = new T.MeshBasicMaterial({ color: 0x9edce5 })
     const beacon = new T.Mesh(new T.CylinderGeometry(.02, .02, height, 5), beaconMaterial)
     beacon.position.y = height / 2
+    beacon.visible = reported
     symbol.add(beacon)
     const marker = new T.Mesh(new T.OctahedronGeometry(.14), beaconMaterial)
     marker.position.y = height
+    marker.visible = reported
     symbol.add(marker)
     highlights.push(beaconMaterial)
     anchors.set(node.id, { object: marker, normal })
     group.traverse(object => { object.userData.nodeId = node.id })
     symbol.traverse(object => { object.userData.nodeId = node.id })
     world.add(group)
-    emblems.set(node.id, { group, symbol, landmark, normal, template, scale: emblemScale })
-    picks.push(base, marker)
+    emblems.set(node.id, { group, symbol, landmark, normal, template, scale: emblemScale, reported })
+    if (reported) picks.push(base, marker)
   })
   function refreshPicks() {
     picks.length = 0
     picks.push(planet, topography)
-    emblems.forEach(emblem => emblem.group.traverse(object => { if (object instanceof T.Mesh) picks.push(object) }))
+    emblems.forEach(emblem => {
+      if (emblem.reported) emblem.group.traverse(object => { if (object instanceof T.Mesh) picks.push(object) })
+    })
   }
   refreshPicks()
   let fitRadius = ARRAKIS_VIEW_SIZE / 2
@@ -309,6 +319,8 @@ export function createSpatialRenderer(
       viewportFit: String(!!placement?.fitViewport), fitRadius: String(fitRadius),
       zoom: String(camera.zoom),
       connectionHub: links[0]?.from.node.id ?? '', connectionCount: String(links.length),
+      dormantEmblems: String([...emblems.values()].filter(emblem => !emblem.reported).length),
+      reportedEmblems: String([...emblems.values()].filter(emblem => emblem.reported).length),
       readyConnections: String(routes.filter(route => readiness.get(route.source) === 'Ready' && readiness.get(route.destination) === 'Ready').length),
       notReadyConnections: String(routes.filter(route => readiness.get(route.source) === 'Not ready' || readiness.get(route.destination) === 'Not ready').length),
       frames: String(renderer.info.render.frame), drawCalls: String(renderer.info.render.calls), triangles: String(renderer.info.render.triangles),
@@ -529,7 +541,7 @@ export function createSpatialRenderer(
       document.removeEventListener('keydown', keydown)
       canvas.removeEventListener('webglcontextlost', lost)
       const geometries = new Set<T.BufferGeometry>()
-      const materials = new Set<T.Material>([stone, strata, baseMaterial])
+      const materials = new Set<T.Material>([stone, strata, dormantStone, dormantStrata, baseMaterial])
       scene.traverse(object => {
         if (object instanceof T.Mesh || object instanceof T.Line) {
           geometries.add(object.geometry)

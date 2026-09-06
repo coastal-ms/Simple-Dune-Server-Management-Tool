@@ -11,6 +11,18 @@ Patch releases within a major series are rolled up under the major's entry
 on GitHub still exist for each individual release; the consolidated entries
 here cover everything those tags shipped.
 
+## [15.0.0-finalphase-1.1] - 2026-09-05
+
+### Fixed
+
+- Reset Journey now streams the full NPE-completion transaction instead of
+  risking an SSH disconnect after the earlier reset steps have already applied.
+- Reverse Unlock now streams large progression transactions instead of risking
+  an SSH disconnect before the reversal reaches PostgreSQL.
+- The Command Deck globe now retains understated silhouettes for all four main
+  maps when they are not spun up; illumination and connecting lines remain
+  reserved for reported live map instances.
+
 ## [15.0.0-finalphase-1] - 2026-09-05
 
 ### Fixed

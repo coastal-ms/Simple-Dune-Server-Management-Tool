@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as T from 'three'
 import { createSpatialRenderer } from '../src/pages/workspaces/spatialRenderer'
-import { spatialNodes } from '../src/pages/workspaces/spatialModel'
+import { spatialGlobeNodes, spatialNodes } from '../src/pages/workspaces/spatialModel'
 import { globeSurfaceRadius } from '../src/pages/workspaces/globeEmblems'
 import { GLOBE_MATERIAL_BRIGHTNESS, GLOBE_SURFACE_COLOR } from '../src/pages/workspaces/globePalette'
 
@@ -166,6 +166,25 @@ describe('Globe renderer placement interaction', () => {
       expect(world().quaternion.equals(orientation)).toBe(true)
       expect(canvas.dataset.viewportFit).toBe('true')
     }
+  })
+  it('does not count dormant silhouettes against the reported-map safety limit', () => {
+    engine.dispose()
+    const reported = spatialNodes(Array.from({ length: 13 }, (_, index) => ({
+      map: `Other_${index}`, phase: 'Running', ready: 'True', players: '0', age: '1m',
+    })), value => value)
+    const globe = spatialGlobeNodes(reported)
+
+    expect(() => {
+      engine = createSpatialRenderer(canvas, globe, selected, vi.fn(), label, { positions: {}, onMove: moved })
+      draw()
+    }).not.toThrow()
+    expect(canvas.dataset.reportedEmblems).toBe('13')
+    expect(canvas.dataset.dormantEmblems).toBe('4')
+    const dormantMaterials: T.MeshStandardMaterial[] = []
+    emblem('dormant:harko').traverse(object => {
+      if (object instanceof T.Mesh && object.material instanceof T.MeshStandardMaterial) dormantMaterials.push(object.material)
+    })
+    expect(dormantMaterials.some(material => material.color.getHexString() === 'd5d1dc' && material.opacity === .72)).toBe(true)
   })
   it('spins normally without moving or saving maps', () => {
     const original = emblem().position.clone()

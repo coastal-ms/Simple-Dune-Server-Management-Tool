@@ -6,7 +6,7 @@ import '@testing-library/jest-dom/vitest'
 import type { StatusSnapshot } from '../src/api/types'
 import SpatialHome from '../src/pages/workspaces/SpatialHome'
 import SpatialStage from '../src/pages/workspaces/SpatialStage'
-import { spatialNodes, spatialConnections, spatialSceneLayout, spatialLayers, MAX_SPATIAL_LOCATIONS, locationScale, spatialLocationKind, LOCATION_VISUALS } from '../src/pages/workspaces/spatialModel'
+import { spatialGlobeNodes, spatialNodes, spatialConnections, spatialSceneLayout, spatialLayers, MAX_SPATIAL_LOCATIONS, locationScale, spatialLocationKind, LOCATION_VISUALS } from '../src/pages/workspaces/spatialModel'
 import { PRESETS, ThemeProvider } from '../src/theme/ThemeContext'
 import SpatialFrame from '../src/layout/SpatialFrame'
 import { GLOBE_LAYOUT_STORAGE_KEY, globePositionsForNodes } from '../src/pages/workspaces/globeLayout'
@@ -295,6 +295,26 @@ describe('Spatial object workspace', () => {
     expect(links.every(link => link.from.node.map === 'Survival_1')).toBe(true)
     expect(links.map(link => link.to.node.map).sort()).toEqual(['DeepDesert_1', 'SH_Arrakeen', 'SH_HarkoVillage'])
     expect(spatialConnections(spatialSceneLayout(nodes.filter(node => node.map !== 'Survival_1')).placements)).toEqual([])
+  })
+  it('keeps dormant main maps on the globe but out of live routes and the reported roster', async () => {
+    state.status!.bg!.gameServers = [
+      { map: 'Overmap', phase: 'Running', ready: 'True', players: '0', age: '1m' },
+      { map: 'Survival_1', phase: 'Running', ready: 'True', players: '0', age: '1m' },
+    ]
+    render(<SpatialHome onDetails={() => {}} startEnabled />)
+    await waitFor(() => expect(state.create).toHaveBeenCalledOnce())
+
+    const globe = state.create.mock.calls[0][1]
+    const expected = spatialGlobeNodes(spatialNodes(state.status!.bg!.gameServers, value => value))
+    expect(globe.map((node: { id: string; map: string; layoutId?: string; reported?: boolean }) =>
+      ({ id: node.id, map: node.map, layoutId: node.layoutId, reported: node.reported })))
+      .toEqual(expected.map(node => ({ id: node.id, map: node.map, layoutId: node.layoutId, reported: node.reported })))
+    expect(globe.filter((node: { reported?: boolean }) => node.reported === false)).toHaveLength(3)
+    expect(screen.getByRole('complementary', { name: 'Map status roster' })).not.toHaveTextContent('Not spun up')
+    expect(screen.getByRole('list', { name: 'Globe map labels' })).toHaveTextContent('Not spun up')
+    expect(spatialConnections(spatialSceneLayout(globe).placements)).toEqual([])
+    expect(state.flights).toHaveBeenLastCalledWith(false)
+    expect(screen.getByRole('button', { name: 'Simulated travel' })).toBeDisabled()
   })
   it('uses technical map identity rather than custom server names or list order', () => {
     const servers = [

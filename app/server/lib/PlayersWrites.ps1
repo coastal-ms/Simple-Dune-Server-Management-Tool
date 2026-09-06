@@ -1203,7 +1203,7 @@ SELECT dune.update_player_tags($accountID::bigint, ARRAY[]::text[], $tagsArr);
 $nodeUpdates
 COMMIT;
 "@
-    $r = Invoke-DuneSqlQuery -Ip $Ip -Sql $tx -ReadOnly $false -MaxRows 1 -TimeoutSec 120
+    $r = Invoke-DuneSqlQuery -Ip $Ip -Sql $tx -ReadOnly $false -MaxRows 1 -TimeoutSec 120 -Bulk
     if (-not $r.ok) {
         Invoke-DuneSqlQuery -Ip $Ip -Sql 'ROLLBACK;' -ReadOnly $false -MaxRows 1 -TimeoutSec 5 | Out-Null
         return @{ ok = $false; error = "progression-reverse tx: $($r.error)" }
@@ -2079,7 +2079,7 @@ function Invoke-DunePlayerMarkNpeCompleted {
     [void]$sb.AppendLine("INSERT INTO dune.journey_story_node (character_id, story_node_id, has_pending_reward, complete_condition_state, reveal_condition_state, fail_condition_state, metadata_state, reset_group) SELECT $CharacterId::bigint, unnest($nodeArr), false, 'true'::jsonb, 'true'::jsonb, '{}'::jsonb, '{}'::jsonb, 'Default'::dune.JourneyStoryResetGroup ON CONFLICT (character_id, story_node_id) DO NOTHING;")
     [void]$sb.AppendLine('COMMIT;')
 
-    $r = Invoke-DuneSqlQuery -Ip $Ip -Sql $sb.ToString() -ReadOnly $false -MaxRows 1 -TimeoutSec 60
+    $r = Invoke-DuneSqlQuery -Ip $Ip -Sql $sb.ToString() -ReadOnly $false -MaxRows 1 -TimeoutSec 60 -Bulk
     if (-not $r.ok) {
         Invoke-DuneSqlQuery -Ip $Ip -Sql 'ROLLBACK;' -ReadOnly $false -MaxRows 1 -TimeoutSec 5 | Out-Null
         return @{ ok = $false; error = "mark NPE completed tx: $($r.error)" }

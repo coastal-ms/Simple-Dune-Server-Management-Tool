@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { spatialNodes, spatialSceneLayout, spatialStatusOrder } from '../src/pages/workspaces/spatialModel'
+import { spatialGlobeNodes, spatialNodes, spatialSceneLayout, spatialStatusOrder } from '../src/pages/workspaces/spatialModel'
 
 describe('Map status presentation order', () => {
   it('orders by canonical identity, preserving renamed and multiple instances', () => {
@@ -29,5 +29,21 @@ describe('Map status presentation order', () => {
     const reversed = spatialStatusOrder(spatialNodes([...rows].reverse(), value => value))
     expect(first.map(node => node.layoutId)).toEqual(reversed.map(node => node.layoutId))
     expect(first).toHaveLength(2)
+  })
+  it('keeps one dormant silhouette for each missing main map without duplicating reported maps', () => {
+    const reported = spatialNodes([
+      { map: 'Overmap', phase: 'Running', ready: 'True', players: '0', age: '1m' },
+      { map: 'Survival_1', phase: 'Running', ready: 'True', players: '0', age: '1m' },
+    ], value => value)
+
+    const globe = spatialGlobeNodes(reported)
+
+    expect(globe.filter(node => node.reported === false).map(node => node.map)).toEqual([
+      'DeepDesert_1', 'SH_Arrakeen', 'SH_HarkoVillage',
+    ])
+    expect(globe.filter(node => node.map === 'Survival_1')).toHaveLength(1)
+    expect(globe.find(node => node.map === 'DeepDesert_1')).toMatchObject({
+      title: 'Deep Desert', phase: 'Dormant', ready: 'Dormant', players: 'Unknown',
+    })
   })
 })
