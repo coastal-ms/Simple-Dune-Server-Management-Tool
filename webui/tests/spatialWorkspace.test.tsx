@@ -31,6 +31,7 @@ const state = vi.hoisted(() => ({
   rosterReads: vi.fn(),
 }))
 vi.mock('../src/hooks/useStatus', () => ({ useStatus: () => state }))
+vi.mock('../src/hooks/useUpdateCheck', () => ({ useUpdateCheck: () => ({ data: { currentVersion: '15.0.0-finalphase-1.2' } }) }))
 vi.mock('../src/hooks/useApi', () => ({ useApi: () => { state.rosterReads(); return state.roster } }))
 vi.mock('../src/auth/portalAccess', () => ({ usePortalAccess: () => ({ canAccessOwnerSurfaces: state.owner }) }))
 vi.mock('../src/util/viewer', () => ({ isLocalViewer: () => false, isWindowsViewer: () => true }))
@@ -63,6 +64,12 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('Spatial object workspace', () => {
+  it('shows Duke attribution and the running version beside the dock', () => {
+    render(<SpatialFrame tools><p>Tools</p></SpatialFrame>)
+    expect(screen.getByText('BUILT WITH DUKE WITH LOVE')).toBeInTheDocument()
+    expect(screen.getByText('v15.0.0-finalphase-1.2')).toBeInTheDocument()
+  })
+
   it.each(PRESETS)('keeps the complete $name theme selected across globe and tool frames', preset => {
     const home = render(<SpatialFrame><p>Globe</p></SpatialFrame>)
     fireEvent.change(screen.getByRole('combobox', { name: 'Workspace palette' }), { target: { value: preset.id } })

@@ -7,6 +7,7 @@ import { ThemeProvider } from '../src/theme/ThemeContext'
 
 const controls = vi.hoisted(() => ({ owner: true, dashboard: vi.fn(), classic: vi.fn() }))
 vi.mock('../src/hooks/useStatus', () => ({ useStatus: () => ({ status: null, loading: false, error: null }) }))
+vi.mock('../src/hooks/useUpdateCheck', () => ({ useUpdateCheck: () => ({ data: { currentVersion: '15.0.0-finalphase-1.2' } }) }))
 vi.mock('../src/auth/portalAccess', () => ({ usePortalAccess: () => ({ canAccessOwnerSurfaces: controls.owner }) }))
 vi.mock('../src/util/viewer', () => ({ isLocalViewer: () => true, isWindowsViewer: () => true }))
 vi.mock('../src/hooks/useCommandDeck', () => ({ setCommandDeck: controls.classic }))

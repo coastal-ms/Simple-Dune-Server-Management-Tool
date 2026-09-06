@@ -54,6 +54,7 @@ $script:DuneChatTeleportCaptureFile = $null
 $script:DuneChatTeleportMax = 20
 $script:DuneChatTeleportNameMax = 40
 $script:DuneChatTeleportCaptureTtlSeconds = 120
+$script:DuneChatTeleportTraceReadbackDelaysMs = @(1000, 2000, 3000)
 
 function Get-DuneChatCommandsStatePath {
     if ($script:DuneChatStateFile) { return $script:DuneChatStateFile }
@@ -691,6 +692,7 @@ function ConvertFrom-DuneChatMessage {
 
     return @{
         type      = [string]$outer.Type
+        messageId = [string]$inner.m_Id
         channel   = $channel
         fromId    = [string]$inner.m_FuncomIdFrom
         toId      = [string]$inner.m_UserNameTo
@@ -977,7 +979,10 @@ function Get-DuneChatPlayerLocation {
 SELECT COALESCE(ps.online_status::text, 'Offline') AS status,
        COALESCE(actor.map, '') AS map,
        COALESCE(actor.partition_id, 0)::text AS partition,
-       COALESCE(actor.dimension_index, 0)::text AS dimension
+       COALESCE(actor.dimension_index, 0)::text AS dimension,
+       (actor.transform).location.x AS x,
+       (actor.transform).location.y AS y,
+       (actor.transform).location.z AS z
 FROM dune.accounts account
 JOIN dune.player_state ps ON ps.account_id = account.id
 JOIN dune.actors actor ON actor.id = ps.player_pawn_id
@@ -995,6 +1000,9 @@ LIMIT 1;
         map = [string]$rows[0]['map']
         partition = [int64](ConvertTo-DuneInt $rows[0]['partition'])
         dimension = [int](ConvertTo-DuneInt $rows[0]['dimension'])
+        x = $rows[0]['x']
+        y = $rows[0]['y']
+        z = $rows[0]['z']
     }
 }
 
@@ -1360,8 +1368,67 @@ function Invoke-DuneChatCommandItem {
     return @{ ok = $true; reply = $reply; template = [string]$hit.templateId; qty = $qty }
 }
 
+function Write-DuneChatTeleportTrace {
+    param(
+        [string]$TraceId,
+        [string]$Stage,
+        [hashtable]$Fields = @{},
+        [string]$Level = 'INFO'
+    )
+    if (-not (Get-Command Write-DuneLog -ErrorAction SilentlyContinue)) { return }
+    $safeTrace = if ($TraceId) { $TraceId -replace '[^A-Za-z0-9_-]', '' } else { 'unknown' }
+    $parts = [System.Collections.Generic.List[string]]::new()
+    foreach ($key in @($Fields.Keys | Sort-Object)) {
+        $value = [string]$Fields[$key]
+        $value = ($value -replace '\s+', ' ').Trim()
+        if ($value.Length -gt 120) { $value = $value.Substring(0, 120) }
+        $parts.Add(('{0}="{1}"' -f $key, ($value -replace '"', "'")))
+    }
+    $detail = if ($parts.Count -gt 0) { ' ' + ($parts -join ' ') } else { '' }
+    try { Write-DuneLog "chat tp trace=$safeTrace stage=$Stage$detail" $Level } catch {}
+}
+
+function Write-DuneChatTeleportReadbackTrace {
+    param(
+        [string]$Ip,
+        [string]$FuncomId,
+        [string]$TraceId
+    )
+    $sample = 0
+    foreach ($delayMs in @($script:DuneChatTeleportTraceReadbackDelaysMs)) {
+        $sample++
+        if ([int]$delayMs -gt 0) { Start-Sleep -Milliseconds ([int]$delayMs) }
+        try {
+            $location = Get-DuneChatPlayerLocation -Ip $Ip -FuncomId $FuncomId
+            $fields = @{
+                sample = $sample
+                ok = [bool]$location.ok
+                status = [string]$location.status
+                map = [string]$location.map
+                partition = [string]$location.partition
+                dimension = [string]$location.dimension
+                x = [string]$location.x
+                y = [string]$location.y
+                z = [string]$location.z
+            }
+            if (-not $location.ok) { $fields['error'] = [string]$location.message }
+            Write-DuneChatTeleportTrace -TraceId $TraceId -Stage 'post-dispatch-db-readback' `
+                -Fields $fields -Level $(if ($location.ok) { 'INFO' } else { 'WARN' })
+        } catch {
+            Write-DuneChatTeleportTrace -TraceId $TraceId -Stage 'post-dispatch-db-readback' `
+                -Fields @{ sample = $sample; ok = $false; error = $_.Exception.Message } -Level 'WARN'
+        }
+    }
+}
+
 function Invoke-DuneChatCommandTeleport {
-    param([string]$Ip, [string]$FuncomId, [string[]]$CommandArgs, [hashtable]$Message)
+    param(
+        [string]$Ip,
+        [string]$FuncomId,
+        [string[]]$CommandArgs,
+        [hashtable]$Message,
+        [string]$TraceId
+    )
     $wanted = (@($CommandArgs) -join ' ').Trim()
     $argv = @($CommandArgs)
     if ($argv.Count -gt 0 -and [string]$argv[0] -ieq 'save') {
@@ -1425,24 +1492,54 @@ function Invoke-DuneChatCommandTeleport {
 
     $fls = Resolve-DuneChatFlsId -Ip $Ip -FuncomId $FuncomId
     if (-not $fls.ok) { return @{ ok = $false; reply = 'Could not resolve your player id for teleport.' } }
+    Write-DuneChatTeleportTrace -TraceId $TraceId -Stage 'dispatch' -Fields @{
+        destination = [string]$bookmark.name
+        source_map = [string]$current.map
+        source_partition = [string]$current.partition
+        source_dimension = [string]$current.dimension
+        source_x = [string]$current.x
+        source_y = [string]$current.y
+        source_z = [string]$current.z
+        target_map = [string]$bookmark.map
+        target_partition = [string]$bookmark.partition
+        target_dimension = [string]$bookmark.dimension
+        target_x = [string]$bookmark.x
+        target_y = [string]$bookmark.y
+        target_z = [string]$bookmark.z
+    }
     # Let the game resolve a safe landing surface. TeleportToExact can force a
     # distant stored Z before destination terrain finishes streaming. Shared
     # destination replay is repeat-safe, so publish it twice inside one paced
     # broker call to absorb an intermittent game-side command miss.
     $res = Invoke-DuneRmqTeleportTo -FlsId $fls.flsId `
         -X ([double]$bookmark.x) -Y ([double]$bookmark.y) -Z ([double]$bookmark.z) `
-        -RepeatForReliability
+        -RepeatForReliability -TraceId $TraceId
+    Write-DuneChatTeleportTrace -TraceId $TraceId -Stage 'published' -Fields @{
+        ok = [bool]$res.ok
+        action = [string]$res.action
+        status = [string]$res.status
+        message = [string]$res.message
+    } -Level $(if ($res.ok) { 'INFO' } else { 'WARN' })
     if (-not $res.ok) { return @{ ok = $false; reply = "Teleport to '$($bookmark.name)' failed." } }
+    Write-DuneChatTeleportReadbackTrace -Ip $Ip -FuncomId $FuncomId -TraceId $TraceId
     return @{ ok = $true; reply = "Teleported to $($bookmark.name)." }
 }
 
 function Invoke-DuneChatCommandExecutor {
-    param([string]$Ip, [hashtable]$State, [string]$Verb, [string]$FuncomId, [string[]]$CommandArgs, [hashtable]$Message)
+    param(
+        [string]$Ip,
+        [hashtable]$State,
+        [string]$Verb,
+        [string]$FuncomId,
+        [string[]]$CommandArgs,
+        [hashtable]$Message,
+        [string]$TraceId
+    )
     switch ("$Verb".ToLowerInvariant()) {
         'kit'     { return Invoke-DuneChatCommandKit -Ip $Ip -State $State -FuncomId $FuncomId -CommandArgs @($CommandArgs) }
         'item'    { return Invoke-DuneChatCommandItem -Ip $Ip -State $State -FuncomId $FuncomId -CommandArgs @($CommandArgs) }
         'water'   { return Invoke-DuneChatCommandWater -Ip $Ip -FuncomId $FuncomId }
-        'tp'      { return Invoke-DuneChatCommandTeleport -Ip $Ip -FuncomId $FuncomId -CommandArgs @($CommandArgs) -Message $Message }
+        'tp'      { return Invoke-DuneChatCommandTeleport -Ip $Ip -FuncomId $FuncomId -CommandArgs @($CommandArgs) -Message $Message -TraceId $TraceId }
         'vehicle' { return Invoke-DuneChatCommandVehicle -Ip $Ip -FuncomId $FuncomId -CommandArgs @($CommandArgs) }
         'small'   { return Invoke-DuneChatCommandSpiceField -Ip $Ip -Size 'Small' }
         'medium'  { return Invoke-DuneChatCommandSpiceField -Ip $Ip -Size 'Medium' }
@@ -1494,8 +1591,21 @@ function Invoke-DuneChatCommandTick {
                     $handled++
                 }
                 'run' {
+                    $traceId = ''
+                    if ($act.verb -eq 'tp') {
+                        $traceId = (([string]$msg.messageId).Trim() -replace '[^A-Za-z0-9_-]', '')
+                        if (-not $traceId) { $traceId = [guid]::NewGuid().ToString('N') }
+                        Write-DuneChatTeleportTrace -TraceId $traceId -Stage 'dequeued' -Fields @{
+                            command_timestamp = [string]$msg.timestamp
+                            channel = [string]$msg.channel
+                            destination = (@($act.args) -join ' ')
+                            chat_origin_x = [string]$msg.location.x
+                            chat_origin_y = [string]$msg.location.y
+                            chat_origin_z = [string]$msg.location.z
+                        }
+                    }
                     $res = Invoke-DuneChatCommandExecutor -Ip $ip -State $state -Verb $act.verb `
-                              -FuncomId $msg.fromId -CommandArgs @($act.args) -Message $msg
+                              -FuncomId $msg.fromId -CommandArgs @($act.args) -Message $msg -TraceId $traceId
                     if ($res.reply) {
                         [void](Send-DuneChatReply -Ip $ip -State $state -ToFuncomId $msg.fromId -Message $res.reply)
                     }
@@ -1507,7 +1617,10 @@ function Invoke-DuneChatCommandTick {
                     }
                     $handled++
                     if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
-                        try { Write-DuneLog "chat command !$($act.verb) from $($msg.fromId): ok=$($res.ok)" 'INFO' } catch {}
+                        try {
+                            $traceSuffix = if ($traceId) { " trace=$traceId" } else { '' }
+                            Write-DuneLog "chat command !$($act.verb) from $($msg.fromId): ok=$($res.ok)$traceSuffix" 'INFO'
+                        } catch {}
                     }
                 }
                 default { }

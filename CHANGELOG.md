@@ -11,6 +11,16 @@ Patch releases within a major series are rolled up under the major's entry
 on GitHub still exist for each individual release; the consolidated entries
 here cover everything those tags shipped.
 
+## [15.0.0-finalphase-1.2] - 2026-09-05
+
+### Fixed
+
+- Added one correlated diagnostic trail for each `!tp` request, covering its
+  live chat origin, queue dequeue, destination validation, broker publication,
+  and bounded post-dispatch database location readbacks.
+- The Command Deck footer now keeps the running DST version visible beneath
+  its "Built with Duke with love" attribution.
+
 ## [15.0.0-finalphase-1.1] - 2026-09-05
 
 ### Fixed

@@ -37,6 +37,7 @@ Describe 'ConvertFrom-DuneChatMessage' {
         $m.type | Should -Be 'TextChat'
         $m.channel | Should -Be 'Proximity'
         $m.fromId | Should -Be 'Coastal#45066'
+        $m.messageId | Should -Be 'C6BA73B94B132A51F6B937AC6960C0C1'
         $m.text | Should -Be '!large'
         $m.timestamp | Should -Be '2026.08.05-00.13.11'
     }
@@ -396,7 +397,7 @@ Describe 'teleport bookmarks' {
             function global:Invoke-DuneSqlQuery { param($Ip, $Sql, $ReadOnly, $MaxRows, $TimeoutSec) }
         }
         if (-not (Get-Command Invoke-DuneRmqTeleportTo -ErrorAction SilentlyContinue)) {
-            function global:Invoke-DuneRmqTeleportTo { param($FlsId, $X, $Y, $Z, [switch]$RepeatForReliability) }
+            function global:Invoke-DuneRmqTeleportTo { param($FlsId, $X, $Y, $Z, [switch]$RepeatForReliability, $TraceId) }
         }
         if (-not (Get-Command Invoke-DuneRmqTeleportToExact -ErrorAction SilentlyContinue)) {
             function global:Invoke-DuneRmqTeleportToExact { param($FlsId, $X, $Y, $Z) }
@@ -660,19 +661,52 @@ Describe 'teleport bookmarks' {
         Save-DuneChatTeleports -Bookmarks @(
             [ordered]@{ name = 'Base'; key = 'base'; map = 'HaggaBasin'; partition = 1; dimension = 0; x = 1; y = 2; z = 3; capturedFrom = 'Coastal'; capturedAt = '2026-08-16T00:00:00Z' }
         ) | Should -BeTrue
-        Mock Get-DuneChatPlayerLocation { @{ ok = $true; status = 'Online'; map = 'HaggaBasin'; partition = 1; dimension = 0 } }
+        Mock Get-DuneChatPlayerLocation { @{ ok = $true; status = 'Online'; map = 'HaggaBasin'; partition = 1; dimension = 0; x = 100; y = 200; z = 300 } }
         Mock Resolve-DuneChatFlsId { @{ ok = $true; flsId = 'FLS1' } }
         Mock Invoke-DuneRmqTeleportTo { @{ ok = $true } }
         Mock Invoke-DuneRmqTeleportToExact { @{ ok = $true } }
+        Mock Write-DuneChatTeleportTrace {}
+        Mock Write-DuneChatTeleportReadbackTrace {}
 
-        $r = Invoke-DuneChatCommandExecutor -Ip 'vm' -State (New-DstChatState) -Verb 'tp' -FuncomId 'A#1' -CommandArgs @('Base')
+        $r = Invoke-DuneChatCommandExecutor -Ip 'vm' -State (New-DstChatState) -Verb 'tp' `
+            -FuncomId 'A#1' -CommandArgs @('Base') -TraceId 'TRACE123'
         $r.ok | Should -BeTrue
         $r.reply | Should -Be 'Teleported to Base.'
         Should -Invoke Invoke-DuneRmqTeleportTo -Times 1 -Exactly -ParameterFilter {
             $FlsId -eq 'FLS1' -and $X -eq 1 -and $Y -eq 2 -and $Z -eq 3 -and
-            $RepeatForReliability
+            $RepeatForReliability -and $TraceId -eq 'TRACE123'
         }
         Should -Invoke Invoke-DuneRmqTeleportToExact -Times 0 -Exactly
+        Should -Invoke Write-DuneChatTeleportTrace -Times 1 -Exactly -ParameterFilter {
+            $TraceId -eq 'TRACE123' -and $Stage -eq 'dispatch'
+        }
+        Should -Invoke Write-DuneChatTeleportTrace -Times 1 -Exactly -ParameterFilter {
+            $TraceId -eq 'TRACE123' -and $Stage -eq 'published'
+        }
+        Should -Invoke Write-DuneChatTeleportReadbackTrace -Times 1 -Exactly -ParameterFilter {
+            $TraceId -eq 'TRACE123' -and $Ip -eq 'vm' -and $FuncomId -eq 'A#1'
+        }
+    }
+
+    It 'records factual post-dispatch location samples without declaring success' {
+        try {
+            $script:DuneChatTeleportTraceReadbackDelaysMs = @(0, 0, 0)
+            Mock Get-DuneChatPlayerLocation {
+                @{ ok = $true; status = 'Online'; map = 'HaggaBasin'; partition = 4; dimension = 0; x = 11; y = 22; z = 33 }
+            }
+            Mock Write-DuneChatTeleportTrace {}
+
+            Write-DuneChatTeleportReadbackTrace -Ip 'vm' -FuncomId 'A#1' -TraceId 'TRACE456'
+
+            Should -Invoke Get-DuneChatPlayerLocation -Times 3 -Exactly
+            Should -Invoke Write-DuneChatTeleportTrace -Times 3 -Exactly -ParameterFilter {
+                $TraceId -eq 'TRACE456' -and $Stage -eq 'post-dispatch-db-readback' -and
+                $Fields.ok -and $Fields.map -eq 'HaggaBasin' -and
+                $Fields.x -eq '11' -and $Fields.y -eq '22' -and $Fields.z -eq '33'
+            }
+        } finally {
+            $script:DuneChatTeleportTraceReadbackDelaysMs = @(1000, 2000, 3000)
+        }
     }
 
     It 'blocks a destination on another map before sending RMQ' {

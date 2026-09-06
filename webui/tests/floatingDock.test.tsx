@@ -8,6 +8,7 @@ import { ThemeProvider } from '../src/theme/ThemeContext'
 
 const access = vi.hoisted(() => ({ owner: true, local: true, windows: true }))
 vi.mock('../src/hooks/useStatus', () => ({ useStatus: () => ({ status: null, loading: false, error: null }) }))
+vi.mock('../src/hooks/useUpdateCheck', () => ({ useUpdateCheck: () => ({ data: { currentVersion: '15.0.0-finalphase-1.2' } }) }))
 vi.mock('../src/auth/portalAccess', () => ({ usePortalAccess: () => ({ canAccessOwnerSurfaces: access.owner }) }))
 vi.mock('../src/util/viewer', () => ({ isLocalViewer: () => access.local, isWindowsViewer: () => access.windows }))
 

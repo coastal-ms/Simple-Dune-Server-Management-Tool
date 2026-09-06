@@ -170,6 +170,15 @@ Describe 'Send-DuneRmqServerCommandBatch envelope' -Tag 'Rmq' {
         @($payloads | ForEach-Object Y) | Should -Be @(2, 2)
         @($payloads | ForEach-Object Z) | Should -Be @(3, 3)
     }
+
+    It 'carries a teleport trace id in result metadata without changing the game payload' {
+        Invoke-DuneRmqTeleportTo -FlsId 'abc123' -X 1 -Y 2 -Z 3 `
+            -RepeatForReliability -TraceId 'TRACE123' | Out-Null
+
+        $script:lastAction | Should -Be 'teleport-live-repeat'
+        $script:lastExtra.trace_id | Should -Be 'TRACE123'
+        $script:lastErl | Should -Not -Match 'TRACE123'
+    }
 }
 
 Describe 'Send-DuneRmqCourierMessage envelope' -Tag 'Rmq' {
