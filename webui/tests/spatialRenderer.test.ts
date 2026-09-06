@@ -180,6 +180,11 @@ describe('Globe renderer placement interaction', () => {
     }).not.toThrow()
     expect(canvas.dataset.reportedEmblems).toBe('13')
     expect(canvas.dataset.dormantEmblems).toBe('4')
+    const dormantMaterials: T.MeshStandardMaterial[] = []
+    emblem('dormant:harko').traverse(object => {
+      if (object instanceof T.Mesh && object.material instanceof T.MeshStandardMaterial) dormantMaterials.push(object.material)
+    })
+    expect(dormantMaterials.some(material => material.color.getHexString() === 'd5d1dc' && material.opacity === .72)).toBe(true)
   })
   it('spins normally without moving or saving maps', () => {
     const original = emblem().position.clone()
