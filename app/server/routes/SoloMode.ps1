@@ -238,7 +238,7 @@ Register-DuneRoute -Method GET -Path '/api/solo/blueprints/export' -LocalOnly -H
         }
         Write-DuneJson -Response $res -Body (Export-DuneSoloBlueprint -Id $id)
     } catch {
-        $status = if ($_.Exception.Message -like '*still running*' -or $_.Exception.Message -like '*Connect a valid Solo save*') { 400 } else { 400 }
+        $status = if ($_.Exception.Message -like '*still running*' -or $_.Exception.Message -like '*Connect a valid Solo save*') { 400 } else { 500 }
         Write-DuneError -Response $res -Status $status -Message $_.Exception.Message
     }
 }

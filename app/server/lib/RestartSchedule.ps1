@@ -1357,14 +1357,20 @@ function Stop-DuneRestartScheduler {
     if ($handle -and -not $handle.AsyncWaitHandle.WaitOne([Math]::Min(1000, $WaitMs))) {
         $null = $script:DuneRestartSchedulerPowerShell.BeginStop($null, $null)
         if (-not $handle.AsyncWaitHandle.WaitOne($WaitMs)) {
-            Write-DuneLog 'Restart scheduler did not stop within the shutdown timeout.' 'WARN'
+            if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
+                Write-DuneLog 'Restart scheduler did not stop within the shutdown timeout.' 'WARN'
+            }
             return $false
         }
     }
     if ($handle) {
         try { $null = $script:DuneRestartSchedulerPowerShell.EndInvoke($handle) }
         catch [Management.Automation.PipelineStoppedException] { }
-        catch { Write-DuneLog "Restart scheduler stopped after a failure: $($_.Exception.Message)" 'WARN' }
+        catch {
+            if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
+                Write-DuneLog "Restart scheduler stopped after a failure: $($_.Exception.Message)" 'WARN'
+            }
+        }
     }
     try { if ($script:DuneFuncomCheckPowerShell) { $script:DuneFuncomCheckPowerShell.Dispose() } } catch {}
     try { if ($script:DuneFuncomCheckRunspace) { $script:DuneFuncomCheckRunspace.Dispose() } } catch {}

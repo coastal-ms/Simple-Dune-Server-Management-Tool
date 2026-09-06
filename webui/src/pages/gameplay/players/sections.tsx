@@ -959,6 +959,7 @@ export function ActionsSection({ player, canWrite, demo, flash, onChanged, onFlu
       controlsLabel="Player actions"
       categoriesNavLabel="Player actions categories"
       allLabel="All actions"
+      countNoun="actions"
       emptySearchLabel="No matching actions."
       renderTask={action => (
         <ActionRow def={action} player={player} busy={busy} stats={stats}

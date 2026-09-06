@@ -64,6 +64,7 @@ describe('Contextual Players desk', () => {
   })
   it('keeps selecting and searching tasks read-only and preserves open form input while filtering', async () => {
     await openActions()
+    expect(screen.getByText(/of \d+ actions/)).toBeInTheDocument()
     chooseCategory('Currency')
     chooseAction(/^Give Solari/)
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount' }), { target: { value: '123' } })

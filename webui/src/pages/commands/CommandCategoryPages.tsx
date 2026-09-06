@@ -14,6 +14,7 @@ export function CommandCategoryPages<T extends CategoryTask>({
   controlsLabel = 'Command controls',
   categoriesNavLabel = 'Command categories',
   allLabel = 'All controls',
+  countNoun = 'controls',
   emptySearchLabel = 'No matching commands.',
 }: {
   tasks: readonly T[]
@@ -27,6 +28,7 @@ export function CommandCategoryPages<T extends CategoryTask>({
   controlsLabel?: string
   categoriesNavLabel?: string
   allLabel?: string
+  countNoun?: string
   emptySearchLabel?: string
 }) {
   const [query, setQuery] = useState('')
@@ -49,7 +51,7 @@ export function CommandCategoryPages<T extends CategoryTask>({
     <section className="command-categories" aria-label={controlsLabel}>
       <header className="command-category-search">
         <label><Icon name="Search" size={16} /><input type="search" aria-label={searchAriaLabel} placeholder={searchPlaceholder} value={query} disabled={busy} onChange={event => setQuery(event.target.value)} /></label>
-        <span role="status">{count} of {tasks.length} controls</span>
+        <span role="status">{count} of {tasks.length} {countNoun}</span>
       </header>
       <div className="command-category-layout">
         <nav aria-label={categoriesNavLabel}>
