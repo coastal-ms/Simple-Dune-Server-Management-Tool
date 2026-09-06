@@ -75,7 +75,10 @@ describe('next-generation platform baseline', () => {
   it('pins source-level AppShell containment without treating recorded widths as a live test', () => {
     const shellSource = readSource('layout/AppShell.tsx')
     expect(shellSource).toContain('h-full w-full max-w-full flex flex-col overflow-hidden')
-    expect(shellSource).toContain('flex-1 min-w-0 max-w-full overflow-x-hidden overflow-y-auto')
+    expect(shellSource).toContain('flex-1 min-h-0 min-w-0 max-w-full overflow-x-hidden')
+    expect(shellSource).toContain("commandDeck && !spatialHome ? 'overflow-y-hidden' : 'overflow-y-auto'")
+    expect(shellSource).toContain("data-app-scroll-container={commandDeck && !spatialHome ? undefined : ''}")
+    expect(shellSource).toContain("data-app-scroll-host={commandDeck && !spatialHome ? '' : undefined}")
     expect(baseline.recordedMeasurements.enforced).toBe(false)
     expect(baseline.recordedMeasurements.browserSmoke.limitation).toContain(
       'no browser automation dependency',
