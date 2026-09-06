@@ -46,7 +46,7 @@ import {
 } from '../../../api/gameplay'
 import { fmtNum, fmtSolari } from '../shared'
 import { useCommandDeck } from '../../../hooks/useCommandDeck'
-import { ActionWorkbench } from '../../../components/platform/ActionWorkbench'
+import { CommandCategoryPages } from '../../commands/CommandCategoryPages'
 
 type Flash = (msg: string, kind?: 'ok' | 'err') => void
 
@@ -866,12 +866,21 @@ const ACTIONS: ActionDef[] = [
 // 'Items' is rendered inside the Inventory section (between the inventory
 // title and the items list), not in the Actions section.
 const GROUP_ORDER: ActionGroup[] = ['Live', 'Currency', 'Progression', 'Vehicle', 'Identity', 'Danger']
+const ACTION_CATEGORIES = [
+  { id: 'Live', label: 'Live', icon: 'Radio', description: 'Kick, teleport, whisper, and scripts that need a live session.' },
+  { id: 'Currency', label: 'Currency', icon: 'Coins', description: 'Solari, scrip, and intel.' },
+  { id: 'Progression', label: 'Progression', icon: 'Sparkles', description: 'XP, specs, skills, journey, and unlocks.' },
+  { id: 'Vehicle', label: 'Vehicle', icon: 'Truck', description: 'Spawn and refuel.' },
+  { id: 'Identity', label: 'Identity', icon: 'User', description: 'Rename and identity.' },
+  { id: 'Danger', label: 'Danger', icon: 'AlertTriangle', description: 'Destructive or hard-to-undo actions.' },
+] as const
 const ITEMS_GROUP: ActionGroup = 'Items'
 
 export function ActionsSection({ player, canWrite, demo, flash, onChanged, onFlush }: SectionProps) {
   const contextual = useCommandDeck()
   const [openId, setOpenId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [actionCategory, setActionCategory] = useState('Live')
   // Current balances for read-only context on the Give Solari/Scrip/Intel rows,
   // so admins see what the player already has before adjusting it.
   const [stats, setStats] = useState<PlayerStats | null>(null)
@@ -937,12 +946,24 @@ export function ActionsSection({ player, canWrite, demo, flash, onChanged, onFlu
     )
   }
 
-  if (contextual) return <ActionWorkbench
-    key={player.id} title="Player actions" target={player.name || 'Unnamed player'}
-    actions={GROUP_ORDER.flatMap(group => grouped[group])} selectedId={openId} onSelect={openAction} busy={busy}
-    renderAction={action => <ActionRow key={action.id} def={action} player={player} busy={busy} stats={stats}
-      open danger={action.group === 'Danger'} onToggle={() => openAction(action.id)} runAction={runAction} />}
-  />
+  if (contextual) return (
+    <CommandCategoryPages
+      key={player.id}
+      tasks={GROUP_ORDER.flatMap(group => grouped[group])}
+      category={actionCategory}
+      onCategory={setActionCategory}
+      busy={busy}
+      groups={ACTION_CATEGORIES}
+      searchPlaceholder="Find an action..."
+      controlsLabel="Player actions"
+      allLabel="All actions"
+      renderTask={action => (
+        <ActionRow def={action} player={player} busy={busy} stats={stats}
+          open={openId === action.id} danger={action.group === 'Danger'}
+          onToggle={() => openAction(action.id)} runAction={runAction} />
+      )}
+    />
+  )
 
   return (
     <div className="space-y-4">
