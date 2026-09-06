@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useSearch } from '../router'
 import { Icon } from '../components/Icon'
 import { useStatus } from '../hooks/useStatus'
+import { useUpdateCheck } from '../hooks/useUpdateCheck'
 import { setCommandDeck } from '../hooks/useCommandDeck'
 import { usePortalAccess } from '../auth/portalAccess'
 import { isLocalViewer, isWindowsViewer } from '../util/viewer'
@@ -10,6 +11,7 @@ import { getDeckDestinations, searchDeck } from './commandDeckModel'
 import { useFloatingDock } from './useFloatingDock'
 import { useDashboardViewport } from './useDashboardViewport'
 import { colorSchemeForBase } from '../theme/colorScheme'
+import { fmtToolVersion } from '../format'
 import '../pages/workspaces/spatial.css'
 import './floatingDock.css'
 import './dashboardFrame.css'
@@ -25,6 +27,7 @@ export default function SpatialFrame({ children, onDetails, tools = false, dashb
   dashboard?: boolean
 }) {
   const { status, error, loading } = useStatus()
+  const { data: update } = useUpdateCheck()
   const { canAccessOwnerSurfaces } = usePortalAccess()
   const theme = useTheme()
   const { pathname } = useLocation()
@@ -112,7 +115,13 @@ export default function SpatialFrame({ children, onDetails, tools = false, dashb
               <button onClick={openFinder} aria-haspopup="dialog"><Icon name="Grid2X2" size={20} /><span>All tools</span></button>
             </nav>
           </div>
-          {!dashboard && <span className="spatial-system-label">LOCAL CONTROL<br /><b>NO AI SERVICE REQUIRED</b></span>}
+          {!dashboard && (
+            <span className="spatial-system-label">
+              LOCAL CONTROL
+              <b>BUILT WITH DUKE WITH LOVE</b>
+              <small>{update?.currentVersion ? fmtToolVersion(update.currentVersion) : '—'}</small>
+            </span>
+          )}
         </footer>
       </div>
       <dialog ref={dialog} className="spatial-finder" aria-labelledby="spatial-finder-title"

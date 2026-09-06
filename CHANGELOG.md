@@ -18,6 +18,8 @@ here cover everything those tags shipped.
 - Added one correlated diagnostic trail for each `!tp` request, covering its
   live chat origin, queue dequeue, destination validation, broker publication,
   and bounded post-dispatch database location readbacks.
+- The Command Deck footer now keeps the running DST version visible beneath
+  its "Built with Duke with love" attribution.
 
 ## [15.0.0-finalphase-1.1] - 2026-09-05
 
