@@ -13,6 +13,8 @@ here cover everything those tags shipped.
 
 ## [Unreleased]
 
+## [15.0.0-finalphase-1.3] - 2026-09-06
+
 ### Added
 
 - Command Deck player admin now has a **Manage Player** tab between Stats and Specs for give/manage item actions as cards. Inventory is inventory only.
