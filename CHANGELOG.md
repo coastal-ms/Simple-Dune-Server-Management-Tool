@@ -17,6 +17,7 @@ here cover everything those tags shipped.
 
 - Command Deck player admin now has a **Manage Player** tab between Stats and Specs for give/manage item actions as cards. Inventory is inventory only.
 - Player **Actions** uses the same category-and-card layout as Commands.
+- Settings section tabs wrap to a second line instead of scrolling sideways.
 - Solo Mode can export saved base blueprints (solidos) to portable DST JSON. Solo import stays disabled.
 
 ### Changed
