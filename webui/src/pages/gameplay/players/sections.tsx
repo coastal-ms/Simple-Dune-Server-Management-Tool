@@ -955,8 +955,11 @@ export function ActionsSection({ player, canWrite, demo, flash, onChanged, onFlu
       busy={busy}
       groups={ACTION_CATEGORIES}
       searchPlaceholder="Find an action..."
+      searchAriaLabel="Search player actions"
       controlsLabel="Player actions"
+      categoriesNavLabel="Player actions categories"
       allLabel="All actions"
+      emptySearchLabel="No matching actions."
       renderTask={action => (
         <ActionRow def={action} player={player} busy={busy} stats={stats}
           open={openId === action.id} danger={action.group === 'Danger'}

@@ -10,8 +10,11 @@ export function CommandCategoryPages<T extends CategoryTask>({
   tasks, category, onCategory, busy, renderTask,
   groups: groupDefs = COMMAND_CATEGORIES,
   searchPlaceholder = 'Search all commands...',
+  searchAriaLabel = 'Search all commands',
   controlsLabel = 'Command controls',
+  categoriesNavLabel = 'Command categories',
   allLabel = 'All controls',
+  emptySearchLabel = 'No matching commands.',
 }: {
   tasks: readonly T[]
   category: string
@@ -20,8 +23,11 @@ export function CommandCategoryPages<T extends CategoryTask>({
   renderTask: (task: T) => ReactNode
   groups?: readonly CategoryPageGroup[]
   searchPlaceholder?: string
+  searchAriaLabel?: string
   controlsLabel?: string
+  categoriesNavLabel?: string
   allLabel?: string
+  emptySearchLabel?: string
 }) {
   const [query, setQuery] = useState('')
   const headingId = useId()
@@ -42,11 +48,11 @@ export function CommandCategoryPages<T extends CategoryTask>({
   return (
     <section className="command-categories" aria-label={controlsLabel}>
       <header className="command-category-search">
-        <label><Icon name="Search" size={16} /><input type="search" aria-label={searchPlaceholder} placeholder={searchPlaceholder} value={query} disabled={busy} onChange={event => setQuery(event.target.value)} /></label>
+        <label><Icon name="Search" size={16} /><input type="search" aria-label={searchAriaLabel} placeholder={searchPlaceholder} value={query} disabled={busy} onChange={event => setQuery(event.target.value)} /></label>
         <span role="status">{count} of {tasks.length} controls</span>
       </header>
       <div className="command-category-layout">
-        <nav aria-label={`${controlsLabel} categories`}>
+        <nav aria-label={categoriesNavLabel}>
           {groups.map(group => <button key={group.id} type="button" aria-pressed={!searching && activeCategory === group.id} disabled={busy} onClick={() => chooseCategory(group.id)}>
             <Icon name={group.icon} size={17} /><span>{group.label}</span><small aria-hidden="true">{group.tasks.length}</small>
           </button>)}
@@ -64,7 +70,7 @@ export function CommandCategoryPages<T extends CategoryTask>({
         <div className="command-category-content">
           {searching && <h3 className="command-search-heading">Search results</h3>}
           {!count && <div className="command-category-empty" role="status">
-            <p>{searching ? 'No matching commands.' : 'No commands available.'}</p>
+            <p>{searching ? emptySearchLabel : 'No commands available.'}</p>
             {searching && <button type="button" className="btn-secondary" onClick={() => setQuery('')}>Clear search</button>}
           </div>}
           {visible.map(group => <section key={group.id} aria-labelledby={`${headingId}-${group.id}`}>
