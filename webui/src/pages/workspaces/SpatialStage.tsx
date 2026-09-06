@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { LOCATION_VISUALS, MAX_SPATIAL_LOCATIONS, spatialLayers, spatialLocationKind, spatialStatusOrder, type SpatialNode } from './spatialModel'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { LOCATION_VISUALS, MAX_SPATIAL_LOCATIONS, spatialGlobeNodes, spatialLayers, spatialLocationKind, spatialStatusOrder, type SpatialNode } from './spatialModel'
 import { mapLabel } from '../../util/mapLabel'
 import type { createSpatialRenderer } from './spatialRenderer'
 import { useTheme } from '../../theme/ThemeContext'
@@ -47,7 +47,8 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
   const currentRotating = useRef(rotating)
   const callback = useRef(onSelect)
   const currentSelection = useRef(selected)
-  const currentNodes = useRef(nodes)
+  const globeNodes = useMemo(() => spatialGlobeNodes(nodes), [nodes])
+  const currentNodes = useRef(globeNodes)
   const currentLayout = useRef(saved.layout)
   const savePositions = useRef(saved.move)
   const currentMovingMaps = useRef(movingMaps)
@@ -56,19 +57,20 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
   useEffect(() => { currentRunners.current = runners }, [runners])
   useEffect(() => { currentFlights.current = flights }, [flights])
   useEffect(() => { currentRotating.current = rotating }, [rotating])
-  useEffect(() => { currentNodes.current = nodes }, [nodes])
+  useEffect(() => { currentNodes.current = globeNodes }, [globeNodes])
   useEffect(() => { currentLayout.current = saved.layout; savePositions.current = saved.move }, [saved.layout, saved.move])
   useEffect(() => { currentMovingMaps.current = movingMaps }, [movingMaps])
   useEffect(() => { currentZoom.current = zoom }, [zoom])
   useEffect(() => { currentOrientation.current = orientation }, [orientation])
   // Status updates must not rebuild geometry; the scene represents identity only.
-  const { worlds, locations } = spatialLayers(nodes)
+  const { locations } = spatialLayers(nodes)
+  const { locations: globeLocations } = spatialLayers(globeNodes)
   const overLimit = locations.length > MAX_SPATIAL_LOCATIONS
   const active = nodes.find(node => node.id === selected)
   const hasConnections = locations.length > 1 && locations.some(node => spatialLocationKind(node.map) === 'hagga')
   const locationKind = spatialLocationKind(active?.map ?? '')
   const locationLabel = ['unknown', 'dungeon', 'story'].includes(locationKind) ? mapLabel(active?.map) : LOCATION_VISUALS[locationKind].label
-  const ids = JSON.stringify([...worlds, ...locations].map(node => [node.id, node.map, node.layoutId]).sort((a, b) => a[0]!.localeCompare(b[0]!)))
+  const ids = JSON.stringify(globeNodes.map(node => [node.id, node.map, node.layoutId]).sort((a, b) => a[0]!.localeCompare(b[0]!)))
   const canMove = !!active?.layoutId && locationKind !== 'overland'
   useEffect(() => { onActiveChange?.(enabled && ready && !overLimit) }, [enabled, ready, overLimit, onActiveChange])
   useEffect(() => {
@@ -110,7 +112,7 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
       engine.current.select(currentSelection.current)
       engine.current.status(currentNodes.current)
       engine.current.motion(currentRunners.current)
-      engine.current.flights(currentFlights.current)
+      engine.current.flights(currentFlights.current && hasConnections)
       engine.current.spin(currentRotating.current)
       engine.current.moveMaps(currentMovingMaps.current)
       engine.current.zoom(currentZoom.current.value)
@@ -122,13 +124,13 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
       }
     })
     return () => { cancelled = true; engine.current?.dispose(); engine.current = null }
-  }, [enabled, overLimit, ids, fitViewport])
+  }, [enabled, overLimit, ids, fitViewport, hasConnections])
   useEffect(() => { engine.current?.select(selected) }, [selected, ready, ids, showLabel])
   useEffect(() => { engine.current?.palette() }, [revision, ready])
   useEffect(() => { engine.current?.motion(runners) }, [runners, ready])
-  useEffect(() => { engine.current?.flights(flights) }, [flights, ready])
+  useEffect(() => { engine.current?.flights(flights && hasConnections) }, [flights, hasConnections, ready])
   useEffect(() => { engine.current?.spin(rotating) }, [rotating, ready])
-  useEffect(() => { engine.current?.status(nodes) }, [nodes, ready])
+  useEffect(() => { engine.current?.status(globeNodes) }, [globeNodes, ready])
   useEffect(() => { engine.current?.zoom(zoom.value) }, [zoom.value, ready, ids])
   useEffect(() => { engine.current?.moveMaps(movingMaps) }, [movingMaps, ready])
   useEffect(() => { engine.current?.layout(globePositionsForNodes(currentNodes.current, saved.layout.positions)) }, [saved.layout, ready, ids])
@@ -139,10 +141,10 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
       <div className="spatial-globe-caption"><h1>Arrakis</h1><span>{locations.length} reported location{locations.length === 1 ? '' : 's'}</span></div>
       {enabled && !overLimit && <canvas key={ids} ref={canvas} aria-label={movingMaps ? 'Move maps: hold and drag any location with the left button; hold and drag the right button to rotate the globe' : 'Rotatable Arrakis globe; use Select map for keyboard selection'} />}
       {enabled && !overLimit && <div className="spatial-map-names" role="list" aria-label="Globe map labels">
-        {locations.map(node => <div key={node.id} role="listitem" data-map-id={node.id} className="spatial-map-name"
+        {globeLocations.map(node => <div key={node.id} role="listitem" data-map-id={node.id} className="spatial-map-name"
           ref={element => { if (element) mapLabels.current.set(node.id, element); else mapLabels.current.delete(node.id) }}
           style={{ visibility: 'hidden' }}>
-          <strong>{node.title}</strong><span>{node.players === 'Unknown' ? 'Player count unknown' : `${node.players} player${node.players === '1' ? '' : 's'}`}</span>
+          <strong>{node.title}</strong><span>{node.reported === false ? 'Not spun up' : node.players === 'Unknown' ? 'Player count unknown' : `${node.players} player${node.players === '1' ? '' : 's'}`}</span>
         </div>)}
       </div>}
       {enabled && !overLimit && !fitViewport && showLabel && active && <div className="spatial-detail-label-layer"><div ref={label} className="spatial-map-label" role="status" aria-label="Selected map card" style={{ visibility: 'hidden' }}>
@@ -188,7 +190,7 @@ export default function SpatialStage({ nodes, selected, onSelect, showLabel = fa
         </select>
         <button disabled={!ready || !locations.length} aria-pressed={movingMaps} onClick={() => setMovingMaps(value => !value)}>{movingMaps ? 'Done moving' : 'Move maps'}</button>
         <button disabled={!ready || !hasConnections} aria-pressed={runners && hasConnections} title={hasConnections ? 'Hagga connections: green is ready, red is not ready. Pulses are decorative, not traffic; respects reduced motion.' : 'Connections require a reported Hagga instance and another map.'} onClick={() => setRunners(value => !value)}>Signal runners</button>
-        <button disabled={!ready} aria-pressed={flights} title="Simulated travel dots and trails, not actual players or measured traffic. Respects reduced motion." onClick={() => setFlights(value => !value)}>Simulated travel</button>
+        <button disabled={!ready || !hasConnections} aria-pressed={flights && hasConnections} title={hasConnections ? 'Simulated travel dots and trails, not actual players or measured traffic. Respects reduced motion.' : 'Simulated travel requires at least two spun-up main maps.'} onClick={() => setFlights(value => !value)}>Simulated travel</button>
         <button disabled={!ready || movingMaps} aria-pressed={rotating && !movingMaps} title="Slow globe rotation. Paused while moving maps. Respects reduced motion." onClick={() => setGlobeAutoRotate(!rotating)}>Auto rotate</button>
         <button onClick={() => { setEnabled(false); setReady(false); onExit?.() }}>Disable 3D</button>
         </div>

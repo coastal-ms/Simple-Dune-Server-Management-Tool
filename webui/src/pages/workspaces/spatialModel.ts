@@ -3,8 +3,14 @@ import type { BgGameServer } from '../../api/types'
 export type SpatialLocationKind = 'hagga' | 'deep-desert' | 'arrakeen' | 'harko' | 'overland' | 'dungeon' | 'story' | 'unknown'
   | 'hephaestus' | 'carthag' | 'quarry' | 'broodworks' | 'fallen-light' | 'arsunt' | 'tyche'
   | 'cavern' | 'smugglers-run' | 'tsimpo' | 'wind-pass' | 'station24' | 'station89' | 'station136' | 'station152' | 'station195'
-export type SpatialNode = { id: string; map: string; title: string; phase: string; ready: string; players: string; age?: string; layoutId?: string }
+export type SpatialNode = { id: string; map: string; title: string; phase: string; ready: string; players: string; age?: string; layoutId?: string; reported?: boolean }
 export const MAX_SPATIAL_LOCATIONS = 13
+const MAIN_MAP_SILHOUETTES = [
+  ['hagga', 'Survival_1'],
+  ['deep-desert', 'DeepDesert_1'],
+  ['arrakeen', 'SH_Arrakeen'],
+  ['harko', 'SH_HarkoVillage'],
+] as const satisfies readonly (readonly [SpatialLocationKind, string])[]
 
 // Technical IDs cross-checked against map-name tables; visual references are linked per entry.
 const NAMED_LOCATION_KINDS: Record<string, SpatialLocationKind> = {
@@ -105,8 +111,27 @@ export function spatialNodes(servers: BgGameServer[], label: (map: string) => st
         : server.ready?.toLowerCase() === 'false' ? 'Not ready' : 'Unknown',
       players: server.players || 'Unknown',
       age: server.age || 'Unknown',
+      reported: true,
     }
   })
+}
+
+export function spatialGlobeNodes(nodes: SpatialNode[]) {
+  const present = new Set(nodes.map(node => spatialLocationKind(node.map)))
+  const silhouettes = MAIN_MAP_SILHOUETTES
+    .filter(([kind]) => !present.has(kind))
+    .map(([kind, map]): SpatialNode => ({
+      id: `dormant:${kind}`,
+      map,
+      title: LOCATION_VISUALS[kind].label,
+      phase: 'Dormant',
+      ready: 'Dormant',
+      players: 'Unknown',
+      age: 'Not reported',
+      layoutId: JSON.stringify([map, null]),
+      reported: false,
+    }))
+  return spatialStatusOrder([...nodes, ...silhouettes])
 }
 
 export function locationScale(map: string) {
@@ -141,6 +166,7 @@ export function spatialSceneLayout(nodes: SpatialNode[]) {
 }
 
 export function spatialConnections(placements: ReturnType<typeof spatialSceneLayout>['placements']) {
-  const hub = placements.find(item => spatialLocationKind(item.node.map) === 'hagga')
-  return hub ? placements.filter(item => item.node.id !== hub.node.id).map(to => ({ from: hub, to })) : []
+  const reported = placements.filter(item => item.node.reported !== false)
+  const hub = reported.find(item => spatialLocationKind(item.node.map) === 'hagga')
+  return hub ? reported.filter(item => item.node.id !== hub.node.id).map(to => ({ from: hub, to })) : []
 }
