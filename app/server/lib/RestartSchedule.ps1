@@ -20,6 +20,8 @@
 $script:DuneRestartSchedulerStarted = $false
 $script:DuneRestartSchedulerRunspace = $null
 $script:DuneRestartSchedulerPowerShell = $null
+$script:DuneRestartSchedulerHandle = $null
+$script:DuneRestartSchedulerCancellation = $null
 $script:DuneFuncomCheckRunspace = $null
 $script:DuneFuncomCheckPowerShell = $null
 $script:DuneDiscordLastBgState = $null
@@ -1021,7 +1023,10 @@ function Invoke-DuneDiscordStateMonitorTick {
 # so every helper the scheduler tick (or the async update checker) needs is in
 # scope. Shared by Start-DuneRestartScheduler and Start-DuneFuncomUpdateCheckAsync.
 function New-DuneSchedulerInitialSessionState {
-    param([Parameter(Mandatory)][string]$ServerDir)
+    param(
+        [Parameter(Mandatory)][string]$ServerDir,
+        [switch]$DeferLibraryLoad
+    )
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     $duneLog = Join-Path $ServerDir 'lib\DuneLog.ps1'
     if (Test-Path -LiteralPath $duneLog) { [void]$iss.StartupScripts.Add($duneLog) }
@@ -1033,6 +1038,12 @@ function New-DuneSchedulerInitialSessionState {
             if ($f.Name -ieq 'DuneLog.ps1')   { continue }
             if ($f.Name -ieq 'Bootstrap.ps1') { continue }
             [void]$iss.StartupScripts.Add($f.FullName)
+        }
+        if ($DeferLibraryLoad) {
+            [void]$iss.Variables.Add(
+                [System.Management.Automation.Runspaces.SessionStateVariableEntry]::new(
+                    'DuneSchedulerStartupScripts', [string[]]@($iss.StartupScripts), 'Libraries to load inside the background pipeline'))
+            $iss.StartupScripts.Clear()
         }
     }
 
@@ -1098,10 +1109,16 @@ function Start-DuneFuncomUpdateCheckAsync {
 
 # Launch the background scheduler runspace. Idempotent.
 function Start-DuneRestartScheduler {
-    param([Parameter(Mandatory)][string]$ServerDir)
+    param(
+        [Parameter(Mandatory)][string]$ServerDir,
+        [Threading.ManualResetEventSlim]$HttpReady
+    )
     if ($script:DuneRestartSchedulerStarted) { return }
+    $cancellation = [Threading.CancellationTokenSource]::new()
+    $rs = $null
+    $ps = $null
     try {
-        $iss = New-DuneSchedulerInitialSessionState -ServerDir $ServerDir
+        $iss = New-DuneSchedulerInitialSessionState -ServerDir $ServerDir -DeferLibraryLoad
 
         $rs = [runspacefactory]::CreateRunspace($iss)
         $rs.Name = 'DuneRestartScheduler'
@@ -1109,13 +1126,36 @@ function Start-DuneRestartScheduler {
         $rs.Open()
         # Make the server dir available inside the scheduler runspace so the tick
         # can spin up the parallel update-check runspace.
-        try { $rs.SessionStateProxy.SetVariable('DuneSchedulerServerDir', $ServerDir) } catch {}
+        $rs.SessionStateProxy.SetVariable('DuneSchedulerServerDir', $ServerDir)
 
         $ps = [powershell]::Create()
         $ps.Runspace = $rs
         [void]$ps.AddScript({
+            param($HttpReady, $CancellationToken)
+            try {
+                if ($HttpReady) { $HttpReady.Wait($CancellationToken) }
+                foreach ($startupScript in $DuneSchedulerStartupScripts) {
+                    $CancellationToken.ThrowIfCancellationRequested()
+                    . $startupScript
+                }
+            } catch {
+                if ($CancellationToken.IsCancellationRequested) { return }
+                if (Get-Command Set-DuneLogPath -ErrorAction SilentlyContinue) {
+                    if ($DuneSchedulerLogPath) { Set-DuneLogPath -Path $DuneSchedulerLogPath }
+                    Write-DuneLog "Restart scheduler library loading failed: $($_.Exception.Message)" 'ERROR'
+                }
+                throw
+            }
             if ($DuneSchedulerLogPath -and (Get-Command Set-DuneLogPath -ErrorAction SilentlyContinue)) {
                 try { Set-DuneLogPath -Path $DuneSchedulerLogPath } catch {}
+            }
+            Write-DuneLog 'Restart scheduler background libraries loaded'
+            # The health probes and scheduled-task/TCP discovery are synchronous,
+            # not just the repair. Keep the entire preflight off HTTP acceptance.
+            try {
+                Initialize-DuneMobileBridge -ServerDir $DuneSchedulerServerDir
+            } catch {
+                Write-DuneLog "Mobile bridge startup preflight failed: $($_.Exception.Message)" 'WARN'
             }
             # Reinstall/repair the VM-owned daily maintenance script + root cron
             # on every DST startup. Normal Funcom battlegroup updates leave host
@@ -1176,7 +1216,7 @@ function Start-DuneRestartScheduler {
                     try { Write-DuneLog "pod maintenance: terminal director cleanup failed: $($_.Exception.Message)" 'WARN' } catch {}
                 }
             }
-            while ($true) {
+            while (-not $CancellationToken.IsCancellationRequested) {
                 try { Invoke-DuneRestartScheduleTick } catch {
                     if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
                         try { Write-DuneLog "restart scheduler tick error: $($_.Exception.Message)" 'WARN' } catch {}
@@ -1277,7 +1317,7 @@ function Start-DuneRestartScheduler {
                 $chatElapsed = 0
                 while ($chatElapsed -lt 30) {
                     $slice = [Math]::Min($chatPoll, 30 - $chatElapsed)
-                    Start-Sleep -Seconds $slice
+                    if ($CancellationToken.WaitHandle.WaitOne([int]($slice * 1000))) { return }
                     $chatElapsed += $slice
                     try { [void](Invoke-DuneChatCommandTick) } catch {
                         if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
@@ -1286,16 +1326,21 @@ function Start-DuneRestartScheduler {
                     }
                 }
             }
-        })
-        [void]$ps.BeginInvoke()
+        }).AddArgument($HttpReady).AddArgument($cancellation.Token)
+        $handle = $ps.BeginInvoke()
 
         $script:DuneRestartSchedulerRunspace = $rs
         $script:DuneRestartSchedulerPowerShell = $ps
+        $script:DuneRestartSchedulerHandle = $handle
+        $script:DuneRestartSchedulerCancellation = $cancellation
         $script:DuneRestartSchedulerStarted = $true
         if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
-            Write-DuneLog 'restart scheduler started (30s tick)'
+            Write-DuneLog 'restart scheduler queued (30s tick)'
         }
     } catch {
+        if ($ps) { $ps.Dispose() }
+        if ($rs) { $rs.Dispose() }
+        $cancellation.Dispose()
         if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
             Write-DuneLog "restart scheduler failed to start: $($_.Exception.Message)" 'WARN'
         }
@@ -1303,13 +1348,41 @@ function Start-DuneRestartScheduler {
 }
 
 function Stop-DuneRestartScheduler {
+    param([ValidateRange(1,30000)][int]$WaitMs = 5000)
+
+    if ($script:DuneRestartSchedulerCancellation) {
+        $script:DuneRestartSchedulerCancellation.Cancel()
+    }
+    $handle = $script:DuneRestartSchedulerHandle
+    if ($handle -and -not $handle.AsyncWaitHandle.WaitOne([Math]::Min(1000, $WaitMs))) {
+        $null = $script:DuneRestartSchedulerPowerShell.BeginStop($null, $null)
+        if (-not $handle.AsyncWaitHandle.WaitOne($WaitMs)) {
+            if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
+                Write-DuneLog 'Restart scheduler did not stop within the shutdown timeout.' 'WARN'
+            }
+            return $false
+        }
+    }
+    if ($handle) {
+        try { $null = $script:DuneRestartSchedulerPowerShell.EndInvoke($handle) }
+        catch [Management.Automation.PipelineStoppedException] { }
+        catch {
+            if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
+                Write-DuneLog "Restart scheduler stopped after a failure: $($_.Exception.Message)" 'WARN'
+            }
+        }
+    }
     try { if ($script:DuneFuncomCheckPowerShell) { $script:DuneFuncomCheckPowerShell.Dispose() } } catch {}
     try { if ($script:DuneFuncomCheckRunspace) { $script:DuneFuncomCheckRunspace.Dispose() } } catch {}
-    try { if ($script:DuneRestartSchedulerPowerShell) { $script:DuneRestartSchedulerPowerShell.Stop(); $script:DuneRestartSchedulerPowerShell.Dispose() } } catch {}
+    try { if ($script:DuneRestartSchedulerPowerShell) { $script:DuneRestartSchedulerPowerShell.Dispose() } } catch {}
     try { if ($script:DuneRestartSchedulerRunspace) { $script:DuneRestartSchedulerRunspace.Close(); $script:DuneRestartSchedulerRunspace.Dispose() } } catch {}
     $script:DuneFuncomCheckPowerShell = $null
     $script:DuneFuncomCheckRunspace = $null
     $script:DuneRestartSchedulerPowerShell = $null
     $script:DuneRestartSchedulerRunspace = $null
     $script:DuneRestartSchedulerStarted = $false
+    $script:DuneRestartSchedulerHandle = $null
+    if ($script:DuneRestartSchedulerCancellation) { $script:DuneRestartSchedulerCancellation.Dispose() }
+    $script:DuneRestartSchedulerCancellation = $null
+    return $true
 }

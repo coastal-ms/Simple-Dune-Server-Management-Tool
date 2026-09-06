@@ -421,6 +421,46 @@ Describe 'Solo Mode write gates and settings backups' {
         Assert-MockCalled Invoke-DuneSoloHelper -Times 0
     }
 
+    It 'lists and exports Solo blueprints from a connected save without opening import' {
+        $layout = New-TestSoloLayout
+        Save-DuneSoloState -DataRoot $layout.root -DbPath $layout.db | Out-Null
+        Mock Invoke-DuneSoloHelper {
+            if ($Command -eq 'list-blueprints') {
+                return @{
+                    ok = $true
+                    blueprints = @(
+                        @{ id = 7; itemId = 11; name = 'Wick Solido'; instances = 4; placeables = 1; pentashields = 0 }
+                    )
+                }
+            }
+            if ($Command -eq 'export-blueprint') {
+                return @{
+                    ok = $true
+                    filename = 'Wick Solido.json'
+                    blueprint = @{
+                        name = 'Wick Solido'
+                        instances = @()
+                        placeables = @()
+                        pentashields = @()
+                    }
+                }
+            }
+            throw "Unexpected helper command $Command"
+        }
+
+        $listed = Get-DuneSoloBlueprints
+        $listed.blueprints[0].id | Should -Be 7
+        $exported = Export-DuneSoloBlueprint -Id 7
+        $exported.filename | Should -Be 'Wick Solido.json'
+
+        Assert-MockCalled Invoke-DuneSoloHelper -Times 1 -ParameterFilter {
+            $Command -eq 'list-blueprints' -and $Arguments.input -eq $layout.db
+        }
+        Assert-MockCalled Invoke-DuneSoloHelper -Times 1 -ParameterFilter {
+            $Command -eq 'export-blueprint' -and $Arguments.input -eq $layout.db -and $Arguments.id -eq 7
+        }
+    }
+
     It 'builds a backup-safe currency write while the game is closed' {
         $layout = New-TestSoloLayout
         Save-DuneSoloState -DataRoot $layout.root -DbPath $layout.db | Out-Null
@@ -575,6 +615,8 @@ Describe 'Solo Mode route security metadata' {
 
         foreach ($expected in @(
             '/api/solo/items/grant',
+            '/api/solo/blueprints',
+            '/api/solo/blueprints/export',
             '/api/solo/blueprints/import',
             '/api/solo/items/augments/max',
             '/api/solo/currencies',

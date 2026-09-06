@@ -166,7 +166,7 @@ public static extern bool IsIconic(System.IntPtr hWnd);
 Write-DuneStartupLog 'Console presentation initialized'
 
 # Version (one of the 5 sync'd constants; see persistent-notes.md)
-$script:DuneToolVersion = '15.0.0-finalphase-1.2'
+$script:DuneToolVersion = '15.0.0-finalphase-1.3'
 # Artifact identity defaults for source/dev runs. Build-Exe.ps1 replaces these
 # four declarations only in its generated compilation input, so the resulting
 # executable carries immutable identity without changing tracked version stamps.
@@ -598,29 +598,11 @@ if (Test-Path $libDir) {
 }
 Write-DuneStartupLog 'Library modules loaded'
 
-# Hydrate the last persisted Maps read model before any HTTP route can observe it.
-# Source refresh is scheduled separately and never runs on the response path.
-if (Get-Command Initialize-DunePlatformCache -ErrorAction SilentlyContinue) {
-    $platformCacheStartup = Initialize-DunePlatformCache
-    if (-not $platformCacheStartup.ok) {
-        Write-DuneLog "Platform cache unavailable at startup: $($platformCacheStartup.message)" 'WARN'
-    }
-    if (Get-Command Start-DuneMapsPlatformStartupRefresh -ErrorAction SilentlyContinue) {
-        try {
-            [void](Start-DuneMapsPlatformStartupRefresh -ServerDir $serverDir -AppDir $script:AppDir)
-        } catch {
-            Write-DuneLog "Maps platform startup refresh could not be scheduled: $($_.Exception.Message)" 'WARN'
-        }
-    }
-    Write-DuneStartupLog 'Platform cache initialized and refreshes scheduled'
-    if (Get-Command Start-DuneInventoryCacheStartupRefresh -ErrorAction SilentlyContinue) {
-        try {
-            [void](Start-DuneInventoryCacheStartupRefresh -ServerDir $serverDir -AppDir $script:AppDir)
-        } catch {
-            Write-DuneLog "Inventory cache startup refresh could not be scheduled: $($_.Exception.Message)" 'WARN'
-        }
-    }
-}
+# API workers capture this object once. Background hydration publishes into it
+# after HTTP acceptance starts; readers report cache-loading until then.
+$null = Get-DunePlatformSnapshotState
+$null = Set-DunePlatformSnapshotError -LastErrorCode 'cache-loading'
+Write-DuneStartupLog 'Platform cache state created; hydration deferred'
 
 # Auto-load all route files
 $routesDir = Join-Path $serverDir 'routes'
@@ -637,16 +619,7 @@ if (Get-Command Start-DuneGameplayBotScheduler -ErrorAction SilentlyContinue) {
 }
 Write-DuneStartupLog 'Gameplay bot scheduler initialized'
 
-# Self-heal the mobile-app bridge (the loopback reverse-proxy + its background
-# task). Covers the case where the bridge task or listener is missing. The bridge
-# binds 127.0.0.1 only and is reached remotely via the Cloudflare quick tunnel,
-# so no admin/firewall is involved. No-op unless something is actually missing;
-# repairs in the background so startup isn't delayed. Fully best-effort — never
-# blocks or crashes startup.
-if (Get-Command Initialize-DuneMobileBridge -ErrorAction SilentlyContinue) {
-    try { Initialize-DuneMobileBridge -ServerDir $serverDir } catch {}
-}
-Write-DuneStartupLog 'Mobile bridge initialized'
+# Mobile bridge health/repair runs on the background restart scheduler.
 
 # ---------- Token --------------------------------------------------------------
 
@@ -871,11 +844,15 @@ try {
     Write-DuneLog "HTTP server failed: $($_.Exception.Message)" 'ERROR'
     Show-DuneMessage "Dune Server failed to start: $($_.Exception.Message)" 'Dune Server' 'Error'
 } finally {
-    if (Get-Command Stop-DuneInventoryCacheRefresh -ErrorAction SilentlyContinue) {
-        try { [void](Stop-DuneInventoryCacheRefresh) } catch {}
+    if (Get-Command Stop-DunePlatformCacheStartup -ErrorAction SilentlyContinue) {
+        try { [void](Stop-DunePlatformCacheStartup) } catch {
+            Write-DuneLog "Platform cache shutdown failed: $($_.Exception.Message)" 'WARN'
+        }
     }
-    if (Get-Command Stop-DuneMapsPlatformRefresh -ErrorAction SilentlyContinue) {
-        try { [void](Stop-DuneMapsPlatformRefresh) } catch {}
+    if (Get-Command Stop-DuneRestartScheduler -ErrorAction SilentlyContinue) {
+        try { [void](Stop-DuneRestartScheduler) } catch {
+            Write-DuneLog "Restart scheduler shutdown failed: $($_.Exception.Message)" 'WARN'
+        }
     }
     if (Get-Command Stop-DuneConsoleLifecycle -ErrorAction SilentlyContinue) {
         try { Stop-DuneConsoleLifecycle } catch {}

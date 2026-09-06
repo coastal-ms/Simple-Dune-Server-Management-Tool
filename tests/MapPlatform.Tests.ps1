@@ -705,15 +705,14 @@ Describe 'Maps v1 cached API contracts' -Tag 'MapPlatform' {
         [Text.Encoding]::UTF8.GetByteCount($json) | Should -BeLessThan (256KB)
     }
 
-    It 'hydrates persisted state before scheduling the recurring startup refresh' {
+    It 'hydrates off the HTTP path before scheduling the recurring refresh workers' {
         $entrypoint = Get-Content (Join-Path (Get-DstRepoRoot) 'app\DuneServer.ps1') -Raw
-        $hydrate = $entrypoint.IndexOf('Initialize-DunePlatformCache')
-        $refresh = $entrypoint.IndexOf('Start-DuneMapsPlatformStartupRefresh')
-        $routes = $entrypoint.IndexOf('# Auto-load all route files')
+        $startup = (Get-Command Start-DunePlatformCacheStartup).Definition
 
-        $hydrate | Should -BeGreaterOrEqual 0
-        $refresh | Should -BeGreaterThan $hydrate
-        $routes | Should -BeGreaterThan $refresh
+        $entrypoint | Should -Not -Match 'Initialize-DunePlatformCache'
+        $entrypoint | Should -Match 'Get-DunePlatformSnapshotState'
+        $startup.IndexOf('Initialize-DunePlatformCache') | Should -BeGreaterThan $startup.IndexOf('$HttpReady.Wait')
+        $startup.IndexOf('Start-DuneMapsPlatformStartupRefresh') | Should -BeGreaterThan $startup.IndexOf('Initialize-DunePlatformCache')
         (Get-Command Start-DuneMapsPlatformStartupRefresh).Definition | Should -Match 'MapsRefreshRunner'
         (Get-Command Start-DuneMapsPlatformStartupRefresh).Definition | Should -Match 'CancellationTokenSource'
         (Get-Command Start-DuneMapsPlatformStartupRefresh).Definition | Should -Match 'DuneLog\.ps1'
@@ -722,8 +721,9 @@ Describe 'Maps v1 cached API contracts' -Tag 'MapPlatform' {
         (Get-Command Start-DuneMapsPlatformStartupRefresh).Definition | Should -Not -Match 'BeginInvoke'
         (Get-Command Stop-DuneMapsPlatformRefresh).Definition | Should -Match 'BeginStop'
         (Get-Command Stop-DuneMapsPlatformRefresh).Definition | Should -Not -Match '\.Stop\('
-        $entrypoint | Should -Match 'Stop-DuneMapsPlatformRefresh'
-        $entrypoint.IndexOf('Stop-DuneMapsPlatformRefresh') |
+        $entrypoint | Should -Match 'Stop-DunePlatformCacheStartup'
+        $startup | Should -Match 'Stop-DuneMapsPlatformRefresh'
+        $entrypoint.IndexOf('Stop-DunePlatformCacheStartup') |
             Should -BeLessThan $entrypoint.LastIndexOf('Stop-DuneHttpServer')
     }
 

@@ -11,6 +11,21 @@ Patch releases within a major series are rolled up under the major's entry
 on GitHub still exist for each individual release; the consolidated entries
 here cover everything those tags shipped.
 
+## [Unreleased]
+
+## [15.0.0-finalphase-1.3] - 2026-09-06
+
+### Added
+
+- Command Deck player admin now has a **Manage Player** tab between Stats and Specs for give/manage item actions as cards. Inventory is inventory only.
+- Player **Actions** uses the same category-and-card layout as Commands.
+- Settings section tabs wrap to a second line instead of scrolling sideways.
+- Solo Mode can export saved base blueprints (solidos) to portable DST JSON. Solo import stays disabled.
+
+### Changed
+
+- Startup hydrates the map cache and starts Maps/Inventory refresh workers after HTTP is accepting. Restart-scheduler library load and mobile-bridge health run in the background so first UI is not blocked on them.
+
 ## [15.0.0-finalphase-1.2] - 2026-09-05
 
 ### Fixed

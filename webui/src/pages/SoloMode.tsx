@@ -21,6 +21,7 @@ import {
   completeSoloFindTheFremen,
   completeSoloNpe,
   enableSoloAllSkills,
+  exportSoloBlueprint,
   grantSoloItems,
   importSoloBlueprint,
   maxSoloAugmentAttributes,
@@ -38,10 +39,12 @@ import {
   type SoloInventoryDestination,
   type SoloProfile,
   type SoloRuntime,
+  type SoloSavedBlueprint,
   type SoloSettingsResponse,
   type SoloStatus,
 } from '../api/solo'
 import {
+  downloadBlueprintFile,
   filterCosmeticsCatalog,
   getCosmeticsCatalog,
   getVehicleKitCatalog,
@@ -473,6 +476,7 @@ export function SoloMode() {
     { enabled: connected },
   )
   const backupsState = useApi<SoloBackupsResponse>('/api/solo/backups', { enabled: connected })
+  const blueprintsState = useApi<{ ok: boolean; blueprints: SoloSavedBlueprint[] }>('/api/solo/blueprints', { enabled: connected })
   const [dataRoot, setDataRoot] = useState('')
   const [selectedDb, setSelectedDb] = useState('')
   const [discoveredProfiles, setDiscoveredProfiles] = useState<SoloProfile[]>([])
@@ -947,6 +951,24 @@ export function SoloMode() {
       setBlueprintFileName(file.name)
     } catch (error) {
       setBlueprintError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const exportSavedBlueprint = async (saved: SoloSavedBlueprint) => {
+    if (!connected) {
+      setNotice({ kind: 'err', text: 'Connect a Solo profile before exporting a blueprint.' })
+      return
+    }
+    setBusy(`export-blueprint-${saved.id}`)
+    setNotice(null)
+    try {
+      const result = await exportSoloBlueprint(saved.id)
+      downloadBlueprintFile(result.blueprint, result.filename || `${saved.name || 'blueprint'}.json`)
+      setNotice({ kind: 'ok', text: `Exported ${result.filename || saved.name || 'blueprint'}.` })
+    } catch (error) {
+      setNotice({ kind: 'err', text: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -1935,6 +1957,48 @@ export function SoloMode() {
                 <Icon name={busy === 'give-items' ? 'LoaderCircle' : 'Truck'} size={14} className={busy === 'give-items' ? 'animate-spin' : ''} />
                 Give vehicle kit
               </button>
+            </div>
+
+            <div className="card p-5 xl:col-span-2">
+              <h3 className="font-semibold mb-1 flex items-center gap-2">
+                <Icon name="Download" size={15} /> Export Base Blueprint
+              </h3>
+              <p className="text-xs text-text-muted mb-4">
+                Download a saved Solo solido as portable DST JSON. Import stays disabled in PTC.
+              </p>
+              {(blueprintsState.data?.blueprints ?? []).length === 0 ? (
+                <div className="rounded border border-border bg-surface-2/50 p-3 text-xs text-text-muted">
+                  {blueprintsState.loading
+                    ? 'Reading saved blueprints…'
+                    : 'No saved base blueprints in this Solo profile.'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(blueprintsState.data?.blueprints ?? []).map(saved => (
+                    <div key={saved.id} className="flex items-center gap-3 rounded border border-border bg-surface-2/40 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-text truncate">{saved.name || `Blueprint ${saved.id}`}</div>
+                        <div className="text-xs text-text-muted">
+                          {saved.instances} pieces · {saved.placeables} placeables · {saved.pentashields} pentashields
+                        </div>
+                      </div>
+                      <button
+                        className="btn-secondary shrink-0"
+                        disabled={!connected || busy === `export-blueprint-${saved.id}`}
+                        onClick={() => void exportSavedBlueprint(saved)}
+                      >
+                        <Icon name={busy === `export-blueprint-${saved.id}` ? 'LoaderCircle' : 'Download'} size={14} className={busy === `export-blueprint-${saved.id}` ? 'animate-spin' : ''} />
+                        Export
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {blueprintsState.error && (
+                <div className="rounded border border-danger/30 bg-danger/5 p-3 mt-3 text-xs text-danger">
+                  {blueprintsState.error}
+                </div>
+              )}
             </div>
 
             <div className="card p-5 xl:col-span-2">

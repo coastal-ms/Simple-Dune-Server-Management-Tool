@@ -955,11 +955,20 @@ function Start-DuneHttpServer {
         }
     }
 
+    $httpReady = [Threading.ManualResetEventSlim]::new($false)
+    if (Get-Command Start-DunePlatformCacheStartup -ErrorAction SilentlyContinue) {
+        try {
+            [void](Start-DunePlatformCacheStartup -ServerDir $script:DuneServerDir -HttpReady $httpReady)
+        } catch {
+            Write-DuneLog "Platform cache background startup could not be queued: $($_.Exception.Message)" 'WARN'
+        }
+    }
+
     # Launch the in-process scheduled-restart loop. It lives in this process, so
     # it only fires while DST is open and running (the UI states this). Failure
     # to start must not block the server from accepting requests.
     if (Get-Command Start-DuneRestartScheduler -ErrorAction SilentlyContinue) {
-        try { Start-DuneRestartScheduler -ServerDir $script:DuneServerDir } catch {
+        try { Start-DuneRestartScheduler -ServerDir $script:DuneServerDir -HttpReady $httpReady } catch {
             if (Get-Command Write-DuneLog -ErrorAction SilentlyContinue) {
                 Write-DuneLog "restart scheduler launch failed: $($_.Exception.Message)" 'WARN'
             }
@@ -972,6 +981,12 @@ function Start-DuneHttpServer {
             try { Clear-DuneApiCompleted } catch {}
             try {
                 $ctxTask = $listener.GetContextAsync()
+                if (-not $httpReady.IsSet) {
+                    $httpReady.Set()
+                    if (Get-Command Write-DuneStartupLog -ErrorAction SilentlyContinue) {
+                        Write-DuneStartupLog 'HTTP accept loop ready'
+                    }
+                }
                 $ctx = $ctxTask.GetAwaiter().GetResult()
             } catch [System.Net.HttpListenerException] {
                 break  # Listener was Stop()ed externally (e.g., tray Quit)
@@ -999,6 +1014,26 @@ function Start-DuneHttpServer {
             }
         }
     } finally {
+        $backgroundStopped = $true
+        if (Get-Command Stop-DunePlatformCacheStartup -ErrorAction SilentlyContinue) {
+            if ($script:DunePlatformStartupWorker) {
+                try {
+                    $backgroundStopped = (Stop-DunePlatformCacheStartup) -and $backgroundStopped
+                } catch {
+                    $backgroundStopped = $false
+                    Write-DuneLog "Platform cache shutdown failed: $($_.Exception.Message)" 'WARN'
+                }
+            }
+        }
+        if (Get-Command Stop-DuneRestartScheduler -ErrorAction SilentlyContinue) {
+            try {
+                $backgroundStopped = (Stop-DuneRestartScheduler) -and $backgroundStopped
+            } catch {
+                $backgroundStopped = $false
+                Write-DuneLog "Restart scheduler shutdown failed: $($_.Exception.Message)" 'WARN'
+            }
+        }
+        if ($backgroundStopped) { $httpReady.Dispose() }
         # Wait briefly for in-flight handlers to finish, then reap + tear down.
         try {
             $deadline = (Get-Date).AddSeconds(5)

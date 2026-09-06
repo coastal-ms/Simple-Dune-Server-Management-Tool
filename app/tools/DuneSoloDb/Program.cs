@@ -86,6 +86,10 @@ internal static partial class Program
                     Require(options, "input"),
                     Require(options, "safety-backup"),
                     Require(options, "blueprint")),
+                "list-blueprints" => ListBlueprints(Require(options, "input")),
+                "export-blueprint" => ExportBlueprint(
+                    Require(options, "input"),
+                    ParseItemId(RequireValue(options, "id"), "Solo blueprint id")),
                 "set-currencies" => SetCurrencies(
                     Require(options, "input"),
                     Require(options, "safety-backup"),
@@ -94,12 +98,12 @@ internal static partial class Program
                 "fill-water" => FillWaterContainer(
                     Require(options, "input"),
                     Require(options, "safety-backup"),
-                    ParseItemId(RequireValue(options, "item-id")),
+                    ParseItemId(RequireValue(options, "item-id"), "Solo item id"),
                     Require(options, "adapter")),
                 "set-weapon-ammo" => SetWeaponAmmo(
                     Require(options, "input"),
                     Require(options, "safety-backup"),
-                    ParseItemId(RequireValue(options, "item-id")),
+                    ParseItemId(RequireValue(options, "item-id"), "Solo item id"),
                     ParseBalance(RequireValue(options, "ammo"), "Ammo"),
                     Require(options, "catalog")),
                 "max-augment-attributes" => MaxAugmentAttributes(
@@ -533,11 +537,11 @@ internal static partial class Program
             return parsed;
         }
 
-        private static long ParseItemId(string value)
+        private static long ParseItemId(string value, string label)
         {
             if (!long.TryParse(value, out var parsed) || parsed <= 0)
             {
-                throw new ArgumentException("A valid Solo item id is required.");
+                throw new ArgumentException($"A valid {label} is required.");
             }
             return parsed;
         }

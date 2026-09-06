@@ -317,7 +317,7 @@ function Assert-DuneSoloGameClosed {
 
 function Invoke-DuneSoloHelper {
     param(
-        [Parameter(Mandatory)][ValidateSet('inspect','backup','restore','grant-items','import-blueprint','set-currencies','fill-water','set-weapon-ammo','max-augment-attributes','max-specializations','complete-fremen','complete-npe','enable-skills','set-progression-points')][string]$Command,
+        [Parameter(Mandatory)][ValidateSet('inspect','backup','restore','grant-items','import-blueprint','list-blueprints','export-blueprint','set-currencies','fill-water','set-weapon-ammo','max-augment-attributes','max-specializations','complete-fremen','complete-npe','enable-skills','set-progression-points')][string]$Command,
         [Parameter(Mandatory)][hashtable]$Arguments
     )
 
@@ -604,6 +604,34 @@ function Set-DuneSoloWeaponAmmo {
         'item-id' = $ItemId
         ammo = $Ammo
         catalog = Get-DuneSoloGameplayCatalogPath
+    }
+}
+
+function Get-DuneSoloBlueprints {
+    Assert-DuneSoloSupportedPlatform
+    $profile = Get-DuneSoloProfile
+    if (-not $profile.dbPath -or -not (Test-Path -LiteralPath $profile.dbPath -PathType Leaf)) {
+        throw 'Connect a valid Solo save before listing blueprints.'
+    }
+    return Invoke-DuneSoloHelper -Command 'list-blueprints' -Arguments @{
+        input = $profile.dbPath
+    }
+}
+
+function Export-DuneSoloBlueprint {
+    param([Parameter(Mandatory)][long]$Id)
+
+    Assert-DuneSoloSupportedPlatform
+    if ($Id -le 0) {
+        throw 'Choose a saved Solo blueprint to export.'
+    }
+    $profile = Get-DuneSoloProfile
+    if (-not $profile.dbPath -or -not (Test-Path -LiteralPath $profile.dbPath -PathType Leaf)) {
+        throw 'Connect a valid Solo save before exporting a blueprint.'
+    }
+    return Invoke-DuneSoloHelper -Command 'export-blueprint' -Arguments @{
+        input = $profile.dbPath
+        id = $Id
     }
 }
 
