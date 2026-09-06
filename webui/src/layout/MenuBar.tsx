@@ -18,6 +18,7 @@ type MenuKey = NavGroup | 'help'
 type Props = {
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
+  sidebarAvailable?: boolean
 }
 
 // Classic Windows-style top menu bar. Each group from the sidebar (Server
@@ -25,7 +26,7 @@ type Props = {
 // listing its pages, plus a "Help" dropdown immediately to the right of
 // System for cross-cutting commands like "Create Diagnostics Package" and the
 // sidebar collapse toggle.
-export function MenuBar({ sidebarCollapsed, onToggleSidebar }: Props) {
+export function MenuBar({ sidebarCollapsed, onToggleSidebar, sidebarAvailable = true }: Props) {
   const { canAccessOwnerSurfaces } = usePortalAccess()
   const navigate = useNavigate()
   const location = useLocation()
@@ -265,6 +266,7 @@ export function MenuBar({ sidebarCollapsed, onToggleSidebar }: Props) {
   return (
     <div
       ref={rootRef}
+      data-app-menu
       onTouchStart={rememberSwipeStart}
       onTouchEnd={(event) => {
         if (!mobileNavOpen) finishSwipe(event, 'right')
@@ -521,7 +523,7 @@ export function MenuBar({ sidebarCollapsed, onToggleSidebar }: Props) {
                 </span>
               </button>
             )}
-            <button
+            {sidebarAvailable && <button
               type="button"
               onClick={() => { onToggleSidebar(); setOpen(null) }}
               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-sm text-text-muted hover:text-text hover:bg-surface-2 transition-colors"
@@ -530,7 +532,7 @@ export function MenuBar({ sidebarCollapsed, onToggleSidebar }: Props) {
               <span className="flex-1">
                 {sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
               </span>
-            </button>
+            </button>}
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { TOKEN_KEYS, TOKEN_KEY_SET, isValidHex, normalizeHex } from './tokens'
 import { DEFAULT_PRESET_ID, PRESETS, getPreset } from './presets'
+import { colorSchemeForBase } from './colorScheme'
 
 export const THEME_STORAGE_KEY = 'dst-theme'
 export const THEME_SCHEMA_VERSION = 1
@@ -59,6 +60,7 @@ export function computeResolved(presetId: string, overrides: Record<string, stri
 
 export function applyResolvedToRoot(resolved: Record<string, string>): void {
   const root = document.documentElement
+  root.style.colorScheme = colorSchemeForBase(resolved['--color-base'] || '#0c0a09')
   for (const key of TOKEN_KEYS) {
     const v = resolved[key]
     if (v) root.style.setProperty(key, v)
@@ -112,6 +114,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Apply on every change. The inline boot script in index.html has already
   // applied the initial values pre-paint; this keeps the DOM in sync after.
   useEffect(() => {
+    document.documentElement.dataset.dstTheme = presetId
     applyResolvedToRoot(resolved)
     writeStored({ version: THEME_SCHEMA_VERSION, presetId, overrides, resolved })
     setRevision(r => r + 1)

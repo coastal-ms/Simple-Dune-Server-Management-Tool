@@ -6,6 +6,7 @@ BeforeAll {
     $env:APPDATA = Join-Path $script:SoloTestRoot 'Roaming'
     $env:LOCALAPPDATA = Join-Path $script:SoloTestRoot 'Local'
     New-Item -ItemType Directory -Path $env:APPDATA, $env:LOCALAPPDATA -Force | Out-Null
+    Import-DstLib 'AugmentCatalog.ps1'
     Import-DstLib 'SoloMode.ps1'
 }
 
@@ -72,6 +73,31 @@ Describe 'Solo Mode profile discovery and persistence' {
         $state.dataRoot | Should -Be $layout.root
         $state.dbPath | Should -Be $layout.db
         (Test-Path -LiteralPath (Get-DuneSoloStatePath)) | Should -BeTrue
+    }
+
+    It 'switches between two account folders without reusing the previous save' {
+        $layout = New-TestSoloLayout
+        $secondFolder = Join-Path (Split-Path -Parent (Split-Path -Parent $layout.db)) '987654321'
+        New-Item -ItemType Directory -Path $secondFolder -Force | Out-Null
+        $secondDb = Join-Path $secondFolder 'game.db'
+        [IO.File]::WriteAllBytes($secondDb, [byte[]](4, 5, 6))
+        Mock Invoke-DuneSoloHelper {
+            [pscustomobject]@{
+                ok = $true; wrapperVersion = 1; integrity = 'ok'
+                foreignKeyViolations = 0; characterCount = 1
+            }
+        }
+
+        (Get-DuneSoloDiscovery -SelectedPath $layout.root).suggestedDbPath | Should -BeNullOrEmpty
+        Connect-DuneSoloProfile -SelectedPath (Split-Path -Parent $layout.db) | Out-Null
+        $firstToken = Get-DuneSoloProfileToken -DbPath $layout.db
+        $connected = Connect-DuneSoloProfile -SelectedPath $secondFolder
+
+        $connected.dbPath | Should -Be $secondDb
+        (Read-DuneSoloState).dbPath | Should -Be $secondDb
+        (Read-DuneSoloState).dataRoot | Should -Be $layout.root
+        { Assert-DuneSoloExpectedProfile -ExpectedProfileToken $firstToken } |
+            Should -Throw '*changed in another window*'
     }
 
     It 'rejects a saved database path outside its configured root' {

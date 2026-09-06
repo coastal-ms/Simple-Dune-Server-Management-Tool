@@ -783,14 +783,15 @@ export function Settings() {
         data-section-nav-label="Tool configuration"
       >
         {FIELDS.filter(f => !f.showWhen || f.showWhen(values)).map(f => (
-          <div key={f.key}>
-            <label className="block text-sm font-medium mb-1.5">
+          <div key={f.key} className="settings-config-field" data-field-key={f.key}>
+            <label htmlFor={`tool-config-${f.key}`} className="block text-sm font-medium mb-1.5">
               {f.label}
               <span className="ml-2 text-[10px] font-mono text-text-dim uppercase tracking-wider">{f.key}</span>
             </label>
             {f.type === 'checkbox' ? (
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
+                  id={`tool-config-${f.key}`}
                   type="checkbox"
                   checked={['1','true','yes','on'].includes((values[f.key] ?? '').trim().toLowerCase())}
                   onChange={e => setValues(v => ({ ...v, [f.key]: e.target.checked ? 'true' : 'false' }))}
@@ -800,6 +801,7 @@ export function Settings() {
               </label>
             ) : f.type === 'select' ? (
               <select
+                id={`tool-config-${f.key}`}
                 value={values[f.key] ?? ''}
                 onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-border text-text focus:outline-none focus:ring-2 focus:ring-ibad focus:border-ibad/50"
@@ -827,6 +829,7 @@ export function Settings() {
                 )}
                 <div className="flex items-stretch gap-2">
                 <input
+                  id={`tool-config-${f.key}`}
                   type="text"
                   value={values[f.key] ?? ''}
                   placeholder={f.placeholder}
@@ -875,6 +878,7 @@ export function Settings() {
               </>
             ) : (
               <input
+                id={`tool-config-${f.key}`}
                 type="text"
                 value={values[f.key] ?? ''}
                 placeholder={f.placeholder}

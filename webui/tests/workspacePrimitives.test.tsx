@@ -8,10 +8,19 @@ import { WorkspaceLayout } from '../src/components/platform/WorkspaceLayout'
 import { getWorkspace } from '../src/platform/workspaces'
 import { BrowserRouter } from '../src/router'
 import { GameplayAdminShell } from '../src/components/platform/GameplayAdminShell'
+import { COMMAND_DECK_KEY } from '../src/hooks/useCommandDeck'
 
-afterEach(() => cleanup())
+afterEach(() => { cleanup(); localStorage.clear() })
 
 describe('workspace presentation primitives', () => {
+  it('uses one page heading in the new gameplay workspace instead of nested introductory banners', () => {
+    localStorage.setItem(COMMAND_DECK_KEY, '1')
+    render(<BrowserRouter><GameplayAdminShell activeSection="players"><WorkspaceLayout workspace={getWorkspace('players')}><div>Player tools</div></WorkspaceLayout></GameplayAdminShell></BrowserRouter>)
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1, name: 'Players' })).toBeInTheDocument()
+    expect(screen.queryByText('In-world players, bases, vehicles, maps, and economy')).not.toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Gameplay Admin sections' })).toBeInTheDocument()
+  })
   it('presents distinct error, empty, unavailable, and freshness states', () => {
     render(
       <>

@@ -149,7 +149,7 @@ export function MobileAppCard() {
           ) : (
             <div className="help-text" style={{ marginTop: '0.75rem' }}>
               No remote address yet. Install <a href="https://tailscale.com/download" target="_blank" rel="noreferrer">Tailscale</a> on this PC, then enable a Funnel on the bridge port for a free, no-domain public HTTPS address:
-              <div style={{ marginTop: '0.5rem', fontSize: '12px', fontFamily: 'monospace', background: 'var(--surface-2, #1e293b)', padding: '0.5rem', borderRadius: '6px', wordBreak: 'break-all' }}>tailscale funnel --bg http://127.0.0.1:{bridgePort}</div>
+              <div style={{ marginTop: '0.5rem', fontSize: '12px', fontFamily: 'monospace', background: 'var(--color-surface-2)', padding: '0.5rem', borderRadius: '6px', wordBreak: 'break-all' }}>tailscale funnel --bg http://127.0.0.1:{bridgePort}</div>
               <div style={{ marginTop: '0.5rem' }}>The address appears here automatically once the Funnel is active.</div>
             </div>
           )}
@@ -231,7 +231,7 @@ export function MobileAppCard() {
                     </button>
                   ) : (
                     <>
-                      <div style={{ marginTop: '0.5rem', fontSize: '12px', fontFamily: 'monospace', wordBreak: 'break-all', background: 'var(--surface-2, #1e293b)', padding: '0.5rem', borderRadius: '6px' }}>
+                      <div style={{ marginTop: '0.5rem', fontSize: '12px', fontFamily: 'monospace', wordBreak: 'break-all', background: 'var(--color-surface-2)', padding: '0.5rem', borderRadius: '6px' }}>
                         {browserPortalLink}
                       </div>
                       <div className="flex items-center gap-2" style={{ marginTop: '0.5rem' }}>
@@ -255,9 +255,9 @@ export function MobileAppCard() {
               )}
 
               {pairUrl && !data.accountLoginEnabled && (
-                <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e0f2fe' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '14px', color: '#0369a1' }}>Manual Entry Details</h4>
-                  <div style={{ fontSize: '13px', fontFamily: 'monospace', color: '#334155' }}>
+                <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: 'var(--color-surface-2)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '14px', color: 'var(--color-text)' }}>Manual Entry Details</h4>
+                  <div style={{ fontSize: '13px', fontFamily: 'monospace', color: 'var(--color-text)' }}>
                     <div style={{ marginBottom: '4px', wordBreak: 'break-all' }}><strong>URL:</strong> {pairUrl}</div>
                     <div style={{ wordBreak: 'break-all' }}><strong>Token:</strong> {data.token}</div>
                   </div>

@@ -89,9 +89,7 @@ export default function MapWorkspace() {
       actions={
         view === 'atlas'
           ? <FreshnessBadge state="fresh" label="Shipped static atlas" />
-          : view === 'live'
-            ? undefined
-            : <FreshnessBadge state="refreshing" label="Current server state" />
+          : undefined
       }
     >
       <Suspense

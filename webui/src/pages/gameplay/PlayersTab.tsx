@@ -15,12 +15,16 @@ import {
 } from './players/sections'
 import { CoriolisAdmin } from './players/coriolis'
 import { BaseWaterAdmin } from './players/base-water'
+import { useCommandDeck } from '../../hooks/useCommandDeck'
+import { mapLabel } from '../../util/mapLabel'
+import './players/playersDesk.css'
 
 type OnlineFilter = '' | 'online' | 'offline'
 
 const isOnline = (s: string) => s.toLowerCase().includes('online')
 
 export function PlayersTab() {
+  const contextual = useCommandDeck()
   const [players, setPlayers]   = useState<Player[]>([])
   const [source, setSource]     = useState<DataSource>('demo')
   const [liveError, setLive]    = useState<string | undefined>()
@@ -36,6 +40,7 @@ export function PlayersTab() {
   })
   const [selectedId, setSel]    = useState<number | null>(null)
   const [section, setSection]   = useState<SectionId>('stats')
+  const [directoryOpen, setDirectoryOpen] = useState(false)
   const [flash, setFlash]       = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
   const [refreshKey, setRefresh] = useState(0)
   const [summary, setSummary]   = useState<PlayerSummaryResponse | null>(null)
@@ -65,7 +70,7 @@ export function PlayersTab() {
 
   // Auto-dismiss flash after 4s.
   useEffect(() => {
-    if (!flash) return
+    if (!flash || flash.kind === 'err') return
     const t = window.setTimeout(() => setFlash(null), 4000)
     return () => window.clearTimeout(t)
   }, [flash])
@@ -75,10 +80,10 @@ export function PlayersTab() {
   // not steal escapes from inline forms.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      if (e.key !== 'Escape' || e.defaultPrevented) return
       const t = e.target as HTMLElement | null
       const tag = t?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable || t?.closest('dialog,[role="dialog"]')) return
       setSel(null)
     }
     window.addEventListener('keydown', onKey)
@@ -98,6 +103,7 @@ export function PlayersTab() {
     if (q) out = out.filter(p =>
       p.name.toLowerCase().includes(q) ||
       p.faction_name.toLowerCase().includes(q) ||
+      (p.map || '').toLowerCase().includes(q) ||
       String(p.id).includes(q) ||
       String(p.account_id).includes(q))
     if (online === 'online')  out = out.filter(p => isOnline(p.online_status))
@@ -165,48 +171,52 @@ export function PlayersTab() {
 
   const SectionComponent = SECTION_COMPONENTS[section]
 
+  const rosterControls = <div className={contextual ? 'player-directory-controls' : 'card p-3 mb-4 flex flex-wrap items-center gap-2'}>
+    <div className="relative flex-1 min-w-0">
+      <Icon name="Search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-dim" />
+      <input type="search" aria-label="Search players" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, faction, map or ID"
+        className="w-full pl-8 pr-3 py-2 rounded-lg bg-surface-2 border border-border text-text text-sm focus:outline-none focus:ring-2 focus:ring-ibad focus:border-ibad/50" />
+    </div>
+    <div className="flex rounded-lg border border-border overflow-hidden" role="group" aria-label="Player status filter">
+      {([['', 'All'], ['online', 'Online'], ['offline', 'Offline']] as const).map(([val, label]) => <button key={val}
+        onClick={() => setOnline(val)} aria-pressed={online === val}
+        className={`flex-1 px-3 py-1.5 text-xs ${online === val ? 'bg-accent/20 text-accent-bright' : 'bg-surface-2 text-text-muted hover:text-text'}`}>{label}</button>)}
+    </div>
+    <div className="flex items-center justify-between gap-2">
+      <button onClick={() => setHideGm(value => {
+        const next = !value
+        try { localStorage.setItem('dst.players.hideGm', next ? '1' : '0') } catch { /* Keep the filter usable without browser storage. */ }
+        return next
+      })} aria-pressed={hideGm} title="Hide the GM admin bot from the list"
+        className={`px-3 py-1.5 text-xs rounded-lg border flex items-center gap-1.5 ${hideGm ? 'bg-accent/20 text-accent-bright border-accent/40' : 'bg-surface-2 text-text-muted hover:text-text border-border'}`}>
+        <Icon name={hideGm ? 'EyeOff' : 'Eye'} size={13} /> {hideGm ? 'GM hidden' : 'Hide GM'}
+      </button>
+      <button className="btn-secondary" onClick={forceRefresh} disabled={loading}><Icon name="RefreshCw" size={14} className={loading ? 'animate-spin' : ''} /> Refresh</button>
+    </div>
+    {!contextual && <SourceBadge source={source} />}
+  </div>
+  const sectionNavigation = <nav aria-label="Player sections" className={contextual ? 'player-section-nav' : 'card p-0 overflow-hidden'}>
+    {!contextual && <div className="px-3 py-2 border-b border-border text-[11px] uppercase tracking-wider text-text-dim">Sections</div>}
+    {SECTIONS.map(item => <button key={item.id} type="button" aria-pressed={section === item.id}
+      onClick={() => { flushRefresh(); setSection(item.id) }}
+      className={contextual ? undefined : `w-full flex items-center gap-2 px-3 py-2 text-sm text-left border-b border-border/30 last:border-b-0 hover:bg-surface-2 ${section === item.id ? 'bg-surface-2 text-accent-bright border-l-2 border-l-accent' : 'text-text'}`}>
+      <Icon name={item.icon} size={15} /><span>{item.label}</span>
+    </button>)}
+  </nav>
+
   return (
-    <div>
+    <div className={contextual ? 'players-desk' : undefined} data-player-selected={contextual && !!selected} data-directory-open={directoryOpen}>
       {/* Top-of-tab stat cards */}
-      <section className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+      {!contextual && <section className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
         <StatCard label="Players"    value={fmtNum(visiblePlayers.length)}                                                icon="Users" />
         <StatCard label="Online now" value={fmtNum(onlineCount)}                                                          icon="Wifi" />
         <StatCard label="Factions"   value={fmtNum(displaySummary?.totals.factions ?? new Set(visiblePlayers.map(p => p.faction_name).filter(Boolean)).size)} icon="Flag" />
-      </section>
+      </section>}
 
-      <div className="card p-3 mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px]">
-          <Icon name="Search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-dim" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search players, factions, ids…"
-            className="w-full pl-8 pr-3 py-2 rounded-lg bg-surface-2 border border-border text-text text-sm focus:outline-none focus:ring-2 focus:ring-ibad focus:border-ibad/50" />
-        </div>
-        <div className="flex rounded-lg border border-border overflow-hidden">
-          {([['', 'All'], ['online', 'Online'], ['offline', 'Offline']] as const).map(([val, label]) => (
-            <button key={val} onClick={() => setOnline(val)}
-              className={`px-3 py-1.5 text-xs ${online === val ? 'bg-accent/20 text-accent-bright' : 'bg-surface-2 text-text-muted hover:text-text'}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <button onClick={() => {
-            setHideGm(v => {
-              const next = !v
-              try { localStorage.setItem('dst.players.hideGm', next ? '1' : '0') } catch { /* ignore */ }
-              return next
-            })
-          }}
-          title={hideGm ? 'Showing real players only — click to include GM bot' : 'Hide the GM admin bot from the list'}
-          className={`px-3 py-1.5 text-xs rounded-lg border flex items-center gap-1.5 ${hideGm ? 'bg-accent/20 text-accent-bright border-accent/40' : 'bg-surface-2 text-text-muted hover:text-text border-border'}`}>
-          <Icon name={hideGm ? 'EyeOff' : 'Eye'} size={13} /> {hideGm ? 'GM hidden' : 'Hide GM'}
-        </button>
-        <button className="btn-secondary" onClick={forceRefresh} disabled={loading}>
-          <Icon name="RefreshCw" size={14} className={loading ? 'animate-spin' : ''} /> Refresh
-        </button>
-        <SourceBadge source={source} />
-      </div>
+      {!contextual && rosterControls}
 
       {source === 'demo' && <DemoNotice liveError={liveError} what="player data" />}
-      {error && <div className="card p-3 mb-4 text-sm text-danger break-words">{error}</div>}
+      {error && <div role="alert" className="card p-3 mb-4 text-sm text-danger break-words">{error}. Refresh to retrieve current player data.</div>}
 
       {/* GM bot explainer — shown only when a "GM" entry is actually present in
           the live data, when the user hasn't already hidden it, and when they
@@ -247,16 +257,23 @@ export function PlayersTab() {
       )}
 
       {/* Two-column body */}
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
+      <div className={contextual ? 'players-desk-body' : 'grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4'}>
         {/* Left rail */}
-        <aside className="space-y-3 min-w-0">
+        <aside aria-label="Player directory" className={contextual ? 'player-directory' : 'space-y-3 min-w-0'}>
+          {contextual && <header className="player-directory-heading">
+            <h2 className="sr-only">Player directory</h2>
+            <span><b>{loading && !players.length ? '...' : fmtNum(visiblePlayers.length)}</b> players · <b>{fmtNum(onlineCount)}</b> online</span>
+            <SourceBadge source={source} />
+            {selected && <button className="player-directory-close" onClick={() => setDirectoryOpen(false)} aria-label="Return to selected player"><Icon name="X" size={16} /></button>}
+          </header>}
+          {contextual && rosterControls}
           {/* Player list */}
-          <div className="card p-0 overflow-hidden">
-            <div className="px-3 py-2 border-b border-border text-[11px] uppercase tracking-wider text-text-dim flex items-center justify-between">
-              <span>Players</span>
+          <div className={contextual ? 'player-directory-list' : 'card p-0 overflow-hidden'}>
+            {(!contextual || filtered.length !== visiblePlayers.length) && <div className="player-directory-count px-3 py-2 border-b border-border text-[11px] uppercase tracking-wider text-text-dim flex items-center justify-between">
+              <span>{contextual ? 'Matching players' : 'Players'}</span>
               <span className="font-mono text-text-muted">{fmtNum(filtered.length)}</span>
-            </div>
-            <div className="max-h-[60vh] overflow-y-auto">
+            </div>}
+            <div className="player-directory-results max-h-[60vh] overflow-y-auto">
               {loading && filtered.length === 0 ? (
                 <div className="px-3 py-6 text-center text-text-dim text-sm">
                   <Icon name="Loader2" size={15} className="animate-spin inline" /> Loading…
@@ -265,17 +282,17 @@ export function PlayersTab() {
                 <div className="px-3 py-6 text-center text-text-dim text-sm">No players match.</div>
               ) : (
                 filtered.map(p => (
-                  <button key={p.id} type="button" onClick={() => { flushRefresh(); setSel(cur => cur === p.id ? null : p.id) }}
+                  <button key={p.id} type="button" onClick={() => { flushRefresh(); setSel(cur => cur === p.id ? null : p.id); setDirectoryOpen(false) }}
+                    aria-pressed={selectedId === p.id} aria-label={`Inspect ${p.name || 'Unnamed player'} (${p.id})`}
                     title={selectedId === p.id ? 'Click again to close and return to Server Overview' : undefined}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left border-b border-border/30 hover:bg-surface-2 ${selectedId === p.id ? 'bg-surface-2 border-l-2 border-l-accent' : ''}`}>
+                    className={contextual ? 'player-directory-row' : `w-full flex items-center justify-between gap-2 px-3 py-2 text-left border-b border-border/30 hover:bg-surface-2 ${selectedId === p.id ? 'bg-surface-2 border-l-2 border-l-accent' : ''}`}>
                     <span className="min-w-0 flex-1">
                       <div className="text-sm text-text truncate">{p.name || <span className="italic text-text-dim">Unnamed</span>}</div>
                       <div className="text-[11px] text-text-dim truncate">
-                        {p.faction_name || 'Unaligned'} {p.map ? `· ${p.map}` : ''}
+                        {p.faction_name || 'Unaligned'} {p.map ? `· ${contextual ? mapLabel(p.map) : p.map}` : ''}
                       </div>
                     </span>
-                    <span className={`shrink-0 w-2 h-2 rounded-full ${isOnline(p.online_status) ? 'bg-success' : 'bg-text-dim/40'}`}
-                      title={p.online_status} />
+                    {contextual ? <span className="player-directory-status" data-online={isOnline(p.online_status)}>{p.online_status || 'Unknown'}</span> : <span className={`shrink-0 w-2 h-2 rounded-full ${isOnline(p.online_status) ? 'bg-success' : 'bg-text-dim/40'}`} title={p.online_status} />}
                   </button>
                 ))
               )}
@@ -283,45 +300,38 @@ export function PlayersTab() {
           </div>
 
           {/* Section nav (only when a player is selected) */}
-          {selected && (
-            <div className="card p-0 overflow-hidden">
-              <div className="px-3 py-2 border-b border-border text-[11px] uppercase tracking-wider text-text-dim">
-                Sections
-              </div>
-              {SECTIONS.map(s => (
-                <button key={s.id} type="button" onClick={() => { flushRefresh(); setSection(s.id) }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left border-b border-border/30 last:border-b-0 hover:bg-surface-2 ${section === s.id ? 'bg-surface-2 text-accent-bright border-l-2 border-l-accent' : 'text-text'}`}>
-                  <Icon name={s.icon} size={14} className="text-text-dim" />
-                  <span>{s.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          {selected && !contextual && sectionNavigation}
         </aside>
 
         {/* Right pane */}
-        <section className="min-w-0">
+        <section aria-label="Player dossier" className={contextual ? 'player-dossier' : 'min-w-0'}>
           {flash && (
             <div
               role="status"
-              className={`fixed bottom-4 right-4 z-50 max-w-sm card p-3 text-xs flex items-start gap-2 shadow-lg break-words border-l-2 ${flash.kind === 'ok' ? 'text-success border-success' : 'text-danger border-danger'}`}
+              className={`player-action-notice fixed bottom-4 right-4 z-50 max-w-sm card p-3 text-xs flex items-start gap-2 shadow-lg break-words border-l-2 ${flash.kind === 'ok' ? 'text-success border-success' : 'text-danger border-danger'}`}
             >
               <Icon name={flash.kind === 'ok' ? 'CheckCircle2' : 'AlertCircle'} size={14} className="mt-0.5 shrink-0" />
               <span>{flash.msg}</span>
+              <button type="button" aria-label="Dismiss action result" onClick={() => setFlash(null)}><Icon name="X" size={14} /></button>
             </div>
           )}
           {selected ? (
-            <div className="space-y-3">
-              <PlayerHeader player={selected} onClose={() => { flushRefresh(); setSel(null) }} />
+            <div className={contextual ? 'player-dossier-stack' : 'space-y-3'}>
+              <PlayerHeader player={selected} contextual={contextual} onChoosePlayer={() => setDirectoryOpen(true)} onClose={() => { flushRefresh(); setSel(null) }} />
+              {contextual && sectionNavigation}
+              {contextual && !filtered.some(player => player.id === selected.id) && <p className="player-filter-notice">This player is outside the current directory filter. Their dossier remains open.</p>}
+              <div className={contextual ? 'player-dossier-content' : undefined}>
               <SectionComponent
+                key={contextual ? selected.id : undefined}
                 player={selected}
-                canWrite={source === 'live'}
+                canWrite={source === 'live' && !error}
                 demo={source === 'demo'}
                 refreshKey={refreshKey}
                 flash={(msg, kind = 'ok') => setFlash({ msg, kind })}
                 onChanged={markChanged}
                 onFlush={flushRefresh}
               />
+              </div>
             </div>
           ) : (
             <>
@@ -344,7 +354,18 @@ export function PlayersTab() {
   )
 }
 
-function PlayerHeader({ player, onClose }: { player: Player; onClose: () => void }) {
+function PlayerHeader({ player, onClose, onChoosePlayer, contextual = false }: { player: Player; onClose: () => void; onChoosePlayer?: () => void; contextual?: boolean }) {
+  if (contextual) return <header className="player-dossier-header">
+    <div className="player-dossier-identity">
+      <h2>{player.name || 'Unnamed player'}</h2>
+      <span data-online={isOnline(player.online_status)}><Icon name={isOnline(player.online_status) ? 'Wifi' : 'WifiOff'} size={14} />{player.online_status || 'Unknown'}</span>
+      <span><Icon name="MapPin" size={14} />{player.map ? mapLabel(player.map) : 'Map not reported'}</span>
+      <span>{player.class || 'Class not reported'} · {player.faction_name || 'Unaligned'}</span>
+    </div>
+    <button type="button" className="player-change-directory" onClick={onChoosePlayer}>Change player</button>
+    <details className="player-dossier-identifiers"><summary title="Character identifiers">IDs</summary><dl><div><dt>Pawn</dt><dd>{player.id}</dd></div><div><dt>Account</dt><dd>{player.account_id}</dd></div><div><dt>Controller</dt><dd>{player.controller_id}</dd></div></dl></details>
+    <button type="button" className="player-dossier-close" onClick={onClose} aria-label="Close player dossier"><Icon name="X" size={17} /></button>
+  </header>
   return (
     <div className="card p-3 flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">

@@ -3,6 +3,7 @@ import { Link } from '../../router'
 import type { WorkspaceDefinition } from '../../platform/workspaces'
 import { Icon } from '../Icon'
 import { PageHeader } from '../PageHeader'
+import { useCommandDeck } from '../../hooks/useCommandDeck'
 
 export type WorkspaceTab = {
   id: string
@@ -24,6 +25,7 @@ export function WorkspaceLayout({
   actions?: ReactNode
   children: ReactNode
 }) {
+  const contextual = useCommandDeck()
   return (
     <div className="min-w-0" data-workspace={workspace.id}>
       <PageHeader
@@ -35,7 +37,7 @@ export function WorkspaceLayout({
       {tabs.length > 0 && (
         <nav
           aria-label={`${workspace.label} workspace views`}
-          className="-mx-3 mb-5 overflow-x-auto overscroll-x-contain border-b border-border px-3 touch-pan-x [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
+          className={contextual ? 'portal-workspace-tabs' : '-mx-3 mb-5 overflow-x-auto overscroll-x-contain border-b border-border px-3 touch-pan-x [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden'}
         >
           <div className="flex min-w-max items-center gap-1">
             {tabs.map(tab => {
@@ -79,7 +81,7 @@ export function WorkspaceSection({
 }) {
   return (
     <section
-      className="mb-7 min-w-0"
+      className="workspace-section mb-7 min-w-0"
       data-section-nav-id={id}
       data-section-nav-label={title}
       tabIndex={-1}

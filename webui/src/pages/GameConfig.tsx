@@ -6,6 +6,7 @@ import { Link } from '../router'
 import { IniShareModal } from '../components/IniShareModal'
 import { ViewportNotice } from '../components/ViewportNotice'
 import { useStatus } from '../hooks/useStatus'
+import { useCommandDeck } from '../hooks/useCommandDeck'
 import { api } from '../api/client'
 import { ServerNameCard } from './gameconfig/ServerNameCard'
 import { TimeOfDayLockPanel } from './gameconfig/TwilightLockEvidenceCard'
@@ -368,6 +369,8 @@ function groupExperimental(cats: GameConfigCategory[]): GameConfigCategory[] {
 }
 
 export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experimental' } = {}) {
+  const contextual = useCommandDeck()
+  const Guidance = contextual ? 'details' : 'div'
   const experimentalPage = mode === 'experimental'
   const localViewer = isLocalViewer()
   const { status, forceRefresh } = useStatus()
@@ -1313,7 +1316,7 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
           ? 'Complete recovered CVar and live default-INI catalog. Curated DST controls are excluded; saved overrides apply on the next DST battlegroup restart.'
           : 'UserGame.ini + UserEngine.ini editor. Edits are tracked in a DST-managed block written to the live battlegroup.'}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="gameconfig-header-actions flex items-center gap-2">
             {sourcePill}
             <button
               type="button"
@@ -1369,7 +1372,14 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
       {/* Backup / risk reminder. On the Experimental page this is also the single
           page-level warning — the per-card copy is suppressed there, otherwise it
           would repeat on every themed card. */}
-      <div className={'card p-4 mb-4 text-sm flex items-start gap-3 ' + (experimentalPage ? 'border-warning/40 bg-warning/5' : 'border-ibad/40 bg-ibad/5')}>
+      <Guidance className={'gameconfig-guidance card p-4 mb-4 text-sm flex items-start gap-3 ' + (experimentalPage ? 'border-warning/40 bg-warning/5' : 'border-ibad/40 bg-ibad/5')}>
+        {contextual && <summary>
+          <strong>Back up before editing. </strong>
+          {experimentalPage
+            ? 'Recovered controls are unconfirmed: crashes, disconnects, state corruption and performance loss are possible. Change one setting at a time; save, then Apply INIs & restart.'
+            : 'Saving writes to live INIs; some settings need Apply INIs & restart to take effect.'}
+          <span> Safety &amp; player config</span>
+        </summary>}
         <Icon name="FlaskConical" size={18} className={'mt-0.5 shrink-0 ' + (experimentalPage ? 'text-warning' : 'text-ibad')} />
         <div className="flex-1 min-w-0">
           {experimentalPage ? (
@@ -1401,6 +1411,10 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
               </p>
             </>
           )}
+          {contextual && !experimentalPage && <p className="text-xs text-text-muted mt-2">
+            DST moves the changed setting's entire section into its managed block, preserving structure and one clean copy.
+            The original file is backed up on the server before every write.
+          </p>}
           <button
             type="button"
             onClick={() => void onBackup()}
@@ -1438,7 +1452,7 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
             Player config{playerConfig.count > 0 ? ` (${playerConfig.count})` : ''}
           </button>
         </div>
-      </div>
+      </Guidance>
 
       {backupMsg && (
         <div className="card p-3 mb-4 border-success/40 bg-success/10 text-success text-sm flex items-center gap-2">
@@ -1463,7 +1477,7 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
       {/* How it works. On the Experimental page this is also where the user is
           told to go back to Game Config to apply — that path rebuilds the server
           startup values from the INI, which is what makes these take effect. */}
-      {experimentalPage ? (
+      {!contextual && (experimentalPage ? (
         <div className="card p-3 mb-4 border-border bg-surface-2/40 text-xs text-text-muted flex items-start gap-2">
           <Icon name="Info" size={14} className="mt-0.5 shrink-0 text-accent-bright" />
           <div>
@@ -1483,7 +1497,7 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
             any existing managed block. The original file is backed up on the server before every write.
           </div>
         </div>
-      )}
+      ))}
 
       {localViewer && (
         <>
@@ -2077,7 +2091,7 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
             )}
           </div>
 
-          <div className="sticky bottom-0 mt-6 -mx-6 px-6 py-3 bg-surface/95 border-t border-border backdrop-blur-sm flex items-center justify-between">
+          <div className="gameconfig-savebar sticky bottom-0 mt-6 -mx-6 px-6 py-3 bg-surface/95 border-t border-border backdrop-blur-sm flex items-center justify-between">
             <div className="text-xs text-text-muted flex items-center gap-4">
               {cfg && (
                 <>
@@ -2277,7 +2291,7 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
                 </div>
               )}
               {clientInfo && clientBundleFor(clientInfo, clientViewFile).exists && (
-                <pre className="text-xs font-mono text-text bg-[#1e1e1e] border border-border rounded-lg p-3 overflow-x-auto max-h-[60vh] overflow-y-auto whitespace-pre leading-relaxed">
+                <pre className="text-xs font-mono text-text bg-base border border-border rounded-lg p-3 overflow-x-auto max-h-[60vh] overflow-y-auto whitespace-pre leading-relaxed">
                   {clientBundleFor(clientInfo, clientViewFile).raw || '(empty file)'}
                 </pre>
               )}

@@ -22,6 +22,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { PageHeader } from '../components/PageHeader'
 import { Icon } from '../components/Icon'
+import { CommandCategoryPages } from './commands/CommandCategoryPages'
+import { getCommandCategory, type CommandCategory } from './commands/categories'
+import { useCommandDeck } from '../hooks/useCommandDeck'
 import { useStatus } from '../hooks/useStatus'
 import { useApi } from '../hooks/useApi'
 import { api, PlayerGuardCancelledError, withOnlinePlayerGuard } from '../api/client'
@@ -41,6 +44,15 @@ type LaunchResult = {
 }
 
 type SectionIndex = 0 | 1 | 2
+type CommandTask = {
+  id: string
+  label: string
+  group: CommandCategory
+  rowNote: string
+} & (
+  | { kind: 'command'; command: Command }
+  | { kind: 'page'; link: CommandPageLink }
+)
 const SECTION_INDICES: SectionIndex[] = [0, 1, 2]
 const SECTION_ICONS = ['HardDrive', 'Activity', 'Wrench'] as const
 const MAX_SECTION_NAME = 40
@@ -65,14 +77,66 @@ function CommandButtonInner({
   dragHandleAttributes,
   dragHandleListeners,
   onLaunch,
+  contextual = false,
+  blocked = false,
 }: {
   cmd: Command
   busy: boolean
   dragHandleAttributes?: Record<string, unknown>
   dragHandleListeners?: Record<string, unknown>
   onLaunch?: () => void
+  contextual?: boolean
+  blocked?: boolean
 }) {
-  const disabled = !cmd.available || busy
+  const disabled = !cmd.available || busy || blocked
+  const presentation = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <kbd className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded
+                          bg-surface-3 border border-border text-[10px] font-mono text-text-dim
+                          group-hover:text-text-muted group-hover:border-border-bright">
+            {cmd.key}
+          </kbd>
+          {contextual
+            ? <h4 className="min-w-0 font-medium text-base text-text break-words">{cmd.label || cmd.name}</h4>
+            : <span className="font-medium text-sm truncate text-text">{cmd.label || cmd.name}</span>}
+        </div>
+        <span className={cmd.mode === 'Console' ? 'pill-info shrink-0' : 'pill-muted shrink-0'}>
+          <Icon name={cmd.mode === 'Console' ? 'SquareTerminal' : 'Zap'} size={10} />
+          {cmd.mode}
+        </span>
+      </div>
+      <p className={contextual ? 'mt-3 text-sm text-text-muted leading-relaxed' : 'mt-1.5 text-xs text-text-muted line-clamp-2'}>{cmd.desc}</p>
+      {!cmd.available && cmd.reason && (
+        <p className="mt-1 text-[11px] text-warning/80 flex items-center gap-1">
+          <Icon name="AlertTriangle" size={10} /> {cmd.reason}
+        </p>
+      )}
+    </>
+  )
+  if (contextual) {
+    return (
+      <div className="space-y-4">
+        <div>{presentation}</div>
+        {cmd.requires !== 'none' && (
+          <p className="text-xs text-text-muted">
+            {cmd.requires === 'running' ? 'Requires a running VM.' : 'Requires an existing VM.'}
+          </p>
+        )}
+        <button
+          type="button"
+          className="btn-primary max-w-full whitespace-normal text-left"
+          disabled={disabled}
+          onClick={onLaunch}
+          title={cmd.available ? cmd.desc : (cmd.reason || cmd.desc)}
+        >
+          <Icon name={busy ? 'Loader2' : 'Play'} size={14} className={busy ? 'shrink-0 animate-spin' : 'shrink-0'} />
+          {busy ? 'Launching…' : `Run ${cmd.label || cmd.name}`}
+        </button>
+      </div>
+    )
+  }
   return (
     <>
       <button
@@ -94,26 +158,7 @@ function CommandButtonInner({
         title={cmd.available ? cmd.desc : (cmd.reason || cmd.desc)}
         className="flex-1 text-left disabled:cursor-not-allowed"
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <kbd className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded
-                            bg-surface-3 border border-border text-[10px] font-mono text-text-dim
-                            group-hover:text-text-muted group-hover:border-border-bright">
-              {cmd.key}
-            </kbd>
-            <span className="font-medium text-sm truncate text-text">{cmd.label || cmd.name}</span>
-          </div>
-          <span className={cmd.mode === 'Console' ? 'pill-info shrink-0' : 'pill-muted shrink-0'}>
-            <Icon name={cmd.mode === 'Console' ? 'SquareTerminal' : 'Zap'} size={10} />
-            {cmd.mode}
-          </span>
-        </div>
-        <p className="mt-1.5 text-xs text-text-muted line-clamp-2">{cmd.desc}</p>
-        {!cmd.available && cmd.reason && (
-          <p className="mt-1 text-[11px] text-warning/80 flex items-center gap-1">
-            <Icon name="AlertTriangle" size={10} /> {cmd.reason}
-          </p>
-        )}
+        {presentation}
       </button>
     </>
   )
@@ -122,10 +167,25 @@ function CommandButtonInner({
 function CommandPageLinkButton({
   link,
   onOpen,
+  contextual = false,
+  disabled = false,
 }: {
   link: CommandPageLink
   onOpen: () => void
+  contextual?: boolean
+  disabled?: boolean
 }) {
+  if (contextual) {
+    return (
+      <div className="space-y-4">
+        <h4 className="font-medium text-base text-text">{link.label}</h4>
+        <p className="text-sm text-text-muted leading-relaxed">{link.description}</p>
+        <button type="button" className="btn-primary max-w-full whitespace-normal text-left" onClick={onOpen} title={link.description} disabled={disabled}>
+          <Icon name={link.icon} size={15} className="shrink-0" /> {link.label}
+        </button>
+      </div>
+    )
+  }
   return (
     <div className={COMMAND_BUTTON_CLASS}>
       <div className="shrink-0 -ml-1 flex items-center justify-center w-6 text-accent">
@@ -296,6 +356,9 @@ function SectionTitle({
 
 export function Commands() {
   const navigate = useNavigate()
+  const commandDeck = useCommandDeck()
+  const [editingLayout, setEditingLayout] = useState(false)
+  const [commandCategory, setCommandCategory] = useState('battlegroup')
   const portalAuth = usePortalAuth()
   const portalRole = portalAuth?.status.account?.role ?? null
   const { forceRefresh } = useStatus()
@@ -529,21 +592,55 @@ export function Commands() {
   // reset — is disabled so a remote user can't rearrange the host's layout.
   const readOnly = !isLocalViewer()
   const pageLinks = getVisibleCommandPageLinks(!readOnly)
+  const showWorkbench = commandDeck && (readOnly || !editingLayout)
+  const tasks = SECTION_INDICES.flatMap<CommandTask>(idx => [
+    ...grouped[idx].map((command): CommandTask => ({
+      kind: 'command',
+      id: `command:${command.name}`,
+      label: command.label || command.name,
+      group: getCommandCategory(command),
+      rowNote: `${command.name} ${command.desc} ${command.reason} ${effective.names[idx]}`,
+      command,
+    })),
+    ...(idx === 2 ? pageLinks : []).map((link): CommandTask => ({
+      kind: 'page',
+      id: `page:${link.to}`,
+      label: link.label,
+      group: 'tools',
+      rowNote: link.description,
+      link,
+    })),
+  ])
 
   return (
     <>
       <PageHeader
         title="Commands"
         icon="Zap"
-        description="Quick actions for the VM, battlegroup, and supporting tools. Click a section title to rename it. Drag the grip on any card to reorder within a section or move it to another — sections grow and shrink as you go."
+        description={showWorkbench
+          ? 'Choose a category to see related controls together. Review requirements before running a command.'
+          : 'Quick actions for the VM, battlegroup, and supporting tools. Click a section title to rename it. Drag the grip on any card to reorder within a section or move it to another — sections grow and shrink as you go.'}
         actions={
-          <div className="flex items-center gap-2">
+          <div className={commandDeck ? 'flex flex-wrap items-center gap-2' : 'flex items-center gap-2'}>
             {savingLayout && (
               <span className="text-xs text-text-dim flex items-center gap-1">
                 <Icon name="Loader2" size={12} className="animate-spin" /> Saving layout…
               </span>
             )}
-            {!readOnly && (
+            {commandDeck && !readOnly && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setEditingLayout(value => !value)}
+                aria-pressed={editingLayout}
+                disabled={savingLayout || running.size > 0}
+                title="Switch between purpose-based categories and your saved, editable three-section layout"
+              >
+                <Icon name={editingLayout ? 'Check' : 'Pencil'} size={14} />
+                {editingLayout ? 'Back to categories' : 'Custom layout'}
+              </button>
+            )}
+            {!readOnly && !showWorkbench && (
               <button
                 className="btn-secondary"
                 onClick={resetLayout}
@@ -581,6 +678,30 @@ export function Commands() {
         </div>
       )}
 
+      {showWorkbench ? (
+        <>
+          <CommandCategoryPages
+            tasks={tasks}
+            category={commandCategory}
+            onCategory={setCommandCategory}
+            busy={running.size > 0}
+            renderTask={task => task.kind === 'command' ? (
+              <CommandButtonInner
+                contextual
+                cmd={task.command}
+                busy={running.has(task.command.name)}
+                blocked={running.size > 0}
+                onLaunch={() => { void runCommand(task.command) }}
+              />
+            ) : (
+              <CommandPageLinkButton contextual link={task.link} disabled={running.size > 0} onOpen={() => navigate(task.link.to)} />
+            )}
+          />
+          {cmdsState.loading && !cmdsState.data && (
+            <div className="card p-8 text-center text-text-muted">Loading commands…</div>
+          )}
+        </>
+      ) : (
       <DndContext
         sensors={readOnly ? [] : sensors}
         collisionDetection={closestCorners}
@@ -647,6 +768,7 @@ export function Commands() {
           ) : null}
         </DragOverlay>
       </DndContext>
+      )}
     </>
   )
 }

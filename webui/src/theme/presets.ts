@@ -239,7 +239,91 @@ const harkonnen: Preset = {
   },
 }
 
-export const PRESETS: Preset[] = [eyesOfIbad, sietchTabr, caladan, giediPrime, harkonnen, atreides]
+const signal: Preset = {
+  id: 'signal',
+  name: 'Signal',
+  description: 'A new operating surface. Carbon black, sculpted graphite, spectral violet, ice cyan, and electric lime.',
+  preview: ['#08090c', '#202227', '#6741d9', '#72d5ed', '#f5f6fa'],
+  tokens: {
+    '--color-base': '#08090c',
+    '--color-surface': '#202227',
+    '--color-surface-2': '#292c33',
+    '--color-surface-3': '#343841',
+    '--color-border': '#414650',
+    '--color-border-bright': '#6d7482',
+    '--color-text': '#f5f6fa',
+    '--color-text-muted': '#c2c6d0',
+    '--color-text-dim': '#a9aebc',
+    '--color-accent': '#6741d9',
+    '--color-accent-bright': '#7551dd',
+    '--color-accent-dim': '#48299e',
+    '--color-accent-fg': '#ffffff',
+    '--color-ibad': '#72d5ed',
+    '--color-ibad-bright': '#b2ecfa',
+    '--color-success': '#b0f05c',
+    '--color-danger': '#ff91a4',
+    '--color-warning': '#ffd28b',
+    '--color-info': '#72d5ed',
+  },
+}
+
+const worldControl: Preset = {
+  id: 'world-control',
+  name: 'World Control — Dark',
+  description: 'The spatial workspace. Blue-black surfaces, warm sand actions, and ice-blue focus.',
+  preview: ['#090f15', '#101a23', '#edc398', '#9edce5', '#e5edf0'],
+  tokens: {
+    '--color-base': '#090f15',
+    '--color-surface': '#101a23',
+    '--color-surface-2': '#1c2c36',
+    '--color-surface-3': '#263943',
+    '--color-border': '#31414b',
+    '--color-border-bright': '#668492',
+    '--color-text': '#e5edf0',
+    '--color-text-muted': '#b5c3cb',
+    '--color-text-dim': '#a5b7c1',
+    '--color-accent': '#edc398',
+    '--color-accent-bright': '#f5d4b3',
+    '--color-accent-dim': '#b88b60',
+    '--color-accent-fg': '#20170f',
+    '--color-ibad': '#9edce5',
+    '--color-ibad-bright': '#c1eef3',
+    '--color-success': '#9ddbb8',
+    '--color-danger': '#ffaaaa',
+    '--color-warning': '#edc398',
+    '--color-info': '#9edce5',
+  },
+}
+
+const daylight: Preset = {
+  id: 'daylight',
+  name: 'Daylight — Light',
+  description: 'A clear daytime workspace. Pale stone, white working surfaces, and deep blue controls.',
+  preview: ['#edf0f2', '#ffffff', '#245874', '#216079', '#182b36'],
+  tokens: {
+    '--color-base': '#edf0f2',
+    '--color-surface': '#ffffff',
+    '--color-surface-2': '#e5eaee',
+    '--color-surface-3': '#d7e0e6',
+    '--color-border': '#b1bec8',
+    '--color-border-bright': '#6f8595',
+    '--color-text': '#182b36',
+    '--color-text-muted': '#415666',
+    '--color-text-dim': '#485c6b',
+    '--color-accent': '#245874',
+    '--color-accent-bright': '#1c4963',
+    '--color-accent-dim': '#163d53',
+    '--color-accent-fg': '#ffffff',
+    '--color-ibad': '#216079',
+    '--color-ibad-bright': '#184c63',
+    '--color-success': '#21603e',
+    '--color-danger': '#a72835',
+    '--color-warning': '#805012',
+    '--color-info': '#245874',
+  },
+}
+
+export const PRESETS: Preset[] = [worldControl, daylight, signal, eyesOfIbad, sietchTabr, caladan, giediPrime, harkonnen, atreides]
 
 export const DEFAULT_PRESET_ID = eyesOfIbad.id
 

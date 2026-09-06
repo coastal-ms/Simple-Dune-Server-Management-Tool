@@ -7,7 +7,7 @@
 // expose action buttons. The parent owns selection + refresh ticks; sections
 // re-fetch when `refreshKey` changes.
 
-import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState, type ReactElement, type ReactNode } from 'react'
 import { Icon } from '../../../components/Icon'
 import { ItemPicker } from '../../../components/ItemPicker'
 import { AugmentPicker } from '../../../components/AugmentPicker'
@@ -45,6 +45,8 @@ import {
   type ContractRow,
 } from '../../../api/gameplay'
 import { fmtNum, fmtSolari } from '../shared'
+import { useCommandDeck } from '../../../hooks/useCommandDeck'
+import { ActionWorkbench } from '../../../components/platform/ActionWorkbench'
 
 type Flash = (msg: string, kind?: 'ok' | 'err') => void
 
@@ -68,6 +70,7 @@ interface SectionProps {
 // numbers. Read-only here; mutations live in Actions.
 // ---------------------------------------------------------------------------
 export function StatsSection({ player, demo, refreshKey }: SectionProps) {
+  const contextual = useCommandDeck()
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -85,6 +88,34 @@ export function StatsSection({ player, demo, refreshKey }: SectionProps) {
   if (loading) return <Loading label="Loading stats…" />
   if (err)     return <ErrorBox msg={err} />
   if (!stats)  return <EmptyBox msg="No stats for this player." />
+
+  if (contextual) return <section className="player-snapshot" aria-label="Character snapshot">
+    <h3>Character snapshot</h3>
+    <dl className="player-snapshot-balances">
+      <div><dt>Solari</dt><dd>{fmtSolari(stats.solaris)}</dd></div>
+      <div><dt>Total currency</dt><dd>{fmtNum(stats.total_currency)}</dd></div>
+      <div><dt>Faction</dt><dd>{stats.faction_name || 'Unaligned'}</dd></div>
+      <div><dt>Status</dt><dd>{stats.online_status}</dd></div>
+    </dl>
+    <div className="player-snapshot-columns">
+      <section><h4>Identity</h4><dl>
+        <div><dt>Character</dt><dd>{stats.character_name || '(unnamed)'}</dd></div>
+        <div><dt>Class</dt><dd>{stats.class || 'Not reported'}</dd></div>
+        <div><dt>Map</dt><dd>{stats.map || 'Not reported'}</dd></div>
+        <div><dt>Last seen</dt><dd>{fmtTs(stats.last_seen)}</dd></div>
+      </dl></section>
+      <section><h4>Faction reputation</h4>
+        {stats.faction_reps?.length ? <dl>{stats.faction_reps.map(reputation => <div key={reputation.faction_id}>
+          <dt>{reputation.faction_name || `Faction #${reputation.faction_id}`}</dt>
+          <dd>{fmtNum(reputation.reputation)}{stats.faction_rep_cap ? ` / ${fmtNum(stats.faction_rep_cap)}` : ''}</dd>
+        </div>)}</dl> : <p>No faction reputation reported.</p>}
+      </section>
+    </div>
+    <details className="player-snapshot-account"><summary>Database identifiers</summary><dl>
+      <div><dt>Pawn</dt><dd>{stats.pawn_id}</dd></div><div><dt>Account</dt><dd>{stats.account_id}</dd></div>
+      <div><dt>Controller</dt><dd>{stats.controller_id}</dd></div><div><dt>Faction</dt><dd>{stats.faction_id}</dd></div>
+    </dl></details>
+  </section>
 
   return (
     <div className="space-y-4">
@@ -838,6 +869,7 @@ const GROUP_ORDER: ActionGroup[] = ['Live', 'Currency', 'Progression', 'Vehicle'
 const ITEMS_GROUP: ActionGroup = 'Items'
 
 export function ActionsSection({ player, canWrite, demo, flash, onChanged, onFlush }: SectionProps) {
+  const contextual = useCommandDeck()
   const [openId, setOpenId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // Current balances for read-only context on the Give Solari/Scrip/Intel rows,
@@ -905,6 +937,13 @@ export function ActionsSection({ player, canWrite, demo, flash, onChanged, onFlu
     )
   }
 
+  if (contextual) return <ActionWorkbench
+    key={player.id} title="Player actions" target={player.name || 'Unnamed player'}
+    actions={GROUP_ORDER.flatMap(group => grouped[group])} selectedId={openId} onSelect={openAction} busy={busy}
+    renderAction={action => <ActionRow key={action.id} def={action} player={player} busy={busy} stats={stats}
+      open danger={action.group === 'Danger'} onToggle={() => openAction(action.id)} runAction={runAction} />}
+  />
+
   return (
     <div className="space-y-4">
       {!hasLiveSession && (
@@ -970,6 +1009,7 @@ function ActionRow({ def, player, busy, stats, open, danger, onToggle, runAction
   return (
     <div className="card overflow-hidden">
       <button type="button"
+        aria-expanded={open}
         className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-surface-2'} ${danger ? 'text-error' : 'text-text'}`}
         disabled={disabled}
         onClick={onToggle}
@@ -2634,6 +2674,7 @@ function ProgressionUnlockForm({ busy, onUnlock, onReverse }: {
 function ItemsActionBlock({ player, canWrite, flash, onChanged, onFlush }: {
   player: Player; canWrite: boolean; flash: Flash; onChanged: () => void; onFlush?: () => void
 }) {
+  const contextual = useCommandDeck()
   const [openId, setOpenId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -2666,6 +2707,13 @@ function ItemsActionBlock({ player, canWrite, flash, onChanged, onFlush }: {
     }
   }
 
+  if (contextual) return <details className="player-inventory-actions"><summary><Icon name="PackagePlus" size={17} />Give or manage items</summary><ActionWorkbench
+    key={player.id} title="Inventory actions" target={player.name || 'Unnamed player'}
+    actions={acts} selectedId={openId} onSelect={openAction} busy={busy}
+    renderAction={action => <ActionRow key={action.id} def={action} player={player} busy={busy} stats={null}
+      open onToggle={() => openAction(action.id)} runAction={runAction} />}
+  /></details>
+
   return (
     <div className="space-y-1.5 mb-2">
       {acts.map(a => (
@@ -2684,6 +2732,7 @@ import { getPlayerDetail, type InventoryItem, type PlayerDetailResponse } from '
 import { qualityClass } from '../shared'
 
 export function InventorySection({ player, canWrite, demo, refreshKey, flash, onChanged, onFlush }: SectionProps) {
+  const contextual = useCommandDeck()
   const [detail, setDetail] = useState<PlayerDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -2731,15 +2780,16 @@ export function InventorySection({ player, canWrite, demo, refreshKey, flash, on
   if (loading && !detail) return <Loading label="Loading inventory…" />
   if (err) return <ErrorBox msg={err} />
 
+  const refreshButton = <button className="btn-secondary" disabled={loading || busy} onClick={() => { onFlush?.(); setTick(t => t + 1) }}>
+    <Icon name="RefreshCw" size={13} className={loading ? 'animate-spin' : ''} /> Refresh inventory
+  </button>
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <button className="btn-secondary" disabled={loading || busy} onClick={() => { onFlush?.(); setTick(t => t + 1) }}>
-          <Icon name="RefreshCw" size={13} className={loading ? 'animate-spin' : ''} /> Refresh inventory
-        </button>
-      </div>
+      {!contextual && <div className="flex items-center justify-end">{refreshButton}</div>}
       <ItemList title={`Inventory (${fmtNum(groups.gear.length)})`} icon="Backpack" items={groups.gear}
         playerId={player.id}
+        toolbar={contextual ? refreshButton : undefined}
         canWrite={canWrite} busy={busy} run={run} isOnline={isOnline}
         extra={<ItemsActionBlock player={player} canWrite={canWrite} flash={flash} onChanged={onChanged} onFlush={onFlush} />} />
       <ItemList title={`Emotes (${fmtNum(groups.emotes.length)})`} icon="Smile" items={groups.emotes} collapsed
@@ -2750,31 +2800,34 @@ export function InventorySection({ player, canWrite, demo, refreshKey, flash, on
   )
 }
 
-function ItemList({ title, icon, items, playerId, canWrite, busy, run, collapsed, extra, isOnline }: {
+function ItemList({ title, icon, items, playerId, canWrite, busy, run, collapsed, extra, isOnline, toolbar }: {
   title: string; icon: string; items: InventoryItem[]; canWrite: boolean; busy: boolean
   playerId: number
   run: (fn: () => Promise<{ message: string }>, label: string) => Promise<boolean>
   collapsed?: boolean
   extra?: React.ReactNode
+  toolbar?: React.ReactNode
   isOnline: boolean
 }) {
+  const contextual = useCommandDeck()
   const [open, setOpen] = useState(!collapsed)
   const [editingId, setEditingId] = useState<number | null>(null)
   if (collapsed && items.length === 0) return null
-  return (
-    <div>
-      <button type="button" onClick={() => setOpen(o => !o)}
+  const heading = <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
         className="flex w-full items-center gap-2 text-xs uppercase tracking-wider text-text-dim hover:text-text mb-2">
         <Icon name={open ? 'ChevronDown' : 'ChevronRight'} size={13} />
         <Icon name={icon} size={13} />
         <span>{title}</span>
       </button>
+  return (
+    <div>
+      {contextual ? <div className="player-inventory-toolbar">{heading}{toolbar}</div> : heading}
       {open && extra}
       {open && (
         items.length === 0 ? (
           <div className="text-sm text-text-dim italic py-1">No items.</div>
         ) : (
-          <div className="space-y-1">
+          <div className={contextual ? 'player-inventory-grid' : 'space-y-1'}>
             {items.map(it => {
               const curN = parseFloat(it.durability)
               const maxN = parseFloat(it.max_durability)
@@ -2797,16 +2850,17 @@ function ItemList({ title, icon, items, playerId, canWrite, busy, run, collapsed
                 setEditingId(prev => (prev === it.id ? null : it.id))
               }
               return (
-                <div key={it.id} className="bg-surface-2 rounded-lg border border-border/50">
+                <div key={it.id} data-expanded={isEditing} className="player-inventory-item bg-surface-2 rounded-lg border border-border/50">
                   <div
                     className={`flex items-center justify-between text-sm px-3 py-2 ${canEdit ? 'cursor-pointer hover:bg-surface-3/40' : ''}`}
                     onClick={canEdit ? toggleEdit : undefined}
                     role={canEdit ? 'button' : undefined}
+                    aria-expanded={canEdit ? isEditing : undefined}
                     tabIndex={canEdit ? 0 : undefined}
-                    onKeyDown={canEdit ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleEdit() } }) : undefined}
+                    onKeyDown={canEdit ? (e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleEdit() } }) : undefined}
                     title={canEdit ? (isEditing ? 'Hide item editor' : 'Click to edit stack / durability / water') : undefined}
                   >
-                    <span className="truncate max-w-[320px]">
+                    <span className="player-inventory-summary truncate max-w-[320px]">
                       {canEdit && (
                         <Icon name={isEditing ? 'ChevronDown' : 'ChevronRight'} size={11} className="inline-block mr-1 text-text-dim" />
                       )}
@@ -2845,15 +2899,18 @@ function ItemList({ title, icon, items, playerId, canWrite, busy, run, collapsed
                     )}
                   </div>
                   {isEditing && (
-                    <div>
+                    <div className="player-item-editors">
                       <StackEditor item={it} busy={busy} run={run} isOnline={isOnline} onClose={() => setEditingId(null)} />
+                      {contextual && hasAmmo && (
+                        <AmmoEditor item={it} playerId={playerId} busy={busy} run={run} isOnline={isOnline} onClose={() => setEditingId(null)} />
+                      )}
                       {it.durability !== 'N/A' && (
                         <DurabilityEditor item={it} busy={busy} run={run} isOnline={isOnline} onClose={() => setEditingId(null)} />
                       )}
                       {hasWater && (
                         <WaterEditor item={it} busy={busy} run={run} onClose={() => setEditingId(null)} />
                       )}
-                      {hasAmmo && (
+                      {!contextual && hasAmmo && (
                         <AmmoEditor item={it} playerId={playerId} busy={busy} run={run} isOnline={isOnline} onClose={() => setEditingId(null)} />
                       )}
                     </div>
@@ -2948,7 +3005,7 @@ function DurabilityEditor({ item, busy, run, isOnline, onClose }: {
   const valid = mN !== null && cN !== null && dN !== null
 
   return (
-    <div className="border-t border-border/50 px-3 py-3 bg-surface-1/60 rounded-b-lg space-y-3">
+    <div className="player-item-durability border-t border-border/50 px-3 py-3 bg-surface-1/60 rounded-b-lg space-y-3">
       <div className="text-[11px] text-text-dim italic flex items-start gap-1.5">
         <Icon name="Info" size={11} className="mt-0.5 shrink-0" />
         <span>
@@ -3045,7 +3102,7 @@ function WaterEditor({ item, busy, run, onClose }: {
   const valid = Number.isFinite(n) && n >= 0
 
   return (
-    <div className="border-t border-border/50 px-3 py-3 bg-surface-1/60 rounded-b-lg space-y-3">
+    <div className="player-item-water border-t border-border/50 px-3 py-3 bg-surface-1/60 rounded-b-lg space-y-3">
       <div className="text-[11px] text-warning flex items-start gap-1.5">
         <Icon name="AlertTriangle" size={11} className="mt-0.5 shrink-0" />
         <span>
@@ -3200,6 +3257,7 @@ interface FieldDef { key: string; label: string; type: 'text' | 'number' | 'sele
 function InlineForm({ fields, submitLabel, busy, note, onSubmit }: {
   fields: FieldDef[]; submitLabel: string; busy: boolean; note?: ReactNode; onSubmit: (values: Record<string, string>) => void
 }) {
+  const fieldId = useId()
   // Seed select fields with their first option so a dropdown is never submitted
   // empty (the run() handlers also default, but this keeps the UI honest).
   const [values, setValues] = useState<Record<string, string>>(() => {
@@ -3211,19 +3269,19 @@ function InlineForm({ fields, submitLabel, busy, note, onSubmit }: {
   })
   const inputCls = 'w-full px-3 py-2 rounded-lg bg-surface-2 border border-border text-text text-sm focus:outline-none focus:ring-2 focus:ring-ibad focus:border-ibad/50'
   return (
-    <div className="space-y-2">
+    <div className="inline-action-form space-y-2">
       {note}
       {fields.map(f => (
         <div key={f.key}>
-          <label className="block text-[11px] uppercase tracking-wider text-text-dim mb-1">{f.label}</label>
+          <label htmlFor={`${fieldId}-${f.key}`} className="block text-[11px] uppercase tracking-wider text-text-dim mb-1">{f.label}</label>
           {f.type === 'select' ? (
-            <select value={values[f.key] ?? f.options?.[0]?.value ?? ''}
+            <select id={`${fieldId}-${f.key}`} disabled={busy} value={values[f.key] ?? f.options?.[0]?.value ?? ''}
               onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
               className={inputCls}>
               {(f.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           ) : (
-            <input type={f.type} value={values[f.key] ?? ''} placeholder={f.placeholder}
+            <input id={`${fieldId}-${f.key}`} disabled={busy} type={f.type} value={values[f.key] ?? ''} placeholder={f.placeholder}
               onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
               className={inputCls} />
           )}

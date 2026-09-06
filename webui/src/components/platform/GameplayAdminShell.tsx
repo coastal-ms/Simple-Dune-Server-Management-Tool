@@ -1,6 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { Icon } from '../Icon'
-import { Link, useHash, useLocation, useSearch } from '../../router'
+import { Link, useHash, useLocation, useNavigate, useSearch } from '../../router'
+import { useCommandDeck } from '../../hooks/useCommandDeck'
+import { WorkspaceHeadingContext } from './WorkspaceHeadingContext'
 import {
   GAMEPLAY_DESTINATIONS,
   rememberGameplayDestination,
@@ -15,6 +17,8 @@ export function GameplayAdminShell({
   activeSection?: GameplaySectionId
   children: ReactNode
 }) {
+  const contextual = useCommandDeck()
+  const navigate = useNavigate()
   const { pathname } = useLocation()
   const search = useSearch()
   const hash = useHash()
@@ -24,9 +28,30 @@ export function GameplayAdminShell({
     rememberGameplayDestination(`${pathname}${search ? `?${search}` : ''}${hash}`)
   }, [hash, pathname, search])
 
+  if (contextual) {
+    const title = active === 'overview' ? 'Gameplay Admin' : GAMEPLAY_DESTINATIONS.find(destination => destination.id === active)?.label || 'Gameplay Admin'
+    return <WorkspaceHeadingContext.Provider value={title}>
+      <div className="portal-gameplay-shell" data-gameplay-admin-shell>
+        <header className="portal-domain-toolbar">
+          <h1>{title}</h1>
+          <nav aria-label="Gameplay Admin sections">
+            <select aria-label="Gameplay workspace" value={active} onChange={event => {
+              const destination = GAMEPLAY_DESTINATIONS.find(item => item.id === event.target.value)
+              if (!destination) throw new Error('Unknown gameplay workspace')
+              navigate(destination.to)
+            }}>
+              {GAMEPLAY_DESTINATIONS.map(destination => <option key={destination.id} value={destination.id}>{destination.label}</option>)}
+            </select>
+          </nav>
+        </header>
+        <div className="portal-domain-content">{children}</div>
+      </div>
+    </WorkspaceHeadingContext.Provider>
+  }
+
   return (
     <div className="min-w-0 max-w-full" data-gameplay-admin-shell>
-      <div className="mb-4 flex min-w-0 items-center gap-3 border-b border-border pb-3">
+      {(!contextual || active === 'overview') && <div className="mb-4 flex min-w-0 items-center gap-3 border-b border-border pb-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent/25 bg-accent/10 text-accent-bright">
           <Icon name="Gamepad2" size={20} />
         </span>
@@ -38,7 +63,7 @@ export function GameplayAdminShell({
             In-world players, bases, vehicles, maps, and economy
           </p>
         </div>
-      </div>
+      </div>}
 
       <nav
         aria-label="Gameplay Admin sections"

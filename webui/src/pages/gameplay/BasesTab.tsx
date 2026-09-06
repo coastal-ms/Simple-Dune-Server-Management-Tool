@@ -3,11 +3,15 @@ import { Icon } from '../../components/Icon'
 import { getBases, exportBase, destroyClaim, downloadBlueprintFile, type BaseRow, type DataSource } from '../../api/gameplay'
 import { fmtNum, SourceBadge, StatCard, DemoNotice } from './shared'
 import { useStatus } from '../../hooks/useStatus'
+import { useCommandDeck } from '../../hooks/useCommandDeck'
+import { DetailPanel } from '../../components/platform/DetailPanel'
 
 type SortKey = 'id' | 'name' | 'owner' | 'pieces' | 'placeables'
 
 export function BasesTab() {
+  const contextual = useCommandDeck()
   const [bases, setBases] = useState<BaseRow[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const [source, setSource] = useState<DataSource>('demo')
   const [liveError, setLiveError] = useState<string | undefined>()
   const [loading, setLoading] = useState(true)
@@ -74,7 +78,7 @@ export function BasesTab() {
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
     let out = bases
-    if (q) out = out.filter(b => b.name.toLowerCase().includes(q) || String(b.id).includes(q))
+    if (q) out = out.filter(b => b.name.toLowerCase().includes(q) || (b.owner || '').toLowerCase().includes(q) || String(b.id).includes(q))
     const mul = dir === 'asc' ? 1 : -1
     return [...out].sort((a, b) => {
       const av = a[sort], bv = b[sort]
@@ -85,6 +89,7 @@ export function BasesTab() {
 
   const totalPieces = useMemo(() => bases.reduce((s, b) => s + b.pieces, 0), [bases])
   const totalPlaceables = useMemo(() => bases.reduce((s, b) => s + b.placeables, 0), [bases])
+  const selectedBase = bases.find(base => base.id === selectedId)
 
   return (
     <div>
@@ -97,7 +102,7 @@ export function BasesTab() {
       <div className="card p-3 mb-4 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px]">
           <Icon name="Search" size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-dim" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search bases…"
+          <input type="search" aria-label="Search bases" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search bases…"
             className="w-full pl-8 pr-3 py-2 rounded-lg bg-surface-2 border border-border text-text text-sm focus:outline-none focus:ring-2 focus:ring-ibad focus:border-ibad/50" />
         </div>
         <button className="btn-secondary" onClick={() => { void load() }} disabled={loading}>
@@ -120,7 +125,7 @@ export function BasesTab() {
         </div>
       )}
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto" role="region" aria-label="Base directory" tabIndex={0}>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wider text-text-dim border-b border-border">
@@ -144,7 +149,8 @@ export function BasesTab() {
             {rows.map(b => (
               <tr key={b.id} className="border-b border-border/50 hover:bg-surface-2">
                 <td className="px-3 py-2">
-                  <div className="font-medium text-text truncate max-w-[280px]">{b.name || <span className="text-text-dim italic">Unnamed base</span>}</div>
+                  {contextual ? <button className="font-medium text-text text-left underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ibad" aria-label={`Inspect base ${b.name || b.id}`} onClick={() => setSelectedId(b.id)}>{b.name || 'Unnamed base'}</button>
+                    : <div className="font-medium text-text truncate max-w-[280px]">{b.name || <span className="text-text-dim italic">Unnamed base</span>}</div>}
                 </td>
                 <td className="px-3 py-2 text-text-muted truncate max-w-[160px]">{b.owner || <span className="text-text-dim">—</span>}</td>
                 <td className="px-3 py-2 text-right hidden sm:table-cell font-mono text-text-dim">{b.id}</td>
@@ -171,6 +177,20 @@ export function BasesTab() {
           </tbody>
         </table>
       </div>
+
+      {contextual && selectedBase && <DetailPanel open title={selectedBase.name || 'Unnamed base'} onClose={() => setSelectedId(null)}>
+        <SourceBadge source={source} />
+        <dl className="my-5 space-y-4 text-sm">
+          <div><dt className="text-text-muted">Owner</dt><dd>{selectedBase.owner || 'Not reported'}</dd></div>
+          <div><dt className="text-text-muted">Base ID</dt><dd>{selectedBase.id}</dd></div>
+          <div><dt className="text-text-muted">Building pieces</dt><dd>{fmtNum(selectedBase.pieces)}</dd></div>
+          <div><dt className="text-text-muted">Placeables</dt><dd>{fmtNum(selectedBase.placeables)}</dd></div>
+          <div><dt className="text-text-muted">Land claim</dt><dd>{selectedBase.totemId || 'No active claim'}</dd></div>
+        </dl>
+        <button className="btn-secondary" disabled={busyId === selectedBase.id} onClick={() => { void handleExport(selectedBase) }}><Icon name="Download" size={15} />Export blueprint</button>
+        {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
+        {flash && <p role="status" className="mt-4 text-sm text-success">{flash}</p>}
+      </DetailPanel>}
 
       {confirmBase && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { if (!destroying) setConfirmBase(null) }}>

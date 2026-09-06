@@ -27,7 +27,7 @@ export function ViewportNotice({
   }, [autoDismissMs, kind, text])
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-[11000] flex justify-center sm:left-auto sm:right-4 sm:w-full sm:max-w-lg">
+    <div className="viewport-notice pointer-events-none fixed inset-x-4 bottom-4 z-[11000] flex justify-center sm:left-auto sm:right-4 sm:w-full sm:max-w-lg">
       <div
         role={kind === 'err' ? 'alert' : 'status'}
         aria-live={kind === 'err' ? 'assertive' : 'polite'}

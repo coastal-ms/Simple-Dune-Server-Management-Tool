@@ -8,6 +8,35 @@ BeforeAll {
     Import-DstRoute 'Diagnostics.ps1'
 }
 
+Describe 'Get-DstBackendLogFiles' -Tag 'Pure' {
+    It 'includes the active backend log and rollover rather than only launcher transcripts' {
+        $root = Join-Path $TestDrive 'local'
+        $dir = Join-Path $root 'DuneServer'
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        $path = Join-Path $dir 'dune-server.log'
+        Set-Content -LiteralPath $path -Value 'chat command dispatched'
+        Set-Content -LiteralPath "$path.old" -Value 'earlier chat command'
+        Set-Content -LiteralPath (Join-Path $dir 'unrelated.txt') -Value 'not a log'
+        $files = @(Get-DstBackendLogFiles -ActiveLogPath $path -LocalDataRoot $root)
+        $files.Count | Should -Be 2
+        $files.Path | Should -Contain $path
+        $files.Path | Should -Contain "$path.old"
+        $files.Name | Should -Be @('backend-runtime-1.log', 'backend-runtime-2.log')
+    }
+
+    It 'also discovers a configured backend path outside the default directory' {
+        $path = Join-Path $TestDrive 'custom-runtime.log'
+        Set-Content -LiteralPath $path -Value 'chat command tick error'
+        $files = @(Get-DstBackendLogFiles -ActiveLogPath $path -LocalDataRoot (Join-Path $TestDrive 'absent'))
+        $files.Count | Should -Be 1
+        $files[0].Path | Should -Be $path
+    }
+
+    It 'does not fabricate evidence when runtime logs are missing' {
+        @(Get-DstBackendLogFiles -ActiveLogPath '' -LocalDataRoot (Join-Path $TestDrive 'missing')).Count | Should -Be 0
+    }
+}
+
 Describe 'Get-DstIniDuplicateHeaders' -Tag 'Pure' {
     It 'flags a section name that appears twice' {
         $raw = @"
