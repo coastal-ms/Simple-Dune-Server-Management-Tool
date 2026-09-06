@@ -2277,7 +2277,7 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
                 </div>
               )}
               {clientInfo && clientBundleFor(clientInfo, clientViewFile).exists && (
-                <pre className="text-xs font-mono text-text bg-[#1e1e1e] border border-border rounded-lg p-3 overflow-x-auto max-h-[60vh] overflow-y-auto whitespace-pre leading-relaxed">
+                <pre className="text-xs font-mono text-text bg-base border border-border rounded-lg p-3 overflow-x-auto max-h-[60vh] overflow-y-auto whitespace-pre leading-relaxed">
                   {clientBundleFor(clientInfo, clientViewFile).raw || '(empty file)'}
                 </pre>
               )}

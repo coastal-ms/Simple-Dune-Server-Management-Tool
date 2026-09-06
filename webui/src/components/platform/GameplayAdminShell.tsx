@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { Icon } from '../Icon'
 import { Link, useHash, useLocation, useSearch } from '../../router'
+import { useCommandDeck } from '../../hooks/useCommandDeck'
 import {
   GAMEPLAY_DESTINATIONS,
   rememberGameplayDestination,
@@ -15,6 +16,7 @@ export function GameplayAdminShell({
   activeSection?: GameplaySectionId
   children: ReactNode
 }) {
+  const contextual = useCommandDeck()
   const { pathname } = useLocation()
   const search = useSearch()
   const hash = useHash()
@@ -26,7 +28,7 @@ export function GameplayAdminShell({
 
   return (
     <div className="min-w-0 max-w-full" data-gameplay-admin-shell>
-      <div className="mb-4 flex min-w-0 items-center gap-3 border-b border-border pb-3">
+      {(!contextual || active === 'overview') && <div className="mb-4 flex min-w-0 items-center gap-3 border-b border-border pb-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-accent/25 bg-accent/10 text-accent-bright">
           <Icon name="Gamepad2" size={20} />
         </span>
@@ -38,7 +40,7 @@ export function GameplayAdminShell({
             In-world players, bases, vehicles, maps, and economy
           </p>
         </div>
-      </div>
+      </div>}
 
       <nav
         aria-label="Gameplay Admin sections"

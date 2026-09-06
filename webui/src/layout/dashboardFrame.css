@@ -1,0 +1,118 @@
+[data-app-scroll-container][data-spatial-dashboard] {
+  overflow: clip;
+}
+
+.spatial-workspace.spatial-dashboard-frame {
+  --dashboard-gutter: 32px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: var(--spatial-dashboard-height, 100%);
+  min-height: 0;
+  min-width: 0;
+  margin-top: var(--spatial-dashboard-offset, 0px);
+  overflow: hidden;
+}
+
+.spatial-dashboard-frame > .spatial-header {
+  min-height: 72px;
+  padding: 8px max(var(--dashboard-gutter), env(safe-area-inset-right)) 8px max(var(--dashboard-gutter), env(safe-area-inset-left));
+}
+
+.spatial-dashboard-frame > .spatial-workarea {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 0 max(var(--dashboard-gutter), env(safe-area-inset-right)) 0 max(var(--dashboard-gutter), env(safe-area-inset-left));
+}
+
+.spatial-dashboard-body {
+  grid-row: 1;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.spatial-dashboard-frame .spatial-bottom {
+  grid-row: 2;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  gap: 0;
+}
+
+.spatial-dashboard-frame .spatial-dock-slot {
+  grid-column: 1;
+  width: max-content;
+  height: auto;
+  max-width: 100%;
+}
+
+.spatial-dashboard-frame .spatial-dock-slot > .spatial-dock {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-width: 100%;
+  padding: 6px;
+}
+
+.spatial-dashboard-frame .spatial-dock :is(a, button) {
+  min-height: 44px;
+  padding-block: 8px;
+  gap: 5px;
+}
+
+.spatial-dashboard-frame .spatial-header-actions > :is(button, a) {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  justify-content: center;
+}
+
+.spatial-dashboard-frame .spatial-palette select {
+  min-height: 44px;
+}
+
+.spatial-dashboard-frame[data-dashboard-compact] > .spatial-header {
+  min-height: 56px;
+  padding-block: 6px;
+}
+
+.spatial-dashboard-frame[data-dashboard-compact] .spatial-dock :is(a, button) {
+  padding-block: 6px;
+  gap: 4px;
+}
+
+@media (max-width: 1100px) {
+  .spatial-workspace.spatial-dashboard-frame {
+    --dashboard-gutter: 18px;
+  }
+}
+
+@media (max-width: 767px) {
+  .spatial-workspace.spatial-dashboard-frame {
+    --dashboard-gutter: 12px;
+  }
+
+  .spatial-dashboard-frame > .spatial-header {
+    min-height: 56px;
+    padding-block: 6px;
+    gap: 8px;
+  }
+
+  .spatial-dashboard-frame .spatial-palette select {
+    max-width: 120px;
+  }
+
+  .spatial-dashboard-frame .spatial-dock-slot {
+    width: 100%;
+  }
+
+  .spatial-dashboard-frame .spatial-dock :is(a, button) {
+    padding-block: 6px;
+    gap: 4px;
+  }
+}

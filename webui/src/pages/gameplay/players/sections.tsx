@@ -7,7 +7,7 @@
 // expose action buttons. The parent owns selection + refresh ticks; sections
 // re-fetch when `refreshKey` changes.
 
-import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState, type ReactElement, type ReactNode } from 'react'
 import { Icon } from '../../../components/Icon'
 import { ItemPicker } from '../../../components/ItemPicker'
 import { AugmentPicker } from '../../../components/AugmentPicker'
@@ -45,6 +45,8 @@ import {
   type ContractRow,
 } from '../../../api/gameplay'
 import { fmtNum, fmtSolari } from '../shared'
+import { useCommandDeck } from '../../../hooks/useCommandDeck'
+import { ActionWorkbench } from '../../../components/platform/ActionWorkbench'
 
 type Flash = (msg: string, kind?: 'ok' | 'err') => void
 
@@ -68,6 +70,7 @@ interface SectionProps {
 // numbers. Read-only here; mutations live in Actions.
 // ---------------------------------------------------------------------------
 export function StatsSection({ player, demo, refreshKey }: SectionProps) {
+  const contextual = useCommandDeck()
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -85,6 +88,34 @@ export function StatsSection({ player, demo, refreshKey }: SectionProps) {
   if (loading) return <Loading label="Loading stats…" />
   if (err)     return <ErrorBox msg={err} />
   if (!stats)  return <EmptyBox msg="No stats for this player." />
+
+  if (contextual) return <section className="player-snapshot" aria-label="Character snapshot">
+    <h3>Character snapshot</h3>
+    <dl className="player-snapshot-balances">
+      <div><dt>Solari</dt><dd>{fmtSolari(stats.solaris)}</dd></div>
+      <div><dt>Total currency</dt><dd>{fmtNum(stats.total_currency)}</dd></div>
+      <div><dt>Faction</dt><dd>{stats.faction_name || 'Unaligned'}</dd></div>
+      <div><dt>Status</dt><dd>{stats.online_status}</dd></div>
+    </dl>
+    <div className="player-snapshot-columns">
+      <section><h4>Identity</h4><dl>
+        <div><dt>Character</dt><dd>{stats.character_name || '(unnamed)'}</dd></div>
+        <div><dt>Class</dt><dd>{stats.class || 'Not reported'}</dd></div>
+        <div><dt>Map</dt><dd>{stats.map || 'Not reported'}</dd></div>
+        <div><dt>Last seen</dt><dd>{fmtTs(stats.last_seen)}</dd></div>
+      </dl></section>
+      <section><h4>Faction reputation</h4>
+        {stats.faction_reps?.length ? <dl>{stats.faction_reps.map(reputation => <div key={reputation.faction_id}>
+          <dt>{reputation.faction_name || `Faction #${reputation.faction_id}`}</dt>
+          <dd>{fmtNum(reputation.reputation)}{stats.faction_rep_cap ? ` / ${fmtNum(stats.faction_rep_cap)}` : ''}</dd>
+        </div>)}</dl> : <p>No faction reputation reported.</p>}
+      </section>
+    </div>
+    <details className="player-snapshot-account"><summary>Database identifiers</summary><dl>
+      <div><dt>Pawn</dt><dd>{stats.pawn_id}</dd></div><div><dt>Account</dt><dd>{stats.account_id}</dd></div>
+      <div><dt>Controller</dt><dd>{stats.controller_id}</dd></div><div><dt>Faction</dt><dd>{stats.faction_id}</dd></div>
+    </dl></details>
+  </section>
 
   return (
     <div className="space-y-4">
@@ -838,6 +869,7 @@ const GROUP_ORDER: ActionGroup[] = ['Live', 'Currency', 'Progression', 'Vehicle'
 const ITEMS_GROUP: ActionGroup = 'Items'
 
 export function ActionsSection({ player, canWrite, demo, flash, onChanged, onFlush }: SectionProps) {
+  const contextual = useCommandDeck()
   const [openId, setOpenId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // Current balances for read-only context on the Give Solari/Scrip/Intel rows,
@@ -905,6 +937,13 @@ export function ActionsSection({ player, canWrite, demo, flash, onChanged, onFlu
     )
   }
 
+  if (contextual) return <ActionWorkbench
+    key={player.id} title="Player actions" target={player.name || 'Unnamed player'}
+    actions={GROUP_ORDER.flatMap(group => grouped[group])} selectedId={openId} onSelect={openAction} busy={busy}
+    renderAction={action => <ActionRow key={action.id} def={action} player={player} busy={busy} stats={stats}
+      open danger={action.group === 'Danger'} onToggle={() => openAction(action.id)} runAction={runAction} />}
+  />
+
   return (
     <div className="space-y-4">
       {!hasLiveSession && (
@@ -970,6 +1009,7 @@ function ActionRow({ def, player, busy, stats, open, danger, onToggle, runAction
   return (
     <div className="card overflow-hidden">
       <button type="button"
+        aria-expanded={open}
         className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-surface-2'} ${danger ? 'text-error' : 'text-text'}`}
         disabled={disabled}
         onClick={onToggle}
@@ -2634,6 +2674,7 @@ function ProgressionUnlockForm({ busy, onUnlock, onReverse }: {
 function ItemsActionBlock({ player, canWrite, flash, onChanged, onFlush }: {
   player: Player; canWrite: boolean; flash: Flash; onChanged: () => void; onFlush?: () => void
 }) {
+  const contextual = useCommandDeck()
   const [openId, setOpenId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -2665,6 +2706,13 @@ function ItemsActionBlock({ player, canWrite, flash, onChanged, onFlush }: {
       setBusy(false)
     }
   }
+
+  if (contextual) return <details className="player-inventory-actions"><summary><Icon name="PackagePlus" size={17} />Give or manage items</summary><ActionWorkbench
+    key={player.id} title="Inventory actions" target={player.name || 'Unnamed player'}
+    actions={acts} selectedId={openId} onSelect={openAction} busy={busy}
+    renderAction={action => <ActionRow key={action.id} def={action} player={player} busy={busy} stats={null}
+      open onToggle={() => openAction(action.id)} runAction={runAction} />}
+  /></details>
 
   return (
     <div className="space-y-1.5 mb-2">
@@ -3200,6 +3248,7 @@ interface FieldDef { key: string; label: string; type: 'text' | 'number' | 'sele
 function InlineForm({ fields, submitLabel, busy, note, onSubmit }: {
   fields: FieldDef[]; submitLabel: string; busy: boolean; note?: ReactNode; onSubmit: (values: Record<string, string>) => void
 }) {
+  const fieldId = useId()
   // Seed select fields with their first option so a dropdown is never submitted
   // empty (the run() handlers also default, but this keeps the UI honest).
   const [values, setValues] = useState<Record<string, string>>(() => {
@@ -3215,15 +3264,15 @@ function InlineForm({ fields, submitLabel, busy, note, onSubmit }: {
       {note}
       {fields.map(f => (
         <div key={f.key}>
-          <label className="block text-[11px] uppercase tracking-wider text-text-dim mb-1">{f.label}</label>
+          <label htmlFor={`${fieldId}-${f.key}`} className="block text-[11px] uppercase tracking-wider text-text-dim mb-1">{f.label}</label>
           {f.type === 'select' ? (
-            <select value={values[f.key] ?? f.options?.[0]?.value ?? ''}
+            <select id={`${fieldId}-${f.key}`} disabled={busy} value={values[f.key] ?? f.options?.[0]?.value ?? ''}
               onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
               className={inputCls}>
               {(f.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           ) : (
-            <input type={f.type} value={values[f.key] ?? ''} placeholder={f.placeholder}
+            <input id={`${fieldId}-${f.key}`} disabled={busy} type={f.type} value={values[f.key] ?? ''} placeholder={f.placeholder}
               onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
               className={inputCls} />
           )}

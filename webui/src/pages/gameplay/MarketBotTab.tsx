@@ -424,7 +424,7 @@ export function MarketBotTab() {
 
       {/* Save bar (shared across all subtabs) */}
       {draft && (
-        <div className="flex items-center gap-3 mt-4 sticky bottom-0 bg-bg/80 backdrop-blur py-2">
+        <div className="flex items-center gap-3 mt-4 sticky bottom-0 bg-base/95 backdrop-blur py-2">
           <button className="btn-primary" disabled={!dirty || saving} onClick={() => { void save() }}>
             <Icon name={saving ? 'Loader2' : 'Save'} size={15} className={saving ? 'animate-spin' : ''} /> Save config
           </button>

@@ -351,6 +351,25 @@ function Get-DstMapPlatformDiagnosticState {
         -Health $health
 }
 
+function Get-DstBackendLogFiles {
+    param([string]$ActiveLogPath, [string]$LocalDataRoot = $env:LOCALAPPDATA)
+    $paths = @()
+    if ($ActiveLogPath) { $paths += $ActiveLogPath }
+    if ($LocalDataRoot) { $paths += (Join-Path $LocalDataRoot 'DuneServer\dune-server.log') }
+    $index = 0
+    foreach ($path in @($paths | Select-Object -Unique)) {
+        foreach ($candidate in @($path, "$path.old")) {
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                $index++
+                [pscustomobject]@{
+                    Path = $candidate
+                    Name = "backend-runtime-$index.log"
+                }
+            }
+        }
+    }
+}
+
 # Builds the diagnostic bundle. Returns a hashtable with the same shape the
 # /api/diagnostics/bundle handler echoes back to the React client.
 function New-DstDiagnosticBundle {
@@ -464,6 +483,23 @@ function New-DstDiagnosticBundle {
     }
     if (-not $foundCliLogs) {
         $warnings.Add('No dune-server-*.log CLI transcripts found.')
+    }
+
+    # Backend/scheduler logs are separate from the dated launcher transcripts.
+    $backendLogFiles = @(Get-DstBackendLogFiles -ActiveLogPath $script:DuneLogPath)
+    foreach ($backendLog in $backendLogFiles) {
+        $tail = Read-DstLogTail -Path $backendLog.Path -MaxBytes 262144
+        if ($null -eq $tail) {
+            $warnings.Add("Could not read $($backendLog.Name).")
+            continue
+        }
+        $san = "# Backend runtime log (bounded tail, sanitized)`r`n" + (Invoke-DstRedaction -Text $tail @redactArgs)
+        $out = Join-Path $stageDir $backendLog.Name
+        Set-Content -LiteralPath $out -Value $san -Encoding UTF8
+        $included.Add(@{ name = $backendLog.Name; bytes = (Get-Item -LiteralPath $out).Length })
+    }
+    if ($backendLogFiles.Count -eq 0) {
+        $warnings.Add('No active backend runtime logs found; chat-command execution evidence is unavailable.')
     }
 
     # 6a) In-app updater evidence (best-effort, protected ProgramData) ----------

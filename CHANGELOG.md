@@ -11,7 +11,39 @@ Patch releases within a major series are rolled up under the major's entry
 on GitHub still exist for each individual release; the consolidated entries
 here cover everything those tags shipped.
 
-## [Unreleased]
+## [15.0.0-finalphase-1] - 2026-09-05
+
+### Fixed
+
+- Fixed ordinary item grants incorrectly failing augment validation when no augments were selected.
+- Diagnostics now include active backend and scheduler logs for chat-command failures.
+- Solo save selection now displays and browses the selected Steam account's
+  save folder instead of only the shared Saved directory.
+
+### Added
+
+- Opt-in Command Deck with shared light/dark and Dune themes, task search,
+  consistent navigation, and preserved Classic defaults.
+- One-screen Spatial dashboard with server status, floating map-status/count
+  text, in-place single-map details, reserved controls, and a separate navigation
+  dock. Map details never shift the scene or fetch a player-name roster.
+- Saved 3D camera zoom and user-arranged map emblems, keyboard/touch alternatives,
+  hideable controls, and separate view/placement recovery actions.
+- Layered regional terrain, grounded location models, fixed directional sunlight,
+  readable readiness pulses, and optional cyan simulated travel. Graphics load
+  on demand; motion respects reduced-motion and visibility settings.
+- Contextual Players and Commands task workflows, base/market/vehicle detail
+  panels, fleet search, and focused section navigation. Existing permissions,
+  APIs, online/offline requirements, and destructive safeguards remain intact.
+- Complete map-status access above the 13-location 3D limit, with honest unknown
+  counts and unavailable per-map latency/heartbeat information.
+- Signal visual theme with graphite surfaces, violet actions, cyan focus, and
+  lime status accents across existing screens, controls, and tables.
+
+### Changed
+
+- Load the classic sidebar and detailed overview on demand rather than
+  including their implementations in initial navigation.
 
 ## [15.0.0-phase2-test6.1] - 2026-09-05
 

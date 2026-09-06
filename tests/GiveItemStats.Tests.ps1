@@ -9,6 +9,37 @@ BeforeAll {
     Import-DstLib 'AugmentCatalog.ps1'
 }
 
+Describe 'ConvertTo-DuneAugmentSelections optional input' -Tag 'Pure' {
+    It 'accepts omitted and null augments as an ordinary grant' {
+        @(ConvertTo-DuneAugmentSelections).Count | Should -Be 0
+        @(ConvertTo-DuneAugmentSelections -Augments $null).Count | Should -Be 0
+    }
+
+    It 'accepts an empty array and an empty array unrolled by a body-value helper' {
+        @(ConvertTo-DuneAugmentSelections -Augments @()).Count | Should -Be 0
+        $body = '{"augments":[]}' | ConvertFrom-Json
+        $raw = & { return $body.augments }
+        @(ConvertTo-DuneAugmentSelections -Augments $raw).Count | Should -Be 0
+    }
+
+    It 'still rejects null entries inside a nonempty selection array' {
+        { ConvertTo-DuneAugmentSelections -Augments (, $null) } |
+            Should -Throw '*Each selected augment requires an id*'
+    }
+
+    It 'still rejects selected objects without an id' {
+        { ConvertTo-DuneAugmentSelections -Augments @(@{ quality = 5 }) } |
+            Should -Throw '*Each selected augment requires an id*'
+    }
+
+    It 'preserves a valid selected augment' {
+        $selected = @(ConvertTo-DuneAugmentSelections -Augments @(@{ id = 'T6_Augment_Damage2'; quality = 5 }))
+        $selected.Count | Should -Be 1
+        $selected[0].id | Should -Be 'T6_Augment_Damage2'
+        $selected[0].quality | Should -Be 5
+    }
+}
+
 Describe 'Get-DuneGiveItemStatsJson' -Tag 'Pure' {
     BeforeAll {
         $script:stackable = '{"FItemStackAndDurabilityStats":[[],{"DecayedMaxDurability":0.0}]}'

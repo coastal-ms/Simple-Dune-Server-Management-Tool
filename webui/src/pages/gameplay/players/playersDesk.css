@@ -1,0 +1,74 @@
+.players-desk { color:var(--color-text); }
+.players-desk-overview { display:flex; align-items:center; gap:24px; padding:4px 0 22px; }
+.players-desk-overview > div { flex:1; }
+.players-desk-overview h2 { font-size:19px; font-weight:550; }
+.players-desk-overview p { margin-top:6px; color:var(--color-text-muted); font-size:12px; }
+.players-desk-overview dl { display:flex; gap:24px; align-items:center; }
+.players-desk-overview dl div { display:flex; align-items:baseline; gap:8px; }
+.players-desk-overview dt { font-size:12px; color:var(--color-text-muted); }
+.players-desk-overview dd { font-size:19px; font-variant-numeric:tabular-nums; }
+.players-desk-body { display:grid; grid-template-columns:270px minmax(0,1fr); border:1px solid var(--color-border); border-radius:9px; }
+.player-directory { min-width:0; background:var(--color-base); border-right:1px solid var(--color-border); border-radius:9px 0 0 9px; }
+.player-directory-controls { display:flex; flex-direction:column; gap:12px; padding:18px 16px; border-bottom:1px solid var(--color-border); }
+.player-directory-controls :is(input,button) { min-height:40px; }
+.player-directory-list { overflow:hidden; }
+.player-directory-list > div:first-child { padding:13px 16px; font-size:11px; text-transform:none; letter-spacing:0; }
+.player-directory-row { display:flex; align-items:center; gap:12px; width:100%; min-height:72px; padding:14px 16px; border-bottom:1px solid var(--color-border); text-align:left; }
+.player-directory-row[aria-pressed="true"] { background:var(--color-surface-2); box-shadow:inset 0 -2px var(--color-ibad); }
+.player-directory-row:hover { background:var(--color-surface-2); }
+.player-directory-row > span:first-child > div:first-child { font-weight:550; }
+.player-directory-row > span:first-child > div:last-child { margin-top:5px; }
+.player-directory-status { font-size:10px; color:var(--color-text-muted); }
+.player-directory-status[data-online="true"] { color:var(--color-success); }
+.player-dossier { min-width:0; padding:24px; }
+.player-dossier-header { padding-bottom:4px; }
+.player-dossier-title { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.player-dossier-title h2 { font-size:30px; line-height:1.2; font-weight:550; letter-spacing:-.025em; overflow-wrap:anywhere; }
+.player-dossier-title p { display:flex; flex-wrap:wrap; gap:14px; margin-top:8px; color:var(--color-text-muted); font-size:12px; }
+.player-dossier-title button { display:grid; place-items:center; flex-shrink:0; width:40px; height:40px; border:1px solid var(--color-border); border-radius:5px; }
+.player-dossier-context { display:flex; flex-wrap:wrap; gap:20px; margin-top:20px; font-size:12px; }
+.player-dossier-context > span { display:flex; gap:8px; align-items:center; }
+.player-dossier-context [data-online="true"] { color:var(--color-success); }
+.player-dossier-identifiers { margin-top:16px; font-size:11px; color:var(--color-text-muted); }
+.player-dossier-identifiers summary { width:fit-content; padding:5px 0; cursor:pointer; }
+.player-dossier-identifiers dl { display:flex; flex-wrap:wrap; gap:22px; padding:12px 0; }
+.player-dossier-identifiers dt { margin-bottom:5px; }
+.player-dossier-identifiers dd { color:var(--color-text); font-variant-numeric:tabular-nums; }
+.player-section-nav { display:flex; gap:3px; max-width:100%; overflow-x:auto; border-bottom:1px solid var(--color-border); }
+.player-section-nav button { display:flex; align-items:center; gap:7px; padding:12px 10px; min-height:44px; border-bottom:2px solid transparent; font-size:12px; color:var(--color-text-muted); white-space:nowrap; }
+.player-section-nav button[aria-pressed="true"] { color:var(--color-text); border-bottom-color:var(--color-ibad); }
+.player-section-nav button:hover { color:var(--color-text); background:var(--color-surface-2); }
+.player-dossier-content { padding-top:12px; min-width:0; }
+.player-filter-notice { padding:10px 0; color:var(--color-text-muted); font-size:12px; }
+.player-snapshot h3 { font-size:16px; font-weight:550; margin-bottom:18px; }
+.player-snapshot-balances { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-block:1px solid var(--color-border); padding:20px 0; gap:18px; }
+.player-snapshot dt { color:var(--color-text-muted); font-size:12px; }
+.player-snapshot-balances dd { font-size:18px; font-weight:500; margin-top:8px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.player-snapshot-columns { display:grid; grid-template-columns:1fr 1fr; gap:32px; padding:28px 0; }
+.player-snapshot h4 { font-size:14px; font-weight:550; margin-bottom:16px; }
+.player-snapshot-columns dl > div { display:flex; justify-content:space-between; gap:15px; padding:11px 0; border-bottom:1px solid var(--color-border); font-size:12px; }
+.player-snapshot-columns dd { text-align:right; overflow-wrap:anywhere; }
+.player-snapshot-columns p { font-size:12px; color:var(--color-text-muted); }
+.player-snapshot-account summary { font-size:12px; padding:12px 0; cursor:pointer; color:var(--color-text-muted); }
+.player-snapshot-account dl { display:flex; flex-wrap:wrap; gap:24px; padding:14px 0; }
+.player-snapshot-account dd { margin-top:5px; font-size:12px; font-variant-numeric:tabular-nums; }
+.player-inventory-actions > summary { display:flex; align-items:center; gap:9px; width:fit-content; padding:11px 14px; border:1px solid var(--color-border); border-radius:5px; margin:8px 0 16px; cursor:pointer; font-size:12px; background:var(--color-surface-2); }
+.player-inventory-actions > summary::after { content:'+'; margin-left:20px; }
+.player-inventory-actions[open] > summary::after { content:'-'; }
+.players-desk :is(button,input,select,summary):focus-visible { outline:2px solid var(--color-ibad); outline-offset:-2px; }
+@media(max-width:1100px) {
+  .players-desk-body { grid-template-columns:235px minmax(0,1fr); }
+  .player-dossier { padding:18px; }
+  .players-desk-overview { flex-wrap:wrap; gap:14px; }
+}
+@media(max-width:767px) {
+  .players-desk-overview > div { flex-basis:100%; }
+  .players-desk-body { display:block; }
+  .player-directory { border-right:0; border-bottom:1px solid var(--color-border); border-radius:9px 9px 0 0; }
+  .player-directory-list > div:last-child { max-height:225px; }
+  .player-dossier { padding:20px 12px; }
+  .player-dossier-title h2 { font-size:26px; }
+  .player-directory-controls :is(input,button) { min-height:44px; }
+  .player-snapshot-balances { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .player-snapshot-columns { grid-template-columns:1fr; gap:24px; }
+}

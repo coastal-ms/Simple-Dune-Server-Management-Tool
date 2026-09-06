@@ -59,6 +59,12 @@ export function computeResolved(presetId: string, overrides: Record<string, stri
 
 export function applyResolvedToRoot(resolved: Record<string, string>): void {
   const root = document.documentElement
+  const base = normalizeHex(resolved['--color-base'] || '#0c0a09').slice(1, 7)
+  const channels = [0, 2, 4].map(offset => {
+    const value = parseInt(base.slice(offset, offset + 2), 16) / 255
+    return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4
+  })
+  root.style.colorScheme = channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722 > .179 ? 'light' : 'dark'
   for (const key of TOKEN_KEYS) {
     const v = resolved[key]
     if (v) root.style.setProperty(key, v)
@@ -112,6 +118,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Apply on every change. The inline boot script in index.html has already
   // applied the initial values pre-paint; this keeps the DOM in sync after.
   useEffect(() => {
+    document.documentElement.dataset.dstTheme = presetId
     applyResolvedToRoot(resolved)
     writeStored({ version: THEME_SCHEMA_VERSION, presetId, overrides, resolved })
     setRevision(r => r + 1)

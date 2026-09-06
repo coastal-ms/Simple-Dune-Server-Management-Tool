@@ -53,6 +53,7 @@ import {
   type VehicleKitCatalog,
 } from '../api/gameplay'
 import { pickLocalFolder } from '../util/pathPicker'
+import { soloSaveFolder } from '../util/soloSaveFolder'
 
 type Tab = 'overview' | 'settings' | 'backups' | 'character' | 'inventory' | 'progression'
 export const SOLO_BLUEPRINT_IMPORT_DISABLED = true
@@ -433,7 +434,7 @@ export function SoloCosmeticGrantCard({
             disabled={controlsDisabled}
             onChange={event => setSelected(event.target.value)}
             className={`${SOLO_INPUT_CLASS} mt-3`}
-            style={{ colorScheme: 'dark' }}
+            style={{ colorScheme: 'inherit' }}
           >
             <option value="">Choose a cosmetic or building set... ({matches.length})</option>
             {groups.map(([group, entries]) => (
@@ -596,8 +597,8 @@ export function SoloMode() {
 
   const browse = async () => {
     const path = await pickLocalFolder({
-      initialPath: dataRoot,
-      description: 'Select Dune Solo Saved folder or the exact profile folder containing game.db',
+      initialPath: soloSaveFolder(dataRoot, selectedDb),
+      description: 'Select the Steam account folder (long number) containing game.db',
     })
     if (path) {
       setBusy('discover')
@@ -1302,22 +1303,22 @@ export function SoloMode() {
         id="solo-connection"
         title="Solo save connection"
         icon="FolderCog"
-        subtitle="Auto-detect the PTC save or choose a future retail/custom data folder."
+        subtitle="Choose the Steam account folder containing the Solo save you want to edit."
         summary={connected ? 'Connected' : 'Not connected'}
       >
         <div className="space-y-3">
           <label className="block">
-            <span className="text-xs text-text-muted">Solo data folder</span>
+            <span className="text-xs text-text-muted">Solo save folder (Steam account)</span>
             <div className="flex gap-2 mt-1">
               <input
                 className={`${SOLO_INPUT_CLASS} font-mono text-xs flex-1`}
-                value={dataRoot}
+                value={soloSaveFolder(dataRoot, selectedDb)}
                 onChange={event => {
                   setDataRoot(event.target.value)
                   setSelectedDb('')
                   setDiscoveredProfiles([])
                 }}
-                placeholder="%LOCALAPPDATA%\DuneSandbox\Saved"
+                placeholder="%LOCALAPPDATA%\DuneSandbox\Saved\Cloud\PlayerClientStorage\FLS_beta\<SteamID>"
               />
               <button type="button" className="btn-secondary" onClick={() => void browse()}>
                 <Icon name="FolderOpen" size={14} /> Browse
@@ -1327,10 +1328,10 @@ export function SoloMode() {
 
           {discoveredProfiles.length > 1 && (
             <label className="block">
-              <span className="text-xs text-text-muted">Solo profile</span>
+              <span className="text-xs text-text-muted">Steam account / Solo profile</span>
               <select
                 className={`${SOLO_INPUT_CLASS} mt-1`}
-                style={{ colorScheme: 'dark' }}
+                style={{ colorScheme: 'inherit' }}
                 value={selectedDb}
                 onChange={event => setSelectedDb(event.target.value)}
               >
@@ -1535,7 +1536,7 @@ export function SoloMode() {
                             <select
                               id={inputId}
                               className={`${SOLO_INPUT_CLASS} mt-1 text-xs`}
-                              style={{ colorScheme: 'dark' }}
+                              style={{ colorScheme: 'inherit' }}
                               value={value}
                               onChange={event => update(event.target.value)}
                               disabled={disabled}
@@ -1813,7 +1814,7 @@ export function SoloMode() {
                 <span className="text-xs text-text-muted">Destination</span>
                 <select
                   className={`${SOLO_INPUT_CLASS} mt-1`}
-                  style={{ colorScheme: 'dark' }}
+                  style={{ colorScheme: 'inherit' }}
                   value={inventoryDestination}
                   onChange={event => setInventoryDestination(event.target.value)}
                   onWheel={event => event.currentTarget.blur()}
@@ -1910,7 +1911,7 @@ export function SoloMode() {
                 <span className="text-xs text-text-muted">Vehicle</span>
                 <select
                   className={`${SOLO_INPUT_CLASS} mt-1`}
-                  style={{ colorScheme: 'dark' }}
+                  style={{ colorScheme: 'inherit' }}
                   value={vehicleKitId}
                   onChange={event => setVehicleKitId(event.target.value)}
                   disabled={!canMutateActiveProfile || gameRunning}

@@ -6,6 +6,7 @@ import type { BgState, VmStatus, PortStatus } from '../api/types'
 import { usePortalAuth } from '../auth/PortalAuthGate'
 import { getTestBuildIdentity } from '../util/testBuildIdentity'
 import { usePortalAccess } from '../auth/portalAccess'
+import { setCommandDeck, useCommandDeck } from '../hooks/useCommandDeck'
 
 function vmPillClass(vm: VmStatus | undefined | null): string {
   if (!vm || !vm.exists) return 'pill-muted'
@@ -53,6 +54,7 @@ export function StatusBar() {
   const bg    = BG_STYLES[bgKey] ?? BG_STYLES.unknown
   const serverName = (status?.serverName ?? '').trim()
   const portalAuth = usePortalAuth()
+  const commandDeck = useCommandDeck()
 
   return (
     <header className="h-14 shrink-0 border-b border-border bg-surface/60 backdrop-blur-md px-3 sm:px-5 flex items-center justify-between gap-2 sm:gap-4 overflow-hidden">
@@ -74,6 +76,13 @@ export function StatusBar() {
         )}
       </div>
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        <button type="button" className="btn-ghost" aria-pressed={commandDeck}
+          onClick={() => setCommandDeck(!commandDeck)}
+          title={commandDeck ? 'Return to classic layout' : 'Try the Command Deck preview'}>
+          <Icon name="PanelsTopLeft" size={16} />
+          <span className="hidden xl:inline">{commandDeck ? 'Classic layout' : 'Try Command Deck'}</span>
+          <span className="sr-only xl:hidden">{commandDeck ? 'Return to classic layout' : 'Try Command Deck'}</span>
+        </button>
         {portalAuth?.status.account && (
           <button className="btn-ghost" onClick={() => void portalAuth.logout()} title="Sign out of the Browser Portal">
             <Icon name="LogOut" size={14} />

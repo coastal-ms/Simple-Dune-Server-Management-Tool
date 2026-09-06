@@ -6,6 +6,9 @@ import {
   type MarketSortKey,
 } from '../../api/gameplay'
 import { fmtSolari, fmtNum, SourceBadge, RarityTag, categoryLeaf } from './shared'
+import { DetailPanel } from '../../components/platform/DetailPanel'
+import { DataState } from '../../components/platform/DataState'
+import { useCommandDeck } from '../../hooks/useCommandDeck'
 
 const PAGE_SIZE = 50
 
@@ -193,7 +196,7 @@ export function MarketTab() {
       {error && <div className="card p-3 mb-4 text-sm text-danger break-words">{error}</div>}
 
       {/* Items table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto" role="region" aria-label="Market catalog" tabIndex={0}>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wider text-text-dim border-b border-border">
@@ -220,7 +223,8 @@ export function MarketTab() {
                 onClick={() => setSelected(it)}
                 className="border-b border-border/50 hover:bg-surface-2 cursor-pointer">
                 <td className="px-3 py-2">
-                  <div className="font-medium text-text truncate max-w-[260px]">{it.display_name}</div>
+                  <button type="button" onClick={event => { event.stopPropagation(); setSelected(it) }}
+                    aria-label={`Inspect ${it.display_name}`} className="font-medium text-text text-left truncate max-w-[260px] focus-visible:outline-2 focus-visible:outline-ibad">{it.display_name}</button>
                   <div className="text-[11px] text-text-dim font-mono truncate max-w-[260px]">{it.template_id}</div>
                 </td>
                 <td className="px-3 py-2 hidden md:table-cell text-text-muted">{categoryLeaf(it.category)}</td>
@@ -272,39 +276,40 @@ function StatCard({ label, value, sub, icon }: { label: string; value: string; s
 }
 
 function ItemDetail({ item, onClose }: { item: MarketItem; onClose: () => void }) {
+  const contextual = useCommandDeck()
   const [listings, setListings] = useState<MarketListing[]>([])
   const [sales, setSales] = useState<MarketSale[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     let alive = true
     setLoading(true)
+    setError('')
     Promise.all([getMarketListings(item.template_id), getMarketSales()])
       .then(([l, s]) => {
         if (!alive) return
         setListings(l.listings)
         setSales(s.sales.filter(x => x.template_id === item.template_id))
       })
+      .catch(reason => { if (alive) setError(reason instanceof Error ? reason.message : 'Market details could not be loaded') })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [item.template_id])
 
-  return (
-    <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="relative w-full max-w-md h-full bg-surface border-l border-border overflow-y-auto p-5"
-        onClick={e => e.stopPropagation()}>
+  const content = (
+    <>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-text">{item.display_name}</h3>
+            {!contextual && <h3 className="text-lg font-semibold text-text">{item.display_name}</h3>}
             <div className="text-xs text-text-dim font-mono">{item.template_id}</div>
             <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
               <span>{categoryLeaf(item.category)}</span>
               {item.tier ? <span>· Tier {item.tier}</span> : null}
               <RarityTag rarity={item.rarity} />
             </div>
+            {!contextual && <button onClick={onClose} aria-label="Close market details" className="text-text-dim hover:text-text"><Icon name="X" size={20} /></button>}
           </div>
-          <button onClick={onClose} className="text-text-dim hover:text-text"><Icon name="X" size={20} /></button>
         </div>
 
         <div className="grid grid-cols-3 gap-2 mb-4">
@@ -314,7 +319,7 @@ function ItemDetail({ item, onClose }: { item: MarketItem; onClose: () => void }
         </div>
 
         <h4 className="text-xs uppercase tracking-wider text-text-dim mb-2">Active listings</h4>
-        {loading ? (
+        {error ? <DataState state="error" title="Market details unavailable" message={error} /> : loading ? (
           <div className="text-text-dim text-sm py-4"><Icon name="Loader2" size={16} className="animate-spin inline" /> Loading…</div>
         ) : listings.length === 0 ? (
           <div className="text-text-dim text-sm py-4">No active listings.</div>
@@ -334,7 +339,7 @@ function ItemDetail({ item, onClose }: { item: MarketItem; onClose: () => void }
           </div>
         )}
 
-        {sales.length > 0 && (
+        {!error && sales.length > 0 && (
           <>
             <h4 className="text-xs uppercase tracking-wider text-text-dim mb-2">Recent sales</h4>
             <div className="space-y-1">
@@ -347,7 +352,12 @@ function ItemDetail({ item, onClose }: { item: MarketItem; onClose: () => void }
             </div>
           </>
         )}
-      </div>
+    </>
+  )
+  return contextual ? <DetailPanel open title={item.display_name} onClose={onClose}>{content}</DetailPanel> : (
+    <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="relative w-full max-w-md h-full bg-surface border-l border-border overflow-y-auto p-5" onClick={event => event.stopPropagation()}>{content}</div>
     </div>
   )
 }

@@ -1,0 +1,87 @@
+.spatial-workspace .spatial-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content) minmax(0, 1fr);
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  position: static;
+  z-index: auto;
+}
+
+.spatial-bottom > .spatial-infrastructure {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.spatial-bottom > .spatial-system-label {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  min-width: 0;
+}
+
+.spatial-dock-slot {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+  min-width: 0;
+  max-width: 100%;
+  width: max-content;
+  scroll-margin-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.spatial-dock-slot > .spatial-dock {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.spatial-dock-slot[data-floating] {
+  width: var(--spatial-dock-width);
+  height: var(--spatial-dock-height);
+}
+
+.spatial-dock-slot[data-floating] > .spatial-dock {
+  position: fixed;
+  z-index: 20;
+  left: var(--spatial-dock-center);
+  bottom: calc(var(--spatial-dock-viewport-offset) + max(12px, env(safe-area-inset-bottom)));
+  transform: translateX(-50%);
+  width: var(--spatial-dock-anchor-width);
+  max-width: var(--spatial-dock-anchor-width);
+}
+
+[data-app-scroll-container][data-spatial-dock] {
+  scroll-padding-bottom: max(1rem, var(--spatial-dock-clearance, 0px));
+}
+
+/* Keep existing save/apply bars and in-workspace notices above the floating navigation. */
+.spatial-workspace .sticky.bottom-0 {
+  bottom: var(--spatial-dock-clearance, 0px);
+}
+
+.spatial-workspace .fixed.bottom-4 {
+  bottom: calc(1rem + var(--spatial-dock-clearance, 0px));
+}
+
+.spatial-workspace .spatial-stage-controls {
+  translate: 0 var(--spatial-stage-dock-shift, 0px);
+}
+
+@media (max-width: 767px) {
+  .spatial-workspace .spatial-bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .spatial-bottom > .spatial-infrastructure {
+    grid-row: 2;
+    flex-wrap: wrap;
+  }
+
+  .spatial-dock-slot,
+  .spatial-dock-slot[data-floating] {
+    grid-column: 1;
+    width: 100%;
+  }
+}

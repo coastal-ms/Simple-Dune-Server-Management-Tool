@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./theme/signal.css";
 
 @theme {
   /* Eyes of Ibad — Dune Server brand palette */

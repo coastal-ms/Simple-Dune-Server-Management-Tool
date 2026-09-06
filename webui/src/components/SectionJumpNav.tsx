@@ -1,6 +1,8 @@
 import { useEffect, useState, type RefObject } from 'react'
 import { useLocation } from '../router'
 import { Icon } from './Icon'
+import { useCommandDeck } from '../hooks/useCommandDeck'
+import './platform/workspaceChrome.css'
 
 type SectionItem = {
   id: string
@@ -14,6 +16,7 @@ function sameSections(left: SectionItem[], right: SectionItem[]) {
 }
 
 export function SectionJumpNav({ containerRef }: { containerRef: RefObject<HTMLElement | null> }) {
+  const contextual = useCommandDeck()
   const { pathname } = useLocation()
   const [sections, setSections] = useState<SectionItem[]>([])
   const [selected, setSelected] = useState('')
@@ -74,6 +77,16 @@ export function SectionJumpNav({ containerRef }: { containerRef: RefObject<HTMLE
       focusTarget.focus({ preventScroll: true })
     })
   }
+
+  if (contextual) return <nav className="workspace-section-nav" aria-label="Workspace sections">
+    <div className="workspace-section-strip">
+      {sections.map(section => <button key={section.id} type="button" aria-pressed={selected === section.id} onClick={() => jumpTo(section.id)}>{section.label}</button>)}
+    </div>
+    <select className="workspace-section-picker" aria-label="Jump to section" value={selected} onChange={event => jumpTo(event.target.value)}>
+      {sections.map(section => <option key={section.id} value={section.id}>{section.label}</option>)}
+    </select>
+    <button className="workspace-section-collapse" type="button" aria-label="Collapse all sections" title="Collapse all sections" onClick={() => collapseSections()}><Icon name="ChevronsUp" size={17} /></button>
+  </nav>
 
   return (
     <div className="sticky top-0 z-30 mb-4 -mx-1 rounded-lg border border-border bg-base/95 px-3 py-2 shadow-[0_6px_18px_-12px_rgba(0,0,0,0.8)] backdrop-blur-sm">

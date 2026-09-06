@@ -1,0 +1,116 @@
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PlayersTab } from '../src/pages/gameplay/PlayersTab'
+import { getPlayers, getPlayerSummary, getPlayerStats, giveSolari, deleteAccount, type Player } from '../src/api/gameplay'
+import { COMMAND_DECK_KEY } from '../src/hooks/useCommandDeck'
+
+vi.mock('../src/pages/gameplay/players/coriolis', () => ({ CoriolisAdmin: () => <div>Existing lifecycle controls</div> }))
+vi.mock('../src/pages/gameplay/players/base-water', () => ({ BaseWaterAdmin: () => <div>Existing water controls</div> }))
+vi.mock('../src/api/gameplay', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/api/gameplay')>(),
+  getPlayers: vi.fn(), getPlayerSummary: vi.fn(), getPlayerStats: vi.fn(), giveSolari: vi.fn(), deleteAccount: vi.fn(),
+}))
+const players: Player[] = [
+  { id: 41, account_id: 51, controller_id: 61, name: 'Aster', class: 'Mentat', map: 'Survival_1', faction_id: 1, faction_name: 'Atreides', online_status: 'Offline' },
+  { id: 42, account_id: 52, controller_id: 62, name: 'Beryl', class: 'Trooper', map: 'DeepDesert_1', faction_id: 2, faction_name: 'Harkonnen', online_status: 'Online' },
+]
+beforeEach(() => {
+  localStorage.clear()
+  localStorage.setItem(COMMAND_DECK_KEY, '1')
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
+  vi.mocked(getPlayers).mockResolvedValue({ source: 'live', players })
+  vi.mocked(getPlayerSummary).mockResolvedValue({ source: 'live', totals: { players: 2, online: 1, factions: 2 }, by_faction: [], by_map: [] })
+  vi.mocked(getPlayerStats).mockImplementation(async id => {
+    const player = players.find(item => item.id === id)!
+    return { source: 'live', stats: {
+      pawn_id: player.id, account_id: player.account_id, controller_id: player.controller_id, character_name: player.name,
+      class: player.class, map: player.map, online_status: player.online_status, last_seen: '2026-09-01T12:00:00Z',
+      faction_id: player.faction_id, faction_name: player.faction_name, solaris: 100, total_currency: 150,
+    } }
+  })
+  vi.mocked(giveSolari).mockResolvedValue({ ok: true, message: 'Solari granted.' })
+})
+afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear() })
+
+async function openActions() {
+  render(<PlayersTab />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect Aster (41)' }))
+  await screen.findByRole('region', { name: 'Character snapshot' })
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Player sections' })).getByRole('button', { name: 'Actions', exact: true }))
+  return screen.getByRole('region', { name: 'Player actions' })
+}
+function chooseAction(name: RegExp) {
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Player actions choices' })).getByRole('button', { name }))
+}
+function submitAction(name: string) {
+  const buttons = screen.getAllByRole('button', { name, exact: true })
+  fireEvent.click(buttons[buttons.length - 1])
+}
+
+describe('Contextual Players desk', () => {
+  it('keeps directory and dossier distinct, with full section access and explicit filter state', async () => {
+    render(<PlayersTab />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Inspect Aster (41)' }))
+    expect(await screen.findByRole('region', { name: 'Character snapshot' })).toBeInTheDocument()
+    expect(within(screen.getByRole('navigation', { name: 'Player sections' })).getAllByRole('button')).toHaveLength(8)
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search players' }), { target: { value: 'DeepDesert' } })
+    expect(screen.queryByRole('button', { name: 'Inspect Aster (41)' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Aster', exact: true })).toBeInTheDocument()
+    expect(screen.getByText(/outside the current directory filter/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inspect Beryl (42)' })).toBeInTheDocument()
+  })
+  it('keeps selecting and searching tasks read-only and preserves open form input while filtering', async () => {
+    await openActions()
+    chooseAction(/^Give Solari/)
+    const amount = screen.getByRole('spinbutton', { name: 'Amount' })
+    fireEvent.change(amount, { target: { value: '123' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search player actions' }), { target: { value: 'does not exist' } })
+    expect(screen.getByText('No matching actions.')).toBeInTheDocument()
+    expect(amount).toHaveValue(123)
+    expect(giveSolari).not.toHaveBeenCalled()
+    submitAction('Give Solari')
+    await waitFor(() => expect(giveSolari).toHaveBeenCalledExactlyOnceWith(61, 123))
+  })
+  it('does not carry an open mutation form into a different player', async () => {
+    await openActions()
+    chooseAction(/^Give Solari/)
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount' }), { target: { value: '123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect Beryl (42)' }))
+    expect(screen.queryByRole('spinbutton', { name: 'Amount' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Select a task' })).toBeInTheDocument()
+    chooseAction(/^Give Solari/)
+    expect(screen.getByRole('spinbutton', { name: 'Amount' })).toHaveValue(null)
+    expect(giveSolari).not.toHaveBeenCalled()
+  })
+  it('retains destructive confirmation and does not dispatch when declined', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await openActions()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Action category' }), { target: { value: 'Danger' } })
+    chooseAction(/^Delete Account/)
+    submitAction('Delete Account (permanent)')
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(deleteAccount).not.toHaveBeenCalled()
+  })
+  it('does not expose live actions for demo data or a failed roster refresh', async () => {
+    const view = await openActions()
+    expect(within(view).getByRole('navigation')).toBeInTheDocument()
+    vi.mocked(getPlayers).mockRejectedValueOnce(new Error('Connection unavailable'))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh', exact: true }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Connection unavailable')
+    expect(screen.queryByRole('navigation', { name: 'Player actions choices' })).not.toBeInTheDocument()
+    expect(screen.getByText(/Editing is available when the live game database is connected/)).toBeInTheDocument()
+    vi.mocked(getPlayers).mockResolvedValue({ source: 'demo', players })
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh', exact: true }))
+    await waitFor(() => expect(screen.getByText(/Showing sample player data/)).toBeInTheDocument())
+    expect(screen.queryByRole('navigation', { name: 'Player actions choices' })).not.toBeInTheDocument()
+  })
+  it('retains classic action lists outside the new experience', async () => {
+    localStorage.setItem(COMMAND_DECK_KEY, '0')
+    render(<PlayersTab />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Inspect Aster (41)' }))
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Player sections' })).getByRole('button', { name: 'Actions', exact: true }))
+    expect(screen.queryByRole('region', { name: 'Player actions' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Give Solari', exact: true })).toBeInTheDocument()
+    await act(async () => {})
+  })
+})

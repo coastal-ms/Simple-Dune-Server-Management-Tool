@@ -8,6 +8,7 @@ import {
   queueVehicleDeletion,
   type VehicleDeletionQueue,
   type VehicleFleetRow,
+  type DataSource,
 } from '../../api/gameplay'
 import { Icon } from '../../components/Icon'
 import { SharedInventoryExplorer } from '../../components/inventory/SharedInventoryExplorer'
@@ -15,6 +16,9 @@ import { DataState, FreshnessBadge } from '../../components/platform/DataState'
 import { WorkspaceLayout, WorkspaceSection, type WorkspaceTab } from '../../components/platform/WorkspaceLayout'
 import { getWorkspace } from '../../platform/workspaces'
 import { useSearch } from '../../router'
+import { useCommandDeck } from '../../hooks/useCommandDeck'
+import { DetailPanel } from '../../components/platform/DetailPanel'
+import { SourceBadge } from '../gameplay/shared'
 
 const TABS: readonly WorkspaceTab[] = [
   { id: 'fleet', label: 'Fleet', to: '/vehicles?view=fleet', icon: 'Truck' },
@@ -30,7 +34,11 @@ function errorMessage(error: unknown) {
 }
 
 function VehicleFleetWorkspace() {
+  const contextual = useCommandDeck()
   const [vehicles, setVehicles] = useState<VehicleFleetRow[] | null>(null)
+  const [source, setSource] = useState<DataSource | null>(null)
+  const [search, setSearch] = useState('')
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const [queue, setQueue] = useState<VehicleDeletionQueue | null>(null)
   const [error, setError] = useState('')
   const [unavailable, setUnavailable] = useState(false)
@@ -46,6 +54,7 @@ function VehicleFleetWorkspace() {
         getVehicleDeletionQueue(),
       ])
       setVehicles(fleetResult.vehicles ?? [])
+      setSource(fleetResult.source)
       setQueue(queueResult)
     } catch (loadError) {
       const missingRoute = loadError instanceof ApiError
@@ -128,6 +137,22 @@ function VehicleFleetWorkspace() {
   }, [load])
 
   const loading = vehicles === null || queue === null
+  const selectedVehicle = vehicles?.find(vehicle => vehicle.id === selectedId)
+  const visibleVehicles = vehicles?.filter(vehicle => `${vehicleLabel(vehicle)} ${vehicle.owners ?? ''} ${vehicle.map ?? ''} ${vehicle.id}`.toLowerCase().includes(search.trim().toLowerCase())) ?? []
+  const operationFeedback = <>
+    {error && <DataState state="error" title="Vehicle operation failed" message={error} />}
+    {message && (
+      <div className="mb-3 rounded-lg border border-success/35 bg-success/10 px-4 py-3 text-sm text-text" role="status">
+        {message}
+      </div>
+    )}
+  </>
+  const removalButton = (vehicle: VehicleFleetRow) => <button className="btn-danger shrink-0"
+    disabled={busy !== null || queuedVehicleIds.has(vehicle.id) || source !== 'live'}
+    onClick={() => { void queueDeletion(vehicle) }}>
+    <Icon name={busy === `queue:${vehicle.id}` ? 'Loader2' : 'Trash2'} size={14} />
+    {queuedVehicleIds.has(vehicle.id) ? 'Queued' : busy === `queue:${vehicle.id}` ? 'Queuing...' : 'Queue removal'}
+  </button>
 
   if (loading && unavailable) {
     return (
@@ -167,36 +192,26 @@ function VehicleFleetWorkspace() {
         description="Live database inventory of player-owned vehicles. Queue permanent removals here, then apply them together inside one protected restart window."
       >
         {loading && !error && <DataState state="loading" title="Loading vehicle fleet" />}
-        {error && <DataState state="error" title="Vehicle operation failed" message={error} />}
-        {message && (
-          <div className="mb-3 rounded-lg border border-success/35 bg-success/10 px-4 py-3 text-sm text-text" role="status">
-            {message}
-          </div>
-        )}
+        {(!contextual || !selectedVehicle) && operationFeedback}
         {!loading && vehicles && queue && (
           <>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
-                <FreshnessBadge state="fresh" label={`${vehicles.length} live vehicle${vehicles.length === 1 ? '' : 's'}`} />
-                <span
-                  className="pill border-info/40 bg-info/10 text-info"
-                  title="This page uses temporary sample vehicle records until live vehicle details are complete."
-                >
-                  Demo Data
-                </span>
+                {source === 'live' ? <FreshnessBadge state={error ? 'stale' : 'fresh'} label={`${vehicles.length} reported vehicle${vehicles.length === 1 ? '' : 's'}`} /> : <span>{vehicles.length} sample vehicles</span>}
+                <SourceBadge source={source ?? undefined} />
               </div>
               <button className="btn-secondary" disabled={busy !== null} onClick={() => { void load() }}>
                 <Icon name="RefreshCw" size={14} />
                 Refresh
               </button>
             </div>
-            {vehicles.length === 0 ? (
-              <DataState state="empty" title="No player-owned vehicles found" />
+            {contextual && <label className="operations-search"><Icon name="Search" size={17} /><input type="search" aria-label="Search vehicle fleet" placeholder="Vehicle, owner, map or ID" value={search} onChange={event => setSearch(event.target.value)} /></label>}
+            {visibleVehicles.length === 0 ? (
+              <DataState state="empty" title={search.trim() ? 'No vehicles match this search' : 'No player-owned vehicles found'} />
             ) : (
               <ul className="grid min-w-0 grid-cols-1 gap-2 xl:grid-cols-2">
-                {vehicles.map(vehicle => {
+                {visibleVehicles.map(vehicle => {
                   const queued = queuedVehicleIds.has(vehicle.id)
-                  const working = busy === `queue:${vehicle.id}`
                   return (
                     <li key={vehicle.id} className="min-w-0 rounded-lg border border-border bg-surface-2 p-4">
                       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -218,14 +233,7 @@ function VehicleFleetWorkspace() {
                             </div>
                           </dl>
                         </div>
-                        <button
-                          className="btn-danger shrink-0"
-                          disabled={busy !== null || queued}
-                          onClick={() => { void queueDeletion(vehicle) }}
-                        >
-                          <Icon name={working ? 'Loader2' : 'Trash2'} size={14} className={working ? 'animate-spin' : undefined} />
-                          {queued ? 'Queued' : working ? 'Queuing...' : 'Queue removal'}
-                        </button>
+                        {contextual ? <button className="btn-secondary" onClick={() => setSelectedId(vehicle.id)} aria-label={`Inspect ${vehicleLabel(vehicle)}`}>Inspect vehicle<Icon name="ArrowUpRight" size={15} /></button> : removalButton(vehicle)}
                       </div>
                     </li>
                   )
@@ -257,7 +265,7 @@ function VehicleFleetWorkspace() {
                   </div>
                   <button
                     className="btn-secondary shrink-0"
-                    disabled={busy !== null}
+                    disabled={busy !== null || source !== 'live'}
                     onClick={() => { void cancelDeletion(entry.id) }}
                   >
                     <Icon name={busy === `cancel:${entry.id}` ? 'Loader2' : 'X'} size={14} className={busy === `cancel:${entry.id}` ? 'animate-spin' : undefined} />
@@ -270,7 +278,7 @@ function VehicleFleetWorkspace() {
               <p className="max-w-[72ch] text-xs text-warning">
                 Processing disconnects every player and restarts the full battlegroup.
               </p>
-              <button className="btn-danger shrink-0" disabled={busy !== null || queue.running} onClick={() => { void processQueue() }}>
+              <button className="btn-danger shrink-0" disabled={busy !== null || queue.running || source !== 'live'} onClick={() => { void processQueue() }}>
                 <Icon name={busy === 'process' || queue.running ? 'Loader2' : 'ShieldAlert'} size={14} className={busy === 'process' || queue.running ? 'animate-spin' : undefined} />
                 {busy === 'process' || queue.running ? 'Processing...' : `Backup, restart, and delete ${queue.entries.length}`}
               </button>
@@ -278,6 +286,19 @@ function VehicleFleetWorkspace() {
           </div>
         )}
       </WorkspaceSection>
+      {contextual && selectedVehicle && <DetailPanel open title={vehicleLabel(selectedVehicle)} onClose={() => setSelectedId(null)}>
+        {operationFeedback}
+        <SourceBadge source={source ?? undefined} />
+        <dl className="my-5 space-y-4 text-sm">
+          <div><dt className="text-text-muted">Actor</dt><dd>{selectedVehicle.id}</dd></div>
+          <div><dt className="text-text-muted">Class</dt><dd>{selectedVehicle.class || 'Not reported'}</dd></div>
+          <div><dt className="text-text-muted">Owner</dt><dd>{selectedVehicle.owners || 'No named owner'}</dd></div>
+          <div><dt className="text-text-muted">Map</dt><dd>{selectedVehicle.map || 'Not reported'}</dd></div>
+          <div><dt className="text-text-muted">State</dt><dd>{selectedVehicle.actor_state || 'Not reported'}</dd></div>
+        </dl>
+        <p className="mb-4 text-xs text-text-muted">Removal still requires its typed confirmation and the protected backup/restart window.</p>
+        {removalButton(selectedVehicle)}
+      </DetailPanel>}
     </WorkspaceLayout>
   )
 }

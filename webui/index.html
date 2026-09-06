@@ -24,6 +24,17 @@
           if (!resolved || typeof resolved !== 'object') return;
           var hex = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
           var root = document.documentElement;
+          if (typeof parsed.presetId === 'string') root.dataset.dstTheme = parsed.presetId;
+          var base = resolved['--color-base'];
+          if (typeof base === 'string' && hex.test(base)) {
+            base = base.slice(1);
+            if (base.length === 3) base = base.split('').map(function (c) { return c + c; }).join('');
+            var channels = [0, 2, 4].map(function (offset) {
+              var v = parseInt(base.slice(offset, offset + 2), 16) / 255;
+              return v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4);
+            });
+            root.style.colorScheme = channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722 > .179 ? 'light' : 'dark';
+          }
           for (var key in resolved) {
             if (Object.prototype.hasOwnProperty.call(resolved, key)
                 && key.indexOf('--color-') === 0

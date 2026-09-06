@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import { Icon } from './Icon'
+import { useCommandDeck } from '../hooks/useCommandDeck'
+import './platform/workspaceChrome.css'
 
 type Props = {
   title: string
@@ -9,6 +11,11 @@ type Props = {
 }
 
 export function PageHeader({ title, icon, description, actions }: Props) {
+  const contextual = useCommandDeck()
+  if (contextual) return <header className="workspace-heading">
+    <div><h1>{title}</h1>{description && <p>{description}</p>}</div>
+    {actions && <div className="workspace-heading-actions">{actions}</div>}
+  </header>
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
       <div className="flex items-start gap-3 min-w-0">

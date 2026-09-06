@@ -61,6 +61,8 @@ function Test-DuneAugmentTagMatch {
 
 function ConvertTo-DuneAugmentSelections {
     param($Augments)
+    # Ordinary grants omit augments; @($null) would otherwise become one invalid selection.
+    if ($null -eq $Augments) { return }
     $seen = @{}
     foreach ($selection in @($Augments)) {
         $id = ''

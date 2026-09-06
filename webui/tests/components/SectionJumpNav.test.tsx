@@ -5,6 +5,7 @@ import React, { useRef } from 'react'
 import { BrowserRouter } from '../../src/router'
 import { CollapsibleCard } from '../../src/components/CollapsibleCard'
 import { SectionJumpNav } from '../../src/components/SectionJumpNav'
+import { COMMAND_DECK_KEY } from '../../src/hooks/useCommandDeck'
 
 const scrollIntoView = vi.fn()
 const nestedClick = vi.fn()
@@ -67,5 +68,17 @@ describe('SectionJumpNav', () => {
 
     await user.click(screen.getByRole('button', { name: 'Collapse all sections' }))
     expect(screen.queryByText('Alpha body')).not.toBeInTheDocument()
+  })
+  it('exposes focused section buttons in the new workspace without dispatching nested actions', async () => {
+    localStorage.setItem(COMMAND_DECK_KEY, '1')
+    const user = userEvent.setup()
+    render(<Fixture />)
+    const navigation = await screen.findByRole('navigation', { name: 'Workspace sections' })
+    const beta = navigation.querySelector<HTMLButtonElement>('button:nth-child(2)')!
+    await user.click(beta)
+    expect(await screen.findByText('Beta body')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha body')).not.toBeInTheDocument()
+    expect(nestedClick).not.toHaveBeenCalled()
+    expect(beta).toHaveAttribute('aria-pressed', 'true')
   })
 })
