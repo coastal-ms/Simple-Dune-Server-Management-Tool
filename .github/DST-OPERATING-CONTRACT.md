@@ -17,10 +17,10 @@ than redefine it.
   for substantive DST work. A tiny, clearly bounded edit may remain in the parent
   when that is safer than delegation.
 - **Child communication:** Children report work, evidence, blockers, and
-  questions to the parent and never ask Coastal directly. After durable results
-  are preserved, the parent archives children it created.
-- **Discord ownership:** Discord monitoring and member communication stay with
-  the active parent while implementation children work.
+  questions upward to the parent and never ask Coastal directly. The parent
+  archives a child only after its durable branch/work is preserved.
+- **Discord ownership:** Discord monitoring and member communication stay only
+  with the active parent while implementation children work.
 - **Release authority:** Children may prepare bounded evidence or code, but the
   parent owns integration, release validation, approval gates, publishing, and
   final completion. Before release publication or release-facing communication,
