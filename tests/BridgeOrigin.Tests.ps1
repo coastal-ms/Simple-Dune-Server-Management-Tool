@@ -83,6 +83,36 @@ Describe 'Trusted bridge origin forwarding' {
             Should -BeFalse
     }
 
+    It 'refuses proxied WebSocket upgrades before the bridge can recreate them as loopback' {
+        $local = [pscustomobject]@{
+            Headers = @{}
+            RemoteEndPoint = [pscustomobject]@{ Address = [Net.IPAddress]::Loopback }
+        }
+        $cloudflare = [pscustomobject]@{
+            Headers = @{ 'Cf-Access-Authenticated-User-Email' = 'owner@example.test' }
+            RemoteEndPoint = [pscustomobject]@{ Address = [Net.IPAddress]::Loopback }
+        }
+        $tailscale = [pscustomobject]@{
+            Headers = @{ 'X-Forwarded-For' = '100.64.0.10' }
+            RemoteEndPoint = [pscustomobject]@{ Address = [Net.IPAddress]::Loopback }
+        }
+        $directRemote = [pscustomobject]@{
+            Headers = @{}
+            RemoteEndPoint = [pscustomobject]@{ Address = [Net.IPAddress]::Parse('192.0.2.10') }
+        }
+
+        Test-DuneBridgeWebSocketUpgradeAllowed -Request $local | Should -BeTrue
+        Test-DuneBridgeWebSocketUpgradeAllowed -Request $cloudflare | Should -BeFalse
+        Test-DuneBridgeWebSocketUpgradeAllowed -Request $tailscale | Should -BeFalse
+        Test-DuneBridgeWebSocketUpgradeAllowed -Request $directRemote | Should -BeFalse
+
+        $source = Get-Content (Join-Path $root 'helper\bridge\DstHelperBridge.ps1') -Raw
+        $guard = $source.IndexOf('if (-not (Test-DuneBridgeWebSocketUpgradeAllowed -Request $req))')
+        $proxy = $source.IndexOf('Invoke-WsProxy -Context $Context -Dst $dst')
+        $guard | Should -BeGreaterThan -1
+        $proxy | Should -BeGreaterThan $guard
+    }
+
     It 'normalizes effective HTTPS ports and IPv6 authorities exactly' {
         Test-DunePortalRequestOrigin (New-OriginRequest `
             -Origin 'https://[2001:db8::1]:8443' -RequestHost '[2001:db8::1]:8443' -Address '192.0.2.5') |

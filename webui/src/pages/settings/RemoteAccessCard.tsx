@@ -20,9 +20,8 @@ import {
 // Modeled on AppearanceCard.tsx for visual consistency. All requests go
 // to /api/remote-access/* (DuneToken-gated, desktop-portal-only).
 //
-// "Remote enabled" is implemented as a single bit on the owner field —
-// empty string = disabled, non-empty = enabled. The toggle just hides /
-// restores the owner from a buffer.
+// The legacy portal has an explicit persisted enablement flag. Retained ACL
+// metadata stays editable while disabled so the owner can deliberately restore it.
 
 export function RemoteAccessCard() {
   const { open: expanded, setOpen: setExpanded } = useCardCollapse('settings.remoteAccess', false)
@@ -36,8 +35,7 @@ export function RemoteAccessCard() {
   const [audit, setAudit] = useState<RemoteAuditEntry[] | null>(null)
   const [auditLoading, setAuditLoading] = useState(false)
   const [newAdmin, setNewAdmin] = useState('')
-  const [ownerBuffer, setOwnerBuffer] = useState('')   // remembered owner while toggled off
-  const [enabled, setEnabled] = useState(false)        // UI on/off, decoupled from owner so you can enable THEN type the owner
+  const [enabled, setEnabled] = useState(false)
 
   // Legacy native-app Cloudflare Access service token. Browser Portal account
   // mode uses normal interactive sign-in instead. The secret is write-only:
@@ -54,8 +52,7 @@ export function RemoteAccessCard() {
       const [a, c, s] = await Promise.allSettled([getAcl(), getCloudflaredStatus(), getMobileServiceToken()])
       if (a.status === 'fulfilled') {
         setAcl(a.value)
-        setEnabled(!!a.value.owner)
-        if (a.value.owner) setOwnerBuffer(a.value.owner)
+        setEnabled(a.value.legacyCloudflareEnabled)
       } else throw a.reason
       if (c.status === 'fulfilled') setCf(c.value)
       if (s.status === 'fulfilled') {
@@ -81,16 +78,7 @@ export function RemoteAccessCard() {
   const onToggleEnabled = (v: boolean) => {
     if (!acl) return
     setEnabled(v)
-    if (v) {
-      // Enable now; the owner field becomes editable. Restore a remembered
-      // owner if we have one — otherwise leave it blank for the user to fill in.
-      if (ownerBuffer && !acl.owner) updateAcl({ owner: ownerBuffer })
-    } else {
-      // Disabling — stash the current owner so we can restore it next toggle,
-      // then clear it (empty owner = disabled server-side).
-      if (acl.owner) setOwnerBuffer(acl.owner)
-      updateAcl({ owner: '' })
-    }
+    updateAcl({ legacyCloudflareEnabled: v })
   }
 
   const onAddAdmin = () => {
@@ -124,9 +112,8 @@ export function RemoteAccessCard() {
     try {
       const saved = await saveAcl(acl)
       setAcl(saved)
-      setEnabled(!!saved.owner)
-      if (saved.owner) setOwnerBuffer(saved.owner)
-      setSavedMsg('Saved.')
+      setEnabled(saved.legacyCloudflareEnabled)
+      setSavedMsg(saved.legacyCloudflareEnabled ? 'Saved. Legacy Cloudflare portal enabled.' : 'Saved. Legacy Cloudflare portal disabled.')
       window.setTimeout(() => setSavedMsg(null), 3000)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -181,6 +168,7 @@ export function RemoteAccessCard() {
         <div className="flex items-center gap-2">
           <span className="pill-warning text-xs">deprecated</span>
           {enabled && <span className="pill-success text-xs">enabled</span>}
+          {!enabled && <span className="pill-muted text-xs">disabled</span>}
           {cf?.installed
             ? <span className="pill-info text-xs">cloudflared {cf.version || 'detected'}</span>
             : enabled
@@ -210,11 +198,11 @@ export function RemoteAccessCard() {
                 <Icon name="Info" size={14} className="mt-0.5 flex-none" />
                 <span>
                   <strong>Deprecated — existing configurations only.</strong> Cloudflare
-                  named-tunnel/Access support is scheduled for removal when the
-                  current v15 test line promotes to stable. Existing
-                  configurations remain editable and operational during migration,
-                  but new setups should use <strong>Tailscale Funnel</strong> plus
-                  Browser Portal accounts under <strong>Remote Device Access</strong>.
+                  named-tunnel/Access configuration is retained in v15.0.0, but
+                  its legacy portal is disabled by default. Existing settings remain
+                  editable and can be explicitly re-enabled; new setups should use
+                  <strong> Tailscale Funnel</strong> plus Browser Portal accounts
+                  under <strong>Remote Device Access</strong>.
                 </span>
               </div>
               <p className="text-sm text-text-muted">
@@ -233,7 +221,7 @@ export function RemoteAccessCard() {
               </p>
 
               <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-text-muted">
-                <div className="font-semibold text-warning mb-2">Migrate before the v15 stable release</div>
+                <div className="font-semibold text-warning mb-2">Plan your migration to the Browser Portal</div>
                 <ol className="list-decimal pl-5 space-y-1">
                   <li>
                     Run <code className="break-all font-mono text-xs">tailscale funnel --bg http://127.0.0.1:47900</code> in
@@ -243,10 +231,10 @@ export function RemoteAccessCard() {
                   <li>Acknowledge native-app retirement, then enable account login.</li>
                   <li>Create any Browser Portal Admin accounts needed for role-boundary testing.</li>
                   <li>Test Owner sign-in and Admin restricted navigation from an outside device.</li>
-                  <li>Only then disable this legacy portal and stop the Cloudflare tunnel.</li>
+                  <li>Only then leave this legacy portal disabled. DST does not manage the Cloudflare tunnel.</li>
                 </ol>
                 <p className="mt-2 text-xs text-text-dim">
-                  Keep Cloudflare enabled until the replacement Funnel path is proven.
+                  Keep the legacy portal disabled unless you explicitly need to restore it.
                 </p>
               </div>
 
@@ -260,8 +248,8 @@ export function RemoteAccessCard() {
                 <span className="text-sm">
                   <strong>Enable legacy Cloudflare portal</strong>
                   <span className="block text-xs text-text-dim">
-                    Clears the owner field on disable — every /remote/* request is
-                    refused until re-enabled.
+                    Disabled by default in v15. Saving this deliberate setting controls
+                    every legacy /remote/* request without clearing the owner or ACL.
                   </span>
                 </span>
               </label>
@@ -273,8 +261,7 @@ export function RemoteAccessCard() {
                   type="email"
                   value={acl.owner}
                   onChange={e => updateAcl({ owner: e.target.value })}
-                  disabled={!enabled}
-                  className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-border text-text disabled:opacity-50"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-border text-text"
                   placeholder="you@example.com"
                 />
                 <p className="text-xs text-text-dim mt-1">

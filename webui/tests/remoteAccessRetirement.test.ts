@@ -21,14 +21,17 @@ describe('remote access retirement guidance', () => {
     expect(settingsSource).toContain('responsive portal remain supported')
   })
 
-  it('states the stable-release cutoff for legacy Cloudflare support', () => {
+  it('keeps legacy Cloudflare configuration reversible but disabled by default in v15', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src', 'pages', 'settings', 'RemoteAccessCard.tsx'),
       'utf8',
     )
 
-    expect(source).toContain('scheduled for removal when the')
-    expect(source).toContain('current v15 test line promotes to stable')
-    expect(source).toContain('Migrate before the v15 stable release')
+    expect(source).toContain('configuration is retained in v15.0.0')
+    expect(source).toContain('legacy portal is disabled by default')
+    expect(source).toContain('can be explicitly re-enabled')
+    expect(source).toContain('without clearing the owner or ACL')
+    expect(source).toContain('Plan your migration to the Browser Portal')
+    expect(source).toContain('Tailscale Funnel')
   })
 })

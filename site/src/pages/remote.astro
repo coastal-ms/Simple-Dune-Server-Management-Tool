@@ -161,10 +161,10 @@ import PageHeader from "../components/PageHeader.astro";
     <div id="cloudflare">
       <h2 class="text-2xl font-semibold mb-4">6 · Migrate an existing Cloudflare domain <span class="text-dune-muted text-base font-normal">— deprecated</span></h2>
       <p class="text-dune-muted leading-relaxed mb-3">
-        Cloudflare named-tunnel/Access support remains operational for existing
-        users during deprecation, but it is planned for removal and should not be
-        used for new setups. Keep it running until the replacement Funnel path is
-        proven from an outside device.
+        v15 retains existing Cloudflare named-tunnel/Access configuration, but
+        its legacy portal is disabled by default. It can be explicitly
+        re-enabled in local Settings if needed, but new setups use Tailscale
+        Funnel. DST does not manage the Cloudflare tunnel itself.
       </p>
       <ol class="list-decimal list-inside space-y-2 text-dune-muted leading-relaxed text-sm">
         <li>Run <span class="font-mono">tailscale funnel --bg http://127.0.0.1:47900</span> in PowerShell.</li>
@@ -173,7 +173,7 @@ import PageHeader from "../components/PageHeader.astro";
         <li>Acknowledge native-app retirement, then enable account login.</li>
         <li>Create any Browser Portal Admin account needed for role-boundary testing.</li>
         <li>Test Owner sign-in and Admin restricted navigation from outside the LAN.</li>
-        <li>Disable the legacy Cloudflare portal in Settings, then stop the Cloudflare tunnel.</li>
+        <li>Leave the legacy Cloudflare portal disabled in local Settings unless you explicitly need to restore it.</li>
       </ol>
     </div>
 
@@ -218,7 +218,7 @@ import PageHeader from "../components/PageHeader.astro";
         <li><strong class="text-dune-text">One device:</strong> sign out, or revoke that account's sessions from local Settings.</li>
         <li><strong class="text-dune-text">One account:</strong> disable, reset, demote, or delete it from Browser Portal account management.</li>
         <li><strong class="text-dune-text">All account sessions:</strong> use the local emergency Disable action. This restores legacy magic-link behavior.</li>
-        <li><strong class="text-dune-text">Public endpoint:</strong> turn off Funnel. Existing Cloudflare users should stop that tunnel only after migration succeeds.</li>
+        <li><strong class="text-dune-text">Public endpoint:</strong> turn off Funnel. Legacy Cloudflare portal enablement is separate from its tunnel lifecycle, which DST does not manage.</li>
         <li><strong class="text-dune-text">Background access:</strong> disable <strong>Help → Keep serving while DST is closed</strong>.</li>
       </ul>
     </div>

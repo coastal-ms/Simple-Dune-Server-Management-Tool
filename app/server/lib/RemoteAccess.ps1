@@ -5,8 +5,10 @@
 # Cloudflare Tunnel + Cloudflare Access policy. This file owns:
 #
 #   * The ACL file (%APPDATA%\DuneServer\remote-acl.json) — schema:
-#       { "owner": "you@example.com", "admins": ["friend@example", ...] }
-#     Empty "owner" == remote portal disabled (fail-closed).
+#       { "owner": "you@example.com", "admins": ["friend@example", ...],
+#         "legacyCloudflareEnabled": false }
+#     legacyCloudflareEnabled defaults to false so v15 upgrades fail closed
+#     without discarding existing Cloudflare configuration.
 #
 #   * The middleware (Test-DuneRemoteRequest) called by the listener for any
 #     /api/remote/* or /remote/* path BEFORE route matching. Validates the
@@ -19,8 +21,9 @@
 #
 # Public functions:
 #   Get-DuneRemoteAclPath
-#   Get-DuneRemoteAcl                    -> hashtable {owner; admins[]}
+#   Get-DuneRemoteAcl                    -> hashtable {owner; admins[]; legacyCloudflareEnabled}
 #   Save-DuneRemoteAcl -Acl <ht>         atomic write (temp + Move-Item -Force)
+#   Test-DuneLegacyCloudflarePortalEnabled -> bool
 #   Get-DuneRemoteRole -Email <e>        -> 'owner' | 'admin' | $null
 #   Test-DuneRemoteRequest -Request <r>  -> @{ok=$true; email; role}
 #                                          | @{ok=$false; status; message}
@@ -131,12 +134,12 @@ function Clear-DuneMobileServiceToken {
 
 # ---------- ACL --------------------------------------------------------------
 
-# Returns a hashtable {owner=''; admins=@()} even when the file is missing or
-# unreadable so callers don't have to nil-check. NEVER writes to disk — a
+# Returns a hashtable with a disabled legacy Cloudflare portal even when the
+# file is missing or unreadable so callers don't have to nil-check. NEVER writes to disk — a
 # malformed file deliberately stays untouched so a transient parse error can't
 # silently nuke the allowlist.
 function Get-DuneRemoteAcl {
-    $default = @{ owner = ''; admins = @(); hostname = ''; cloudflareTeamDomain = ''; cloudflareAudience = '' }
+    $default = @{ owner = ''; admins = @(); hostname = ''; cloudflareTeamDomain = ''; cloudflareAudience = ''; legacyCloudflareEnabled = $false }
     $path = Get-DuneRemoteAclPath
     if (-not (Test-Path -LiteralPath $path)) { return $default }
     try {
@@ -180,7 +183,18 @@ function Get-DuneRemoteAcl {
     if ($obj.PSObject.Properties.Name -contains 'cloudflareAudience' -and $obj.cloudflareAudience) {
         $audience = ([string]$obj.cloudflareAudience).Trim()
     }
-    return @{ owner = $owner; admins = @($admins); hostname = $hostname; cloudflareTeamDomain = $team; cloudflareAudience = $audience }
+    # Only a JSON boolean true can enable the retired Cloudflare portal. Older,
+    # missing, or malformed fields deliberately remain disabled.
+    $legacyCloudflareEnabled = ($obj.PSObject.Properties.Name -contains 'legacyCloudflareEnabled') -and
+        ($obj.legacyCloudflareEnabled -is [bool]) -and $obj.legacyCloudflareEnabled
+    return @{
+        owner = $owner
+        admins = @($admins)
+        hostname = $hostname
+        cloudflareTeamDomain = $team
+        cloudflareAudience = $audience
+        legacyCloudflareEnabled = [bool]$legacyCloudflareEnabled
+    }
 }
 
 # Atomic write: temp + Move-Item -Force. A SIGKILL between Set-Content and
@@ -215,6 +229,13 @@ function Save-DuneRemoteAcl {
     if ($Acl.ContainsKey('cloudflareAudience') -and $Acl.cloudflareAudience) {
         $audience = ([string]$Acl.cloudflareAudience).Trim()
     }
+    $legacyCloudflareEnabled = $false
+    if ($Acl.ContainsKey('legacyCloudflareEnabled')) {
+        if ($Acl.legacyCloudflareEnabled -isnot [bool]) {
+            throw 'legacyCloudflareEnabled must be a boolean.'
+        }
+        $legacyCloudflareEnabled = $Acl.legacyCloudflareEnabled
+    }
 
     $out = [ordered]@{
         owner = $owner
@@ -222,6 +243,7 @@ function Save-DuneRemoteAcl {
         hostname = $hostname
         cloudflareTeamDomain = $team
         cloudflareAudience = $audience
+        legacyCloudflareEnabled = [bool]$legacyCloudflareEnabled
     }
 
     $path = Get-DuneRemoteAclPath
@@ -236,13 +258,21 @@ function Save-DuneRemoteAcl {
     return $out
 }
 
+function Test-DuneLegacyCloudflarePortalEnabled {
+    [CmdletBinding()]
+    param()
+
+    $acl = Get-DuneRemoteAcl
+    return [bool]$acl.legacyCloudflareEnabled
+}
+
 function Get-DuneRemoteRole {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Email)
     $e = $Email.Trim().ToLowerInvariant()
     if (-not $e) { return $null }
     $acl = Get-DuneRemoteAcl
-    if (-not $acl.owner) { return $null }       # remote disabled
+    if (-not $acl.legacyCloudflareEnabled -or -not $acl.owner) { return $null }
     if ($e -eq $acl.owner) { return 'owner' }
     if ($acl.admins -contains $e) { return 'admin' }
     return $null
@@ -325,7 +355,8 @@ function Test-DuneCloudflareAccessJwt {
 #
 # Fail-closed cases (401, generic message — don't leak path validity):
 #   * No valid Cf-Access-Jwt-Assertion header
-#   * ACL missing or owner unset (remote disabled)
+#   * ACL missing, malformed, or not explicitly enabled for v15
+#   * ACL owner unset
 #   * ACL malformed (Get-DuneRemoteAcl returns the default)
 # Forbidden case (403):
 #   * Valid header but email not in owner+admins list
@@ -334,10 +365,9 @@ function Test-DuneRemoteRequest {
     param([Parameter(Mandatory)]$Request)
 
     $acl = Get-DuneRemoteAcl
-    if (-not $acl.owner) {
-        # Remote portal explicitly off (default for fresh installs). We deny
-        # with 401 (not 403) so a misconfigured tunnel does not advertise
-        # which paths are gated by which ACL.
+    if (-not $acl.legacyCloudflareEnabled -or -not $acl.owner) {
+        # The v15 default is off even for retained legacy metadata. Deny before
+        # JWT processing so malformed or upgraded ACLs fail closed.
         return @{ ok = $false; status = 401; message = 'Remote portal not enabled.' }
     }
     $identity = Test-DuneCloudflareAccessJwt -Request $Request -Acl $acl

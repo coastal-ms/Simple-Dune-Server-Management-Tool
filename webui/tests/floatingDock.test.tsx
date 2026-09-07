@@ -142,6 +142,23 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('Single floating workspace dock', () => {
+  it('links directly to the static DD Atlas and marks only its query route active', () => {
+    window.history.replaceState({}, '', '/map?view=lifecycle')
+    const first = mount()
+    const lifecycleAtlas = within(elements().dock).getByRole('link', { name: 'DD Atlas' })
+    expect(lifecycleAtlas).toHaveAttribute('href', '/map?view=atlas')
+    expect(lifecycleAtlas).not.toHaveAttribute('aria-current')
+
+    first.unmount()
+    window.history.replaceState({}, '', '/map?view=atlas')
+    mount()
+    const atlas = within(elements().dock).getByRole('link', { name: 'DD Atlas' })
+    expect(atlas).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(atlas)
+    expect(window.location.pathname).toBe('/map')
+    expect(window.location.search).toBe('?view=atlas')
+  })
+
   it.each([false, true])('links directly to Solo Mode from the dock (tools=%s)', tools => {
     mount(tools)
     const solo = within(elements().dock).getByRole('link', { name: 'Solo Mode' })

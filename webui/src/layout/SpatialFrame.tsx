@@ -17,8 +17,15 @@ import './floatingDock.css'
 import './dashboardFrame.css'
 import './portalWorkspace.css'
 
-const DOCK = ['/', '/solo', '/players', '/bases', '/vehicles', '/economy', '/commands', '/database']
+const DOCK = ['/', '/map?view=atlas', '/solo', '/players', '/bases', '/vehicles', '/economy', '/commands', '/database']
 const NEUTRAL_PALETTES = new Set(['world-control', 'daylight', 'signal'])
+
+function isActiveDockDestination(destination: string, pathname: string, search: string) {
+  const target = new URL(destination, window.location.origin)
+  if (pathname !== target.pathname) return false
+  const current = new URLSearchParams(search)
+  return [...target.searchParams].every(([key, value]) => current.get(key) === value)
+}
 
 export default function SpatialFrame({ children, onDetails, tools = false, dashboard = false }: {
   children: ReactNode
@@ -110,7 +117,7 @@ export default function SpatialFrame({ children, onDetails, tools = false, dashb
           <div ref={dockAnchorRef} className="spatial-dock-slot">
             <nav ref={dockRef} className="spatial-dock" aria-label="Workspace dock">
               {DOCK.filter(route => tools || route !== '/').flatMap(route => destinations.filter(item => item.to === route)).map(item => (
-                <Link to={item.to} key={item.to} aria-current={pathname === item.to ? 'page' : undefined}><Icon name={item.icon} size={20} /><span>{item.to === '/' ? 'World' : item.label}</span></Link>
+                <Link to={item.to} key={item.to} aria-current={isActiveDockDestination(item.to, pathname, search) ? 'page' : undefined}><Icon name={item.icon} size={20} /><span>{item.to === '/' ? 'World' : item.label}</span></Link>
               ))}
               <button onClick={openFinder} aria-haspopup="dialog"><Icon name="Grid2X2" size={20} /><span>All tools</span></button>
             </nav>
