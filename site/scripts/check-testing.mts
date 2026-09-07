@@ -7,6 +7,19 @@ import {
 
 const releases: GitHubTestRelease[] = [
   {
+    tag_name: "v15.0.0-test10",
+    name: "stable channel mirror",
+    prerelease: true,
+    published_at: "2026-09-07T03:00:00Z",
+    assets: [{ name: "DuneServerSetup.exe", browser_download_url: "https://x/fresh-mirror.exe" }],
+  },
+  {
+    tag_name: "v15.0.0",
+    prerelease: false,
+    published_at: "2026-09-07T02:00:00Z",
+    assets: [{ name: "DuneServerSetup.exe", browser_download_url: "https://x/stable-v15.exe" }],
+  },
+  {
     tag_name: "v15.0.0-test1",
     name: "stable channel mirror",
     prerelease: true,
@@ -39,7 +52,7 @@ const releases: GitHubTestRelease[] = [
   },
 ];
 
-assert.equal(getLatestStableRelease(releases)?.tag, "v14.0.5");
+assert.equal(getLatestStableRelease(releases)?.tag, "v15.0.0");
 assert.deepEqual(
   getActiveTestReleases(releases).map((release) => release.tag),
   ["v15.0.0-test3", "v15.0.0-test2"],
