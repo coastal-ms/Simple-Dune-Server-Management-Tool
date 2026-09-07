@@ -21,7 +21,7 @@ const nav = [
 const url = new URL(Astro.url.pathname, Astro.site);
 const ogDesc =
   description ??
-  "A Windows portal for your self-hosted Dune: Awakening dedicated server.";
+  "A Windows control room for Dune: Awakening Self-Hosted servers and supported local Solo saves.";
 const ogImg = new URL(ogImage ?? `${base}og.png`, Astro.site).toString();
 ---
 
@@ -41,6 +41,7 @@ const ogImg = new URL(ogImage ?? `${base}og.png`, Astro.site).toString();
     <meta property="og:image" content={ogImg} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Dune Server Tool — Your world. Under your command. Self-Hosted, Solo, and Browser Portal." />
     <meta property="og:site_name" content="DST — Dune Server Tool" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
@@ -50,11 +51,12 @@ const ogImg = new URL(ogImage ?? `${base}og.png`, Astro.site).toString();
     <link rel="sitemap" href={`${base}sitemap-index.xml`} />
   </head>
   <body class="min-h-screen flex flex-col text-dune-text">
+    <a href="#main-content" class="skip-link">Skip to content</a>
     <header
-      class="sticky top-0 z-20 backdrop-blur-md bg-dune-bg/80 border-b border-dune-border"
+      class="sticky top-0 z-20 bg-dune-bg border-b border-dune-border"
     >
       <div
-        class="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between gap-6"
+        class="site-width py-3 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-2 xl:gap-6"
       >
         <a
           href={base}
@@ -62,7 +64,7 @@ const ogImg = new URL(ogImage ?? `${base}og.png`, Astro.site).toString();
         >
           DST — Dune Server Tool
         </a>
-        <nav class="min-w-0 flex-1 flex items-center justify-start sm:justify-end gap-4 text-sm overflow-x-auto whitespace-nowrap py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav aria-label="Main navigation" class="min-w-0 w-full xl:w-auto flex-1 flex items-center gap-5 text-sm overflow-x-auto whitespace-nowrap py-1">
           {
             nav.map((item) => {
               const href = item.href ? `${base}${item.href}` : base;
@@ -73,6 +75,8 @@ const ogImg = new URL(ogImage ?? `${base}og.png`, Astro.site).toString();
               return (
                 <a
                   href={href}
+                  aria-current={active ? "page" : undefined}
+                  style="min-height: 44px; display: inline-flex; align-items: center;"
                   class={`transition-colors ${active ? "text-dune-text" : "text-dune-muted hover:text-dune-text"}`}
                 >
                   {item.label}
@@ -96,18 +100,18 @@ const ogImg = new URL(ogImage ?? `${base}og.png`, Astro.site).toString();
       </div>
     </header>
 
-    <main class="flex-1">
+    <main id="main-content" class="flex-1">
       <slot />
     </main>
 
     <footer
-      class="mt-24 border-t border-dune-border text-sm text-dune-muted"
+      class="mt-16 border-t border-dune-border text-sm text-dune-muted"
     >
       <div
-        class="mx-auto max-w-6xl px-6 py-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+        class="site-width py-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
       >
         <div>
-          DST is open source under the
+          DST is open source under the{" "}
           <a
             href="https://github.com/coastal-ms/DST-DuneServerTool/blob/main/LICENSE"
             class="underline decoration-dotted hover:text-dune-text"
@@ -123,6 +127,7 @@ const ogImg = new URL(ogImage ?? `${base}og.png`, Astro.site).toString();
             target="_blank">Join the Discord</a
           >
         </div>
+        <p class="site-width pb-8 text-xs leading-relaxed">Independent community software. Not affiliated with or endorsed by Funcom or the Dune rights holders.</p>
       </div>
     </footer>
     <Lightbox />

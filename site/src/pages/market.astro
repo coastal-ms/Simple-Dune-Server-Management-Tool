@@ -11,17 +11,17 @@ const cards = [
   {
     icon: "🤖",
     title: "Duke sells",
-    body: "Duke is an automated NPC trader that stocks the shelves at sensible prices, so there's always something to buy and a baseline price to compare against. New listings appear on a timer.",
+    body: "When the host enables him, Duke can stock the Exchange on a timer using configured pricing rules. Available stock depends on the catalogue, settings, and successful listing rounds.",
   },
   {
     icon: "💰",
     title: "Duke buys",
-    body: "Duke is also a customer. It regularly buys items players have listed, so you have a dependable way to sell your loot and earn Solari instead of waiting for another player to show up.",
+    body: "Duke can also buy player listings. Purchases depend on configured timers, buying rules, available funds, and a random roll; a listing is not guaranteed to sell.",
   },
   {
     icon: "📊",
     title: "Fair pricing, your choice",
-    body: "Prices blend item tier, category, rarity, and quality grade, anchored to the real in-game vendor price. Three modes: <strong>Sane</strong> (the default) caps any single listing at 100,000 Solari so nothing runs away, <strong>Upstream</strong> uses the original Funcom-style formula with no Solari cap for a steeper end-game curve, and <strong>Market-follow</strong> prices straight from the live market — the median of what other players are charging, plus a markup you set. Server owners switch modes with one click.",
+    body: "Choose <strong>Sane</strong> formula pricing, <strong>Upstream</strong> formula pricing, or <strong>Market-follow</strong> pricing based on other players' listings. Internal item_price and displayed Solari are different units: use the separate displayed-price cap when you want a player-facing ceiling. Review the preview before applying a pricing change.",
   },
 ];
 
@@ -41,7 +41,7 @@ const tips = [
   },
   {
     title: "Play the long game.",
-    body: "On Sane pricing the per-listing Solari cap (and Duke&rsquo;s deliberate dice-roll buys) reward steady trading over single big scores. On Upstream the ceiling is much higher &mdash; end-game gear can fetch a lot more, but Duke still buys on a roll.",
+    body: "Configured price limits and Duke&rsquo;s dice-roll buys shape the market. Ask your host which pricing mode is active; even fairly priced items are not guaranteed an immediate buyer.",
   },
 ];
 
@@ -69,7 +69,7 @@ const admin = [
 const setup = [
   {
     title: "Open the Market Bot tab",
-    body: "In DST, go to <strong class=\"text-dune-text\">Gameplay &rarr; Market Bot</strong>. The page opens on <strong class=\"text-dune-text\">Buy side</strong>; <strong class=\"text-dune-text\">List side</strong> and <strong class=\"text-dune-text\">Pricing rules</strong> are sub-tabs along the top. Status cards at the top show whether the bot is running, how many listings Duke owns, his Solari balance, and the current <strong class=\"text-dune-text\">Pricing mode</strong> (Sane or Upstream).",
+    body: "In Command Deck, open <strong class=\"text-dune-text\">Economy &rarr; Market Bot</strong>. The Classic Gameplay Admin route remains available. Use the <strong class=\"text-dune-text\">Buy side</strong>, <strong class=\"text-dune-text\">List side</strong>, and <strong class=\"text-dune-text\">Pricing rules</strong> tabs; check status and active pricing before changing anything.",
   },
   {
     title: "Wipe any leftover bot listings",
@@ -121,17 +121,14 @@ const setup = [
   <div class="mx-auto max-w-6xl px-6">
     <!-- Hero ------------------------------------------------------------- -->
     <section class="py-20 text-center">
-      <div class="font-mono text-xs uppercase tracking-widest text-dune-accent mb-4">
-        Player guide
-      </div>
       <h1 class="text-5xl sm:text-6xl font-semibold tracking-tight leading-[1.05]">
         The Market &amp;
         <span class="text-dune-accent">the Market Bot</span>
       </h1>
       <p class="mx-auto mt-6 max-w-2xl text-lg text-dune-muted leading-relaxed">
-        Your server runs an automated trader called Duke that keeps the in-game
-        Exchange stocked and gives you a dependable way to buy and sell. Here's
-        how it works, in plain language — no technical knowledge needed.
+        Your host can enable Duke, an automated trader for the in-game Exchange.
+        Learn how his listing and buying rules work before relying on them —
+        and how to preview changes before they touch the economy.
       </p>
     </section>
 
@@ -141,7 +138,7 @@ const setup = [
         <div class="rounded-2xl border border-dune-border bg-dune-surface p-6 hover:border-dune-accent/50 transition-colors">
           <div class="text-3xl mb-3" aria-hidden="true">{c.icon}</div>
           <h2 class="text-lg font-semibold mb-2">{c.title}</h2>
-          <p class="text-sm text-dune-muted leading-relaxed">{c.body}</p>
+          <p class="text-sm text-dune-muted leading-relaxed" set:html={c.body}></p>
         </div>
       ))}
     </section>
@@ -150,13 +147,13 @@ const setup = [
     <section class="mx-auto max-w-3xl text-center py-16">
       <h2 class="text-2xl font-semibold mb-3">Duke trades on purpose, not greedily</h2>
       <p class="text-dune-muted leading-relaxed">
-        For each item Duke considers buying, it "rolls a die" and only buys on a
-        winning roll. That keeps it from hoovering up the whole market and
-        crashing prices — it nudges the economy along instead. With the optional
+        For each item Duke considers buying, he "rolls a die" and only buys on a
+        winning roll. The host controls how frequently those rounds happen.
+        With the optional{" "}
         <strong class="text-dune-text">over-market guard</strong> on, a winning roll
-        still won't buy if the seller is priced too far above the going rate, so
-        Duke never overpays for a padded listing. Duke also keeps a large Solari
-        balance so it can always afford a fair deal.
+        is checked against Duke's configured reference price. Balance maintenance
+        can replenish his funds, but neither feature guarantees a particular
+        market price or a successful purchase.
       </p>
     </section>
 
@@ -167,7 +164,7 @@ const setup = [
         {tips.map((t) => (
           <div class="rounded-xl border border-dune-border bg-dune-surface/60 p-5">
             <h3 class="font-semibold mb-1">{t.title}</h3>
-            <p class="text-sm text-dune-muted leading-relaxed">{t.body}</p>
+            <p class="text-sm text-dune-muted leading-relaxed" set:html={t.body}></p>
           </div>
         ))}
       </div>
@@ -176,16 +173,13 @@ const setup = [
     <!-- Admin section ---------------------------------------------------- -->
     <section class="py-16">
       <div class="mx-auto max-w-3xl text-center mb-8">
-        <div class="font-mono text-xs uppercase tracking-widest text-dune-accent mb-3">
-          For server admins
-        </div>
         <h2 class="text-2xl font-semibold mb-3">Running the bot from DST</h2>
         <p class="text-dune-muted leading-relaxed">
-          Everything above is driven from DST's <strong class="text-dune-text">Gameplay
-          &rarr; Market</strong> and <strong class="text-dune-text">Market Bot</strong>
-          tabs — three sub-tabs (Buy / List / Pricing rules) plus a one-click
-          <strong class="text-dune-text">Seed market</strong> that fills the
-          Exchange instantly.
+          In Command Deck, open <strong class="text-dune-text">Economy
+          &rarr; Market</strong> or <strong class="text-dune-text">Market Bot</strong>{" "}
+          tabs. Buy, list, and pricing controls sit alongside{" "}
+          <strong class="text-dune-text">Seed market</strong>. Review its dry-run
+          preview before populating the Exchange.
         </p>
       </div>
       <div class="grid sm:grid-cols-2 gap-5">
@@ -201,15 +195,13 @@ const setup = [
     <!-- Setup walkthrough ------------------------------------------------ -->
     <section class="py-16">
       <div class="mx-auto max-w-3xl text-center mb-8">
-        <div class="font-mono text-xs uppercase tracking-widest text-dune-accent mb-3">
-          Setup guide
-        </div>
         <h2 class="text-2xl font-semibold mb-3">Setting up the Market &amp; pricing tool</h2>
         <p class="text-dune-muted leading-relaxed">
           A clean, end-to-end walkthrough for getting Duke live on a fresh
           server &mdash; or switching to him from an older external bot.
-          Everything below happens in DST under
-          <strong class="text-dune-text">Gameplay &rarr; Market Bot</strong>;
+          Everything below happens in DST under{" "}
+          <strong class="text-dune-text">Economy &rarr; Market Bot</strong>
+          (or the Classic Gameplay Admin route);
           no SSH, no config files.
         </p>
       </div>
@@ -232,11 +224,11 @@ const setup = [
 
       <div class="mx-auto max-w-3xl rounded-lg border border-dune-accent/40 bg-dune-accent/10 px-5 py-4 text-sm text-dune-text">
         <strong class="block mb-1">Heads-up.</strong>
-        Every action on this page writes straight to the live game database.
-        Dry-runs and the vendor-snapshot preview are safe; <em>Seed market</em>,
+        Preview before making live changes.
+        Dry-runs and the vendor-snapshot preview do not place trades; <em>Seed market</em>,
         <em>Run now</em>, <em>Clear listings</em>, and <em>Switch pricing mode</em>
-        are not. Player listings are never touched by any of Duke&rsquo;s
-        controls.
+        change the live economy. Listing cleanup targets bot listings, while
+        buy rounds can purchase player listings.
       </div>
     </section>
   </div>

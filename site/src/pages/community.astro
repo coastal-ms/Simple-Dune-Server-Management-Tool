@@ -7,11 +7,11 @@ const invite = "https://discord.gg/tj2x7cywSC";
 const categories = [
   {
     name: "Information",
-    body: "Welcome & rules, announcements, releases, and a rolling changelog — new builds are posted here automatically.",
+    body: "Welcome & rules, announcements, releases, and a rolling changelog — follow the channel for published builds.",
   },
   {
     name: "DST Support",
-    body: "Install and hosting help, Game Config and Landsraad, Gameplay Admin, Solo Mode, DD Seed Maps, Market Bot, plus bug-report and feature-request channels.",
+    body: "Install and hosting help, Command Deck, Game Config, Gameplay Admin, Solo Mode, the static DD Atlas, Market Bot, and Browser Portal.",
   },
   {
     name: "Server Admins",
@@ -28,7 +28,8 @@ const helpTopics = [
   "Port forwarding, public IP / DDNS, and firewall issues",
   "Game Config & Landsraad tweaks",
   "Gameplay Admin, Market Bot, and Cheat Scripts",
-  "Solo Mode and DD Seed Maps",
+  "Command Deck, Solo Mode, and the static DD Atlas",
+  "Browser Portal accounts and Tailscale remote access",
   "General Dune: Awakening dedicated-server questions",
 ];
 ---
@@ -51,7 +52,7 @@ const helpTopics = [
         <h2 class="text-2xl font-semibold mb-2">Get help &amp; hang out</h2>
         <p class="text-dune-muted leading-relaxed max-w-2xl">
           Ask install, hosting, and Game Config questions, share configs and
-          screenshots, and get notified the moment a new release drops. It's
+          screenshots, and follow release announcements. It's
           free and open to everyone.
         </p>
       </div>
@@ -89,7 +90,12 @@ const helpTopics = [
         {helpTopics.map((t) => <div>✓ {t}</div>)}
       </div>
       <p class="mt-8 text-sm text-dune-muted leading-relaxed border-t border-dune-border pt-6">
-        Found a reproducible bug? Please open a
+        Troubleshooting can move to a private thread. Do not post passwords,
+        tokens, personal server addresses, or unredacted diagnostic bundles in
+        public channels or issues.
+      </p>
+      <p class="mt-4 text-sm text-dune-muted leading-relaxed">
+        Found a reproducible bug? Please open a{" "}
         <a
           href="https://github.com/coastal-ms/DST-DuneServerTool/issues/new/choose"
           rel="noopener"

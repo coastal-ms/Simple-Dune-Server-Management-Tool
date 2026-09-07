@@ -26,7 +26,7 @@ const base = import.meta.env.BASE_URL;
           >
           <div>
             Download <span class="font-mono">DuneServerSetup.exe</span> from
-            the latest release.
+            the latest stable release. Test builds are a separate choice.
             <div class="mt-3">
               <DownloadButton />
             </div>
@@ -39,7 +39,7 @@ const base = import.meta.env.BASE_URL;
           >
           <div>
             Double-click. The installer walks you through it — one UAC
-            prompt, then a Start Menu shortcut at
+            prompt, then a Start Menu shortcut. The default installation folder is{" "}
             <span class="font-mono text-dune-muted"
               >C:\Program Files\Dune Server\</span
             >.
@@ -54,10 +54,10 @@ const base = import.meta.env.BASE_URL;
             Launch from <strong>Start Menu → Dune Server</strong>. The first
             launch opens the Setup Wizard, which asks whether you already have
             a Dune server, then walks you through a fresh install, a
-            connection to an existing VM / SSH key, or
+            connection to an existing VM / SSH key, or{" "}
             <strong>Hyper-V over LAN</strong> to manage (and optionally
             remotely install) a VM on a separate Hyper-V host on your
-            network. Answers are saved to
+            network. Answers are saved to{" "}
             <span class="font-mono text-dune-muted">%APPDATA%\DuneServer\</span
             >
             and survive reinstalls.
@@ -84,18 +84,18 @@ const base = import.meta.env.BASE_URL;
         default browser if absent.
       </li>
       <li>
-        <strong class="text-dune-text">Self-Hosted only:</strong> the
-        <strong class="text-dune-text">Dune: Awakening Self-Hosted Server</strong>
+        <strong class="text-dune-text">Self-Hosted only:</strong> the{" "}
+        <strong class="text-dune-text">Dune: Awakening Self-Hosted Server</strong>{" "}
         installed via Steam (provides battlegroup management and the VM image).
-        Verified against the latest <strong
+        Last documented game-build verification: <strong
           class="text-dune-text">1.4.10.4</strong
         > build (July 31, 2026).
       </li>
       <li>
-        <strong class="text-dune-text">Self-Hosted only:</strong> the
+        <strong class="text-dune-text">Self-Hosted only:</strong> the{" "}
         <strong class="text-dune-text">SSH private key</strong> for your VM —
         created automatically during Funcom's official self-hosted setup;
-        usually at
+        usually at{" "}
         <span class="font-mono text-sm">%LOCALAPPDATA%\DuneAwakeningServer\sshKey</span
         >.
       </li>
@@ -114,6 +114,20 @@ const base = import.meta.env.BASE_URL;
       </li>
     </ul>
 
+    <h2 class="text-2xl font-semibold mb-4">Choose your view</h2>
+    <p class="text-dune-muted leading-relaxed mb-8">
+      DST opens in <strong>Classic</strong>. Select <strong>Try Command Deck</strong>{" "}
+      in the status bar for the optional World/dashboard and focused workspaces.
+      Its bottom dock includes <strong>DD Atlas</strong>, the shipped static
+      Deep Desert reference. Select <strong>Classic</strong> to return.
+      These are views of the same tools, not separate installations.
+    </p>
+    <p class="text-dune-muted leading-relaxed mb-12">
+      <strong>Solo compatibility:</strong> the current adapter targets the supported
+      PTC save format. Check the in-app adapter guidance before connecting a save;
+      do not assume an unverified retail format is supported.
+    </p>
+
     <h2 class="text-2xl font-semibold mb-4">Hyper-V over LAN <span class="text-dune-muted text-base font-normal">— optional, for a separate host</span></h2>
     <p class="text-dune-muted leading-relaxed mb-4">
       Don't want the VM on this PC? The Setup Wizard's third option manages
@@ -127,7 +141,7 @@ const base = import.meta.env.BASE_URL;
         <strong class="text-dune-text">Remote-host prerequisites</strong> —
         the host's <strong class="text-dune-text">PowerShell Remoting (WinRM)</strong>
         must be reachable from this PC. In a workgroup (no Active Directory
-        domain), add the host to this PC's <span class="font-mono">TrustedHosts</span>
+        domain), add the host to this PC's <span class="font-mono">TrustedHosts</span>{" "}
         first. The host also needs an <strong class="text-dune-text">external
         virtual switch</strong> for the VM's network adapter (the wizard shows
         the exact <span class="font-mono">New-VMSwitch</span> command to run
@@ -135,7 +149,7 @@ const base = import.meta.env.BASE_URL;
       </li>
       <li>
         <strong class="text-dune-text">Existing VM or remote install</strong> —
-        point DST at a host that already has a <span class="font-mono">dune-awakening</span>
+        point DST at a host that already has a <span class="font-mono">dune-awakening</span>{" "}
         VM, or let DST provision one: it connects over PowerShell Remoting,
         downloads the server image on the host with SteamCMD (anonymous, no
         Steam login), and imports/starts the VM on a drive and switch you
@@ -144,9 +158,9 @@ const base = import.meta.env.BASE_URL;
       <li>
         <strong class="text-dune-text">Saved credential &amp; security</strong> —
         the host administrator credential (which doesn't need to match the
-        Windows account DST runs as on this PC) is saved in
+        Windows account DST runs as on this PC) is saved in{" "}
         <strong class="text-dune-text">Windows Credential Manager</strong>,
-        scoped to your signed-in Windows user. It's never written to
+        scoped to your signed-in Windows user. It's never written to{" "}
         <span class="font-mono">dune-server.config</span>, logs, diagnostics,
         or any API response, and is reused automatically for every LAN call.
       </li>
