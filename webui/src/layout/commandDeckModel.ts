@@ -12,12 +12,17 @@ const TASK_COPY: Record<string, { description: string; keywords: string }> = {
   '/vehicles': { description: 'Inspect the fleet and vehicle inventory.', keywords: 'ornithopter buggy cargo' },
   '/economy': { description: 'Review market and governance tools.', keywords: 'market trade landsraad' },
   '/map': { description: 'Explore the atlas and map workspace.', keywords: 'deep desert atlas' },
+  '/map?view=atlas': { description: 'Open the static Deep Desert atlas.', keywords: 'deep desert atlas map' },
   '/gameplay': { description: 'Open all gameplay administration views.', keywords: 'storage blueprints market landsraad' },
   '/gameconfig': { description: 'Review and edit server configuration.', keywords: 'ini settings' },
   '/broadcasts': { description: 'Send a message through the existing broadcast tools.', keywords: 'message announcement' },
   '/solo': { description: 'Work with local Solo saves and inventory.', keywords: 'ptc single player' },
   '/settings': { description: 'Configure DST, connections, and remote access.', keywords: 'appearance theme remote accounts updates' },
 }
+
+const STATIC_DECK_DESTINATIONS: NavItem[] = [
+  { to: '/map?view=atlas', label: 'DD Atlas', icon: 'Map' },
+]
 
 export type DeckDestination = NavItem & { description: string; keywords: string }
 
@@ -39,7 +44,7 @@ export function getDeckDestinations(access: Parameters<typeof getVisibleNavItems
       to: item.path, label: item.label, icon: item.icon,
       ownerOnly: item.visibility === 'owner',
     }))
-  return [...visible, ...workspaces].map(item => ({
+  return [...visible, ...workspaces, ...STATIC_DECK_DESTINATIONS].map(item => ({
     ...item,
     description: TASK_COPY[item.to]?.description ?? `Open ${item.label}.`,
     keywords: TASK_COPY[item.to]?.keywords ?? '',

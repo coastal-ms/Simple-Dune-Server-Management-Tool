@@ -232,6 +232,8 @@ body:
         For Bases → Blueprints, identify the Command Deck or legacy Gameplay
         Admin route and the visible tab/result, but do not include base or
         blueprint identifiers.
+        For the DD Atlas dock shortcut, state whether it opened the static atlas
+        and remained selected after navigation.
         For Solo Mode navigation, state whether the dock shortcut was visible and
         opened the expected page. For pulse or simulated
         travel visibility, name the affected toggle and include a screenshot of the

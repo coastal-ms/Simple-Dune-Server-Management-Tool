@@ -27,6 +27,7 @@ here cover everything those tags shipped.
 - Added Coriolis cycle start controls, expanded player-management cards, and
   shared Command Deck **Bases → Blueprints** access while retaining the legacy
   Gameplay Admin route.
+- Added a Command Deck bottom-dock shortcut directly to the static **DD Atlas**.
 
 ### Changed
 
