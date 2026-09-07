@@ -13,6 +13,12 @@ here cover everything those tags shipped.
 
 ## [Unreleased]
 
+## [15.0.0-finalphase-1.4] - 2026-09-06
+
+### Fixed
+
+- Restored the **Blueprints** tab in the Command Deck Bases workspace while keeping the legacy Gameplay Admin route available.
+
 ## [15.0.0-finalphase-1.3] - 2026-09-06
 
 ### Added
