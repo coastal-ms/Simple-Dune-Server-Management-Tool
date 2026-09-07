@@ -21,5 +21,6 @@ export const SUPPORTER_CREDITS: readonly SupporterCredit[] = [
   { displayName: 'elwicki (@elwicki)', thanks: 'Thanks for helping the project thrive.' },
   { displayName: 'Maggie Malone (@magiemalone)', thanks: 'Your kindness keeps the work going.' },
   { displayName: 'William', thanks: 'Thank you for helping sustain DST.' },
+  { displayName: 'Wick', thanks: 'Thank you for standing with DST.' },
   { displayName: 'Ed O.', thanks: 'Your support strengthens the whole community. The strongest sietches are built together.' },
 ]
