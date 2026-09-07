@@ -23,7 +23,7 @@ Describe 'Installer legacy autostart preservation' -Tag 'Pure' {
 
     It 'escapes apostrophes in capture and restore paths and emits valid PowerShell' {
         $installer = Get-Content -LiteralPath (Join-Path (Get-DstRepoRoot) 'app\installer\DuneServer.iss') -Raw
-        $path = "C:\Users\O'Neil\AppData\Local\Temp\DuneServer-autostart-migration"
+        $path = "C:\Users\O'Connor\AppData\Local\Temp\DuneServer-autostart-migration"
         $escapedPath = $path.Replace("'", "''")
         $command = '$backup = ''' + $escapedPath + '''; Get-ChildItem -LiteralPath $backup -Filter ''DuneServer-Autostart-*.xml'' -File | ForEach-Object { Register-ScheduledTask -TaskPath ''\Dune Server\'' -TaskName $_.BaseName -Xml (Get-Content -LiteralPath $_.FullName -Raw) -Force -ErrorAction Stop }'
         $tokens = $null
@@ -40,7 +40,7 @@ Describe 'Installer legacy autostart preservation' -Tag 'Pure' {
         $errorPreference = '$ErrorActionPreference = ' + "''Stop''"
         $installer | Should -Match ([regex]::Escape($errorPreference))
         $installer | Should -Match 'Parameters: "\{code:GetLegacyAutostartRestoreParameters\|\}";'
-        $command | Should -Match "O''Neil"
+        $command | Should -Match "O''Connor"
         $errors | Should -BeNullOrEmpty
     }
 
