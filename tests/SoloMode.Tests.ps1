@@ -631,6 +631,80 @@ Describe 'Solo Mode route security metadata' {
             $script:CapturedSoloRoutes | Should -Contain $expected
         }
     }
+
+    It 'rejects a stale blueprint export before invoking the export helper' {
+        Register-DstStubs
+        $script:CapturedSoloRouteHandlers = @{}
+        function global:Write-DuneError {
+            param($Response, $Status, $Message)
+            $Response.Status = $Status
+            $Response.Message = $Message
+        }
+        function global:Invoke-WithDuneLock {
+            param($Name, $Script)
+            & $Script
+        }
+        Mock Register-DuneRoute {
+            param($Method, $Path, $Handler, [switch]$Inline, [switch]$LocalOnly)
+            $script:CapturedSoloRouteHandlers[$Path] = $Handler
+        }
+        Mock Invoke-WithDuneLock {
+            param($Name, $Script)
+            & $Script
+        }
+        Mock Assert-DuneSoloExpectedProfile {
+            throw 'The selected Solo profile changed in another window. Refresh and try again.'
+        }
+        Mock Export-DuneSoloBlueprint {}
+        . (Join-Path (Get-DstRepoRoot) 'app\server\routes\SoloMode.ps1')
+
+        $query = [Collections.Specialized.NameValueCollection]::new()
+        $query.Add('id', '7')
+        $query.Add('expectedProfileToken', 'stale-profile-token')
+        $request = [pscustomobject]@{ QueryString = $query }
+        $response = [pscustomobject]@{ Status = 0; Message = '' }
+        & $script:CapturedSoloRouteHandlers['/api/solo/blueprints/export'] $request $response $null $null
+
+        $response.Status | Should -Be 409
+        $response.Message | Should -Match 'changed in another window'
+        Assert-MockCalled Export-DuneSoloBlueprint -Times 0 -Exactly
+    }
+
+    It 'returns blueprint rows with the connected profile token' {
+        Register-DstStubs
+        $script:CapturedSoloRouteHandlers = @{}
+        function global:Write-DuneJson {
+            param($Response, $Body)
+            $Response.Body = $Body
+        }
+        function global:Invoke-WithDuneLock {
+            param($Name, $Script)
+            & $Script
+        }
+        Mock Register-DuneRoute {
+            param($Method, $Path, $Handler, [switch]$Inline, [switch]$LocalOnly)
+            $script:CapturedSoloRouteHandlers[$Path] = $Handler
+        }
+        Mock Assert-DuneSoloExpectedProfile {}
+        Mock Get-DuneSoloProfile { @{ dbPath = 'C:\Solo\profile\game.db' } }
+        Mock Get-DuneSoloBlueprints {
+            [pscustomobject]@{ ok = $true; blueprints = @([pscustomobject]@{ id = 7 }) }
+        }
+        Mock Get-DuneSoloProfileToken { 'active-profile-token' }
+        . (Join-Path (Get-DstRepoRoot) 'app\server\routes\SoloMode.ps1')
+
+        $query = [Collections.Specialized.NameValueCollection]::new()
+        $query.Add('expectedProfileToken', 'active-profile-token')
+        $request = [pscustomobject]@{ QueryString = $query }
+        $response = [pscustomobject]@{ Body = $null }
+        & $script:CapturedSoloRouteHandlers['/api/solo/blueprints'] $request $response $null $null
+
+        $response.Body.profileToken | Should -Be 'active-profile-token'
+        $response.Body.blueprints[0].id | Should -Be 7
+        Assert-MockCalled Get-DuneSoloProfileToken -Times 1 -Exactly -ParameterFilter {
+            $DbPath -eq 'C:\Solo\profile\game.db'
+        }
+    }
 }
 
 Describe 'Solo Mode PTC progression catalogs' {
@@ -686,6 +760,29 @@ Describe 'Solo Mode backup profile isolation' {
         { Assert-DuneSoloExpectedProfile -ExpectedProfileToken $token } | Should -Not -Throw
         { Assert-DuneSoloExpectedProfile -ExpectedProfileToken ('0' * 64) } |
             Should -Throw '*changed in another window*'
+    }
+
+    It 'keeps blueprint list and export behind the same stale-profile guard' {
+        $route = Get-Content -LiteralPath (Join-Path (Get-DstRepoRoot) 'app\server\routes\SoloMode.ps1') -Raw
+        $listRoute = $route.Substring(
+            $route.IndexOf("Register-DuneRoute -Method GET -Path '/api/solo/blueprints'"),
+            $route.IndexOf("Register-DuneRoute -Method GET -Path '/api/solo/blueprints/export'") -
+                $route.IndexOf("Register-DuneRoute -Method GET -Path '/api/solo/blueprints'")
+        )
+        $exportRoute = $route.Substring(
+            $route.IndexOf("Register-DuneRoute -Method GET -Path '/api/solo/blueprints/export'"),
+            $route.IndexOf("Register-DuneRoute -Method POST -Path '/api/solo/blueprints/import'") -
+                $route.IndexOf("Register-DuneRoute -Method GET -Path '/api/solo/blueprints/export'")
+        )
+
+        $listRoute | Should -Match "QueryString\['expectedProfileToken'\]"
+        $listRoute | Should -Match 'Invoke-WithDuneLock'
+        $listRoute | Should -Match 'Assert-DuneSoloExpectedProfile'
+        $listRoute | Should -Match 'profileToken'
+        $exportRoute | Should -Match "QueryString\['expectedProfileToken'\]"
+        $exportRoute | Should -Match 'Invoke-WithDuneLock'
+        $exportRoute | Should -Match 'Assert-DuneSoloExpectedProfile'
+        $exportRoute | Should -Match 'Export-DuneSoloBlueprint -Id \$id'
     }
 
     It 'lists only backups belonging to the connected profile' {

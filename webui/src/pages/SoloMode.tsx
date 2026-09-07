@@ -470,13 +470,17 @@ export function SoloMode() {
   const statusState = useApi<SoloStatus>('/api/solo/status')
   const runtimeState = useApi<SoloRuntime>('/api/solo/runtime', { intervalMs: 3000 })
   const connected = statusState.data?.connected === true
+  const activeProfileToken = statusState.data?.profileToken ?? ''
   const settingsState = useApi<SoloSettingsResponse>('/api/solo/settings', { enabled: connected })
   const consoleSettingsState = useApi<SoloConsoleSettingsResponse>(
     '/api/solo/console-settings',
     { enabled: connected },
   )
   const backupsState = useApi<SoloBackupsResponse>('/api/solo/backups', { enabled: connected })
-  const blueprintsState = useApi<{ ok: boolean; blueprints: SoloSavedBlueprint[] }>('/api/solo/blueprints', { enabled: connected })
+  const blueprintsState = useApi<{ ok: boolean; profileToken: string; blueprints: SoloSavedBlueprint[] }>(
+    `/api/solo/blueprints?expectedProfileToken=${encodeURIComponent(activeProfileToken)}`,
+    { enabled: connected && Boolean(activeProfileToken) },
+  )
   const [dataRoot, setDataRoot] = useState('')
   const [selectedDb, setSelectedDb] = useState('')
   const [discoveredProfiles, setDiscoveredProfiles] = useState<SoloProfile[]>([])
@@ -655,6 +659,8 @@ export function SoloMode() {
     && normalizeWindowsPath(dataRoot) === normalizeWindowsPath(statusState.data?.dataRoot ?? '')
     && normalizeWindowsPath(selectedDb) === normalizeWindowsPath(statusState.data?.dbPath ?? '')
   const canMutateActiveProfile = selectionMatchesActive && busy === null
+  const blueprintsMatchActiveProfile = blueprintsState.data?.profileToken === activeProfileToken
+  const savedBlueprints = blueprintsMatchActiveProfile ? blueprintsState.data?.blueprints ?? [] : []
 
   const saveSettings = async () => {
     if (!selectionMatchesActive) {
@@ -955,14 +961,14 @@ export function SoloMode() {
   }
 
   const exportSavedBlueprint = async (saved: SoloSavedBlueprint) => {
-    if (!connected) {
-      setNotice({ kind: 'err', text: 'Connect a Solo profile before exporting a blueprint.' })
+    if (!selectionMatchesActive || !blueprintsMatchActiveProfile) {
+      setNotice({ kind: 'err', text: 'Connect and validate the selected Solo profile before exporting a blueprint.' })
       return
     }
     setBusy(`export-blueprint-${saved.id}`)
     setNotice(null)
     try {
-      const result = await exportSoloBlueprint(saved.id)
+      const result = await exportSoloBlueprint(saved.id, activeProfileToken)
       downloadBlueprintFile(result.blueprint, result.filename || `${saved.name || 'blueprint'}.json`)
       setNotice({ kind: 'ok', text: `Exported ${result.filename || saved.name || 'blueprint'}.` })
     } catch (error) {
@@ -1966,7 +1972,7 @@ export function SoloMode() {
               <p className="text-xs text-text-muted mb-4">
                 Download a saved Solo solido as portable DST JSON. Import stays disabled in PTC.
               </p>
-              {(blueprintsState.data?.blueprints ?? []).length === 0 ? (
+              {savedBlueprints.length === 0 ? (
                 <div className="rounded border border-border bg-surface-2/50 p-3 text-xs text-text-muted">
                   {blueprintsState.loading
                     ? 'Reading saved blueprints…'
@@ -1974,7 +1980,7 @@ export function SoloMode() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {(blueprintsState.data?.blueprints ?? []).map(saved => (
+                  {savedBlueprints.map(saved => (
                     <div key={saved.id} className="flex items-center gap-3 rounded border border-border bg-surface-2/40 px-3 py-2">
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-text truncate">{saved.name || `Blueprint ${saved.id}`}</div>
@@ -1984,7 +1990,7 @@ export function SoloMode() {
                       </div>
                       <button
                         className="btn-secondary shrink-0"
-                        disabled={!connected || busy === `export-blueprint-${saved.id}`}
+                        disabled={!selectionMatchesActive || !blueprintsMatchActiveProfile || busy === `export-blueprint-${saved.id}`}
                         onClick={() => void exportSavedBlueprint(saved)}
                       >
                         <Icon name={busy === `export-blueprint-${saved.id}` ? 'LoaderCircle' : 'Download'} size={14} className={busy === `export-blueprint-${saved.id}` ? 'animate-spin' : ''} />

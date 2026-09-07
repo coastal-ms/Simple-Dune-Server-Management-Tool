@@ -179,6 +179,10 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Com
 ; autostart preference. Idempotent; never blocks install on failure.
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""try {{ Get-ScheduledTask -TaskPath '\Dune Server\' -ErrorAction SilentlyContinue | Where-Object {{ $_.TaskName -like 'DuneServer-Autostart-*' }} | Unregister-ScheduledTask -Confirm:$false -ErrorAction SilentlyContinue }} catch {{}}"""; Flags: runhidden waituntilterminated; Check: ShouldClearLegacyAutostart
 
+; A v12-v14 upgrade runs its old uninstaller, which removes these user-managed
+; tasks. Re-import the exact definitions captured immediately before that step.
+Filename: "powershell.exe"; Parameters: "{code:GetLegacyAutostartRestoreParameters|}"; Flags: runhidden waituntilterminated; Check: ShouldRestoreLegacyAutostart
+
 ; Install or replace the mobile/remote bridge only when its shipped payload
 ; changed. An unchanged bridge process and scheduled task survive modern
 ; in-place upgrades.
@@ -243,6 +247,8 @@ var
   SkipConfigPages: Boolean;
   PriorBridgeHash: string;
   PriorBridgeInstallerHash: string;
+  LegacyAutostartBackupDir: string;
+  LegacyAutostartBackupPresent: Boolean;
 
 // ---------- v12.0.0 one-time migration helpers ----------
 
@@ -254,11 +260,11 @@ var
 begin
   Result := '';
   if RegQueryStringValue(HKEY_LOCAL_MACHINE,
-       'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}_is1',
+       'Software\Microsoft\Windows\CurrentVersion\Uninstall\{B3F8A2C1-7E5D-4F9A-8B2C-1D6E3A4F5C7D}_is1',
        'DisplayVersion', ver) then
     Result := ver
   else if RegQueryStringValue(HKEY_LOCAL_MACHINE,
-            'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}_is1',
+            'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{B3F8A2C1-7E5D-4F9A-8B2C-1D6E3A4F5C7D}_is1',
             'DisplayVersion', ver) then
     Result := ver;
 end;
@@ -293,6 +299,85 @@ var
 begin
   major := VersionMajor(GetPriorInstalledVersion());
   Result := (major >= 0) and (major < 12);
+end;
+
+// v12-v14 upgrades still invoke the old uninstaller, which removes user-managed
+// autostart tasks. Export their exact task definitions before that handoff and
+// restore them after the v15 payload is copied. v15+ upgrades stay in place.
+function ShouldPreserveLegacyAutostart(): Boolean;
+var
+  major: Integer;
+begin
+  major := VersionMajor(GetPriorInstalledVersion());
+  Result := (major >= 12) and (major < 15);
+end;
+
+function EscapePowerShellSingleQuoted(Value: string): string;
+begin
+  Result := Value;
+  StringChangeEx(Result, '''', '''''', True);
+end;
+
+function CaptureLegacyAutostartTasks(): Boolean;
+var
+  command, escapedBackupDir: string;
+  resultCode: Integer;
+  findData: TFindRec;
+begin
+  Result := True;
+  LegacyAutostartBackupPresent := False;
+  if not ShouldPreserveLegacyAutostart() then Exit;
+
+  LegacyAutostartBackupDir := AddBackslash(ExpandConstant('{tmp}')) +
+    'DuneServer-autostart-migration';
+  escapedBackupDir := EscapePowerShellSingleQuoted(LegacyAutostartBackupDir);
+  command :=
+    '$ErrorActionPreference = ''Stop''; $backup = ''' + escapedBackupDir + '''; ' +
+    'New-Item -ItemType Directory -Path $backup -Force | Out-Null; ' +
+    'Get-ScheduledTask -ErrorAction Stop | ' +
+    'Where-Object { $_.TaskPath -eq ''\Dune Server\'' -and ' +
+    '$_.TaskName -like ''DuneServer-Autostart-*'' } | ' +
+    'ForEach-Object { Export-ScheduledTask -TaskPath $_.TaskPath -TaskName $_.TaskName | ' +
+    'Set-Content -LiteralPath (Join-Path $backup ($_.TaskName + ''.xml'')) ' +
+    '-NoNewline -Encoding UTF8 }';
+  if not Exec('powershell.exe',
+      '-NoProfile -ExecutionPolicy Bypass -Command "' + command + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, resultCode) then
+  begin
+    Log('Could not start legacy autostart-task capture; blocking upgrade to preserve user tasks.');
+    Result := False;
+    Exit;
+  end;
+  if resultCode <> 0 then
+  begin
+    Log(Format('Legacy autostart-task capture exited with code %d; blocking upgrade to preserve user tasks.', [resultCode]));
+    Result := False;
+    Exit;
+  end;
+  if FindFirst(AddBackslash(LegacyAutostartBackupDir) + 'DuneServer-Autostart-*.xml',
+      findData) then
+  begin
+    LegacyAutostartBackupPresent := True;
+    FindClose(findData);
+    Log('Captured legacy autostart task definitions for v15 restoration.');
+  end;
+end;
+
+function ShouldRestoreLegacyAutostart(): Boolean;
+begin
+  Result := LegacyAutostartBackupPresent;
+end;
+
+function GetLegacyAutostartRestoreParameters(Param: string): string;
+var
+  escapedBackupDir: string;
+begin
+  escapedBackupDir := EscapePowerShellSingleQuoted(LegacyAutostartBackupDir);
+  Result := '-NoProfile -ExecutionPolicy Bypass -Command "$backup = ''' +
+    escapedBackupDir + '''; Get-ChildItem -LiteralPath $backup -Filter ' +
+    '''DuneServer-Autostart-*.xml'' -File | ForEach-Object { ' +
+    'Register-ScheduledTask -TaskPath ''\Dune Server\'' -TaskName $_.BaseName ' +
+    '-Xml (Get-Content -LiteralPath $_.FullName -Raw) -Force -ErrorAction Stop }"';
 end;
 
 // ---------- helpers ----------
@@ -678,6 +763,11 @@ begin
   begin
     PriorBridgeHash := '';
     PriorBridgeInstallerHash := '';
+    if not CaptureLegacyAutostartTasks() then
+    begin
+      Result := 'The upgrade could not safely preserve existing Windows startup tasks. No changes were made.';
+      Exit;
+    end;
     UninstallPreviousVersion();
   end;
 

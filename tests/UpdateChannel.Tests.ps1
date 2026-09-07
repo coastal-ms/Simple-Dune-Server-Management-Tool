@@ -24,6 +24,7 @@ BeforeAll {
             fetchedAt=[DateTime]::UtcNow; tag='v12.9.5'; name='v12.9.5'; htmlUrl='u'
             publishedAt='2026-06-21'; releaseNotes=''; assetName='DuneServerSetup.exe'
             assetUrl='https://x/final.exe'; assetSize=100
+            targetCommit='1234567890abcdef1234567890abcdef12345678'
         }
         function global:New-InstallRequest {
             param([hashtable]$Query = @{})
@@ -66,6 +67,7 @@ Describe 'Compare-DuneSemver (prerelease-aware)' {
 Describe 'Get-DunePreReleaseList filtering' {
     BeforeEach {
         function global:Get-DuneReleases { param([switch]$Force) New-DstReleaseFixture }
+        function global:Get-DuneLatestRelease { param([switch]$Force) New-DstStableLatest }
     }
     It 'keeps only the newest two published pre-releases carrying the installer asset' {
         $list = Get-DunePreReleaseList
@@ -80,24 +82,24 @@ Describe 'Get-DunePreReleaseList filtering' {
         $tags | Should -Not -Contain 'v12.9.6-test0'
         $tags | Should -Not -Contain 'v12.9.7-draft'
     }
-    It 'shows only the test1 stable mirror when it is the newest prerelease' {
+    It 'shows only a fresh stable mirror when it identifies the current stable commit' {
         function global:Get-DuneReleases {
             param([switch]$Force)
             @(
-                [pscustomobject]@{ tag='v12.9.6-test1'; name='Stable channel mirror'; releaseNotes='same bits'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/mirror.exe' }
+                [pscustomobject]@{ tag='v12.9.5-test10'; name='Stable channel mirror'; releaseNotes='same bits'; targetCommit='1234567890abcdef1234567890abcdef12345678'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/mirror.exe' }
                 [pscustomobject]@{ tag='v12.9.5-test9'; name='Old test'; releaseNotes=''; isPrerelease=$true; isDraft=$false; assetUrl='https://x/old.exe' }
             )
         }
         $list = Get-DunePreReleaseList
         @($list).Count | Should -Be 1
-        $list[0].tag | Should -Be 'v12.9.6-test1'
+        $list[0].tag | Should -Be 'v12.9.5-test10'
     }
     It 'does not let an older stable mirror displace the previous active test' {
         function global:Get-DuneReleases {
             param([switch]$Force)
             @(
                 [pscustomobject]@{ tag='v13.0.0-test3'; name='Current test'; releaseNotes=''; isPrerelease=$true; isDraft=$false; assetUrl='https://x/current.exe' }
-                [pscustomobject]@{ tag='v12.9.6-test1'; name='Stable channel mirror'; releaseNotes='same bits'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/mirror.exe' }
+                [pscustomobject]@{ tag='v12.9.5-test1'; name='Stable channel mirror'; releaseNotes='same bits'; targetCommit='1234567890abcdef1234567890abcdef12345678'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/mirror.exe' }
                 [pscustomobject]@{ tag='v13.0.0-test2'; name='Previous test'; releaseNotes=''; isPrerelease=$true; isDraft=$false; assetUrl='https://x/previous.exe' }
             )
         }
@@ -105,6 +107,40 @@ Describe 'Get-DunePreReleaseList filtering' {
         @($list).Count | Should -Be 2
         $list[0].tag | Should -Be 'v13.0.0-test3'
         $list[1].tag | Should -Be 'v13.0.0-test2'
+    }
+    It 'falls back to stable rather than obsolete tests when the newest mirror is unproven' {
+        function global:Get-DuneReleases {
+            param([switch]$Force)
+            @(
+                [pscustomobject]@{ tag='v15.0.0-test1'; name='Stable channel mirror'; releaseNotes='same bits'; targetCommit='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/old-mirror.exe' }
+                [pscustomobject]@{ tag='v15.0.0-test9'; name='Previous test'; releaseNotes=''; isPrerelease=$true; isDraft=$false; assetUrl='https://x/test.exe' }
+            )
+        }
+        function global:Get-DuneLatestRelease {
+            param([switch]$Force)
+            [pscustomobject]@{ tag='v15.0.0'; targetCommit='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'; assetUrl='https://x/stable.exe' }
+        }
+
+        $list = Get-DunePreReleaseList
+        @($list).Count | Should -Be 0
+    }
+    It 'resolves branch-valued release targets to prove a current stable mirror' {
+        function global:Get-DuneReleases {
+            param([switch]$Force)
+            @(
+                [pscustomobject]@{ tag='v15.0.0-test10'; name='Stable channel mirror'; releaseNotes='same stable commit'; targetCommit='main'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/mirror.exe' }
+            )
+        }
+        function global:Get-DuneLatestRelease {
+            param([switch]$Force)
+            [pscustomobject]@{ tag='v15.0.0'; targetCommit='main'; assetUrl='https://x/stable.exe' }
+        }
+        Mock Get-DuneReleaseCommitSha { 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }
+
+        $list = Get-DunePreReleaseList
+        @($list).Count | Should -Be 1
+        $list[0].tag | Should -Be 'v15.0.0-test10'
+        Assert-MockCalled Get-DuneReleaseCommitSha -Times 2 -Exactly
     }
 }
 
@@ -166,6 +202,58 @@ Describe 'Get-DuneSelectedRelease channel resolution' {
         $r.tag | Should -Be 'v12.9.5'
         $r.channel | Should -Be 'test'
         $r.isPrerelease | Should -BeFalse
+    }
+
+    It 'uses a fresh stable mirror to update a Finalphase client without repointing test1' {
+        $script:DuneToolVersion = '15.0.0-finalphase-1.4'
+        function global:Get-DuneUpdateChannel { 'test' }
+        function global:Read-DuneConfigRaw { @{} }
+        function global:Get-DuneBuildMetadata {
+            @{ present=$true; prerelease=$true; tag='v15.0.0-finalphase-1.4'; commit='oldfinalphase' }
+        }
+        function global:Get-DuneLatestRelease {
+            param([switch]$Force)
+            [pscustomobject]@{
+                tag='v15.0.0'; targetCommit='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+                assetUrl='https://x/stable.exe'; assetName='DuneServerSetup.exe'
+            }
+        }
+        function global:Get-DuneReleases {
+            param([switch]$Force)
+            @(
+                [pscustomobject]@{ tag='v15.0.0-test10'; name='Stable channel mirror'; releaseNotes='same stable commit'; targetCommit='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/fresh-mirror.exe' }
+                [pscustomobject]@{ tag='v15.0.0-test1'; name='Stable channel mirror'; releaseNotes='old immutable mirror'; targetCommit='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/old-mirror.exe' }
+            )
+        }
+
+        (Get-DuneSelectedRelease).tag | Should -Be 'v15.0.0-test10'
+    }
+
+    It 'keeps a fresh v15 stable client on the stable identity during mirror rollover' {
+        $script:DuneToolVersion = '15.0.0'
+        function global:Get-DuneUpdateChannel { 'test' }
+        function global:Read-DuneConfigRaw { @{} }
+        function global:Get-DuneBuildMetadata {
+            @{ present=$true; prerelease=$false; tag='v15.0.0'; commit='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }
+        }
+        function global:Get-DuneLatestRelease {
+            param([switch]$Force)
+            [pscustomobject]@{
+                tag='v15.0.0'; targetCommit='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+                assetUrl='https://x/stable.exe'; assetName='DuneServerSetup.exe'
+            }
+        }
+        function global:Get-DuneReleases {
+            param([switch]$Force)
+            @(
+                [pscustomobject]@{ tag='v15.0.0-test10'; name='Stable channel mirror'; releaseNotes='same stable commit'; targetCommit='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/fresh-mirror.exe' }
+                [pscustomobject]@{ tag='v15.0.0-test1'; name='Stable channel mirror'; releaseNotes='old immutable mirror'; targetCommit='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; isPrerelease=$true; isDraft=$false; assetUrl='https://x/old-mirror.exe' }
+            )
+        }
+
+        $release = Get-DuneSelectedRelease
+        $release.tag | Should -Be 'v15.0.0'
+        $release.isPrerelease | Should -BeFalse
     }
 }
 

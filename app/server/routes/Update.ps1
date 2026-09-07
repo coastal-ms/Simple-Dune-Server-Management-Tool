@@ -171,24 +171,50 @@ function Get-DuneReleases {
     return $script:DuneReleasesCache.releases
 }
 
-function Test-DuneStableMirrorRelease {
+function Test-DuneStableMirrorLabel {
     param($Release)
     $text = "$($Release.name)`n$($Release.releaseNotes)"
     return ($text -match '(?i)\b(?:test|stable)(?:[-\s]+channel)?[-\s]+mirror\b')
 }
 
+function Test-DuneStableMirrorRelease {
+    param($Release, $StableRelease)
+    if (-not (Test-DuneStableMirrorLabel -Release $Release) -or -not $StableRelease) {
+        return $false
+    }
+    $releaseCore = Get-DuneVersionCore ([string]$Release.tag)
+    $stableCore = Get-DuneVersionCore ([string]$StableRelease.tag)
+    if (-not $releaseCore -or $releaseCore -ne $stableCore) { return $false }
+    $releaseCommit = Get-DuneReleaseExpectedCommit -Release $Release
+    $stableCommit = Get-DuneReleaseExpectedCommit -Release $StableRelease
+    return ($releaseCore -and $releaseCore -eq $stableCore -and
+        [string]::Equals($releaseCommit, $stableCommit,
+            [StringComparison]::OrdinalIgnoreCase))
+}
+
 # Test-channel candidates: the newest two published pre-releases that carry the
-# installer asset. A newest stable mirror stands alone so old test-cycle builds
-# do not remain selectable after the stable release ships.
+# installer asset. A stable mirror must identify the current stable release by
+# core version and immutable target commit. This keeps an old immutable mirror
+# from becoming a rollback target after the next stable release ships.
 function Get-DunePreReleaseList {
     param([switch]$Force)
     $candidates = @(Get-DuneReleases -Force:$Force |
         Where-Object { $_.isPrerelease -and -not $_.isDraft -and $_.assetUrl })
-    if ($candidates.Count -gt 0 -and (Test-DuneStableMirrorRelease -Release $candidates[0])) {
-        return @($candidates[0])
+    $stable = Get-DuneLatestRelease -Force:$Force
+    if ($candidates.Count -gt 0 -and (Test-DuneStableMirrorLabel -Release $candidates[0])) {
+        try {
+            if (Test-DuneStableMirrorRelease -Release $candidates[0] -StableRelease $stable) {
+                Add-Member -InputObject $candidates[0] -NotePropertyName isStableMirror -NotePropertyValue $true -Force
+                return @($candidates[0])
+            }
+        } catch {
+            # A branch-valued target_commitish must resolve through the immutable
+            # release tag. If that proof is unavailable, do not offer old tests.
+        }
+        return @()
     }
     return @($candidates |
-        Where-Object { -not (Test-DuneStableMirrorRelease -Release $_) } |
+        Where-Object { -not (Test-DuneStableMirrorLabel -Release $_) } |
         Select-Object -First 2)
 }
 
@@ -222,6 +248,18 @@ function Get-DuneSelectedRelease {
             Add-Member -InputObject $rel -NotePropertyName isPrerelease -NotePropertyValue $false -Force
         }
         return $rel
+    }
+    $stable = Get-DuneLatestRelease -Force:$Force
+    if ($list.Count -eq 1 -and $list[0].isStableMirror) {
+        $running = Get-DuneUpdateRunningBuildInfo
+        $runningCore = Get-DuneVersionCore ([string]$script:DuneToolVersion)
+        $stableCore = Get-DuneVersionCore ([string]$stable.tag)
+        if (-not $running.runningIsPrerelease -and $runningCore -and
+            $runningCore -eq $stableCore) {
+            Add-Member -InputObject $stable -NotePropertyName channel -NotePropertyValue 'test' -Force
+            Add-Member -InputObject $stable -NotePropertyName isPrerelease -NotePropertyValue $false -Force
+            return $stable
+        }
     }
     $pin = Get-DuneUpdatePreReleaseTag
     $chosen = $null

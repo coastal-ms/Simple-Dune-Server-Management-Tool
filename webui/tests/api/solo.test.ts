@@ -120,15 +120,15 @@ describe('Solo Mode API contracts', () => {
   })
 
   it('lists and exports saved Solo blueprints', async () => {
-    await solo.getSoloBlueprints()
+    await solo.getSoloBlueprints('profile-token')
     expect(last()).toEqual({
-      url: '/api/solo/blueprints',
+      url: '/api/solo/blueprints?expectedProfileToken=profile-token',
       method: undefined,
       body: undefined,
     })
-    await solo.exportSoloBlueprint(7)
+    await solo.exportSoloBlueprint(7, 'profile-token')
     expect(last()).toEqual({
-      url: '/api/solo/blueprints/export?id=7',
+      url: '/api/solo/blueprints/export?id=7&expectedProfileToken=profile-token',
       method: undefined,
       body: undefined,
     })

@@ -333,16 +333,20 @@ export interface SoloSavedBlueprint {
   pentashields: number
 }
 
-export function getSoloBlueprints(): Promise<{ ok: boolean; blueprints: SoloSavedBlueprint[] }> {
-  return api('/api/solo/blueprints')
+export function getSoloBlueprints(
+  expectedProfileToken: string,
+): Promise<{ ok: boolean; profileToken: string; blueprints: SoloSavedBlueprint[] }> {
+  return api(`/api/solo/blueprints?expectedProfileToken=${encodeURIComponent(expectedProfileToken)}`)
 }
 
-export function exportSoloBlueprint(id: number): Promise<{
+export function exportSoloBlueprint(id: number, expectedProfileToken: string): Promise<{
   ok: boolean
   filename: string
   blueprint: BlueprintFile
 }> {
-  return api(`/api/solo/blueprints/export?id=${encodeURIComponent(String(id))}`)
+  return api(
+    `/api/solo/blueprints/export?id=${encodeURIComponent(String(id))}&expectedProfileToken=${encodeURIComponent(expectedProfileToken)}`,
+  )
 }
 
 export function importSoloBlueprint(
