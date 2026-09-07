@@ -314,7 +314,8 @@ Describe 'Shared Inventory Explorer read model' -Tag 'Pure' {
 
     It 'validates entity types and supports exact demo scopes' {
         { Get-DuneInventoryEntityTypes -Value 'player,storage' } | Should -Not -Throw
-        { Get-DuneInventoryEntityTypes -Value 'vehicle' } | Should -Throw '*Unsupported inventory entity type*'
+        @(Get-DuneInventoryEntityTypes -Value 'vehicle') | Should -Be @('vehicle')
+        { Get-DuneInventoryEntityTypes -Value 'base' } | Should -Throw '*Unsupported inventory entity type*'
 
         $all = @(Get-DuneInventoryDemoItems)
         $playerItems = @(Select-DuneInventoryDemoItems -Items $all -EntityTypes @('player') -ScopeType player -ScopeId 20001 -Limit 100)

@@ -1,0 +1,273 @@
+BeforeAll {
+    . (Join-Path $PSScriptRoot '_TestHelpers.ps1')
+    Import-DstLib 'Database.ps1'
+    Import-DstLib 'ApiContract.ps1'
+    Import-DstLib 'Gameplay.ps1'
+    Import-DstLib 'GameplayPlayers.ps1'
+    Import-DstLib 'InventoryExplorer.ps1'
+    Import-DstLib 'VehicleDeletion.ps1'
+    Import-DstLib 'VehicleLifecycle.ps1'
+    function Get-DuneVehicleKitCatalog {
+        @{ vehicles = @(@{ className = '/Game/BP_Buggy.BP_Buggy_C'; label = 'Buggy' }) }
+    }
+    function Invoke-DuneBackupShell { throw 'Live SSH is forbidden in this test.' }
+    function Find-V6DbPod { param($Ip, [switch]$Force); throw 'Live database discovery is forbidden in this test.' }
+    $script:scopeKey = 'a' * 64
+    $script:DuneGameplayItemNames = @{ Copper = 'Copper' }
+    $script:DuneGameplayItemRules = @{}
+    function Invoke-TestVehicleSql {
+        param([string]$Sql)
+        if ($env:DST_TEST_POSTGRES_DATABASE -notmatch '^dst_inventory(?:_[A-Za-z0-9_-]+)?$' -or $env:PGHOST -ne '127.0.0.1') {
+            throw 'Vehicle integration tests require an explicit disposable loopback dst_inventory database.'
+        }
+        $path = Join-Path $TestDrive 'vehicle-query.sql'
+        [IO.File]::WriteAllText($path, $Sql, [Text.UTF8Encoding]::new($false))
+        $output = (& $env:DST_TEST_POSTGRES_PSQL -X -q --csv -v ON_ERROR_STOP=1 -d $env:DST_TEST_POSTGRES_DATABASE -f $path 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0) { return @{ ok = $false; error = $output } }
+        return ConvertFrom-DunePsqlCsv -Output $output -MaxRows 10001
+    }
+}
+
+Describe 'Vehicle lifecycle host safety' {
+    It 'requires exactly one current namespace and binds the database to it' {
+        Mock Invoke-DuneBackupShell { @{ rc = 0; out = "DST_VEHICLE_SCOPE=funcom-seabass-sh-test|11111111-1111-1111-1111-111111111111" } }
+        Mock Find-V6DbPod { @{ ns = 'funcom-seabass-sh-test'; name = 'db-dbdepl-sts-0' } }
+        $scope = Get-DuneVehicleHostScope -Ip '192.0.2.1'
+        $scope.key | Should -Match '^[a-f0-9]{64}$'
+        $scope.world | Should -Be 'sh-test'
+        Should -Invoke Find-V6DbPod -ParameterFilter { $Force } -Times 1
+        Mock Invoke-DuneBackupShell { @{ rc = 0; out = "DST_VEHICLE_SCOPE=funcom-seabass-sh-one|11111111-1111-1111-1111-111111111111`nDST_VEHICLE_SCOPE=funcom-seabass-sh-two|22222222-2222-2222-2222-222222222222" } }
+        { Get-DuneVehicleHostScope -Ip '192.0.2.1' } | Should -Throw '*exactly one*'
+    }
+
+    It 'requires actual backup proof instead of a successful exit status' {
+        Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; world = 'sh-test' } }
+        Mock Invoke-DuneBackupShell { @{ rc = 0; out = 'backup claimed success' } }
+        (Invoke-DuneVehicleSafetyBackup -Ip 'fixture').ok | Should -BeFalse
+        Mock Invoke-DuneBackupShell {
+            param($Script)
+            $Script | Should -Match 'stat -c %s'
+            $Script | Should -Match '-gt 1024'
+            $Script | Should -Match 'database-dumps/sh-test'
+            @{ rc = 0; out = 'DST_VEHICLE_BACKUP=/fixture/backup|2048' }
+        }
+        (Invoke-DuneVehicleSafetyBackup -Ip 'fixture').ok | Should -BeTrue
+    }
+
+    It 'rejects a live session even after Kubernetes reports stopped' {
+        Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; world = 'sh-test'; namespace = 'funcom-seabass-sh-test' } }
+        Mock Invoke-DuneBackupShell { @{ rc = 0; out = 'Stopped' } }
+        Mock Invoke-DuneSqlQuery { @{ ok = $true; columns = @('sessions'); rows = @(,@('1')) } }
+        (Test-DuneVehicleWindowStopped -Ip 'fixture' -DatabaseScope $script:scopeKey).ok | Should -BeFalse
+    }
+
+    It 'never treats missing, nonfinite or negative integrity as full health' {
+        foreach ($value in @('', $null, 'NaN', 'Infinity', '-1', 'missing')) {
+            ConvertTo-DuneVehicleNumber $value | Should -BeNullOrEmpty
+        }
+        ConvertTo-DuneVehicleNumber '0' | Should -Be 0
+        ConvertTo-DuneVehicleNumber '12.5' | Should -Be 12.5
+    }
+
+    It 'keeps all deletion control routes host-local but fleet and integrity readable' {
+        $source = Get-Content (Join-Path $PSScriptRoot '..\app\server\routes\VehicleDeletion.ps1') -Raw
+        @([regex]::Matches($source, "Register-DuneRoute -Method (GET|POST|DELETE) -Path '/api/gameplay/vehicles/deletions[^']*' -LocalOnly")).Count | Should -Be 4
+        $source | Should -Match "-Path '/api/gameplay/vehicles' -Handler"
+        $source | Should -Match "-Path '/api/gameplay/vehicles/\{id\}/integrity' -Handler"
+    }
+
+    It 'rejects old inventory-cache cursors for vehicle reads' {
+        (Invoke-DuneInventoryGroupedPage -Mode live -EntityTypes @('vehicle') -CursorSource cache).status | Should -Be 409
+        (Invoke-DuneInventoryOccurrencesPage -Mode live -TemplateId Copper -EntityTypes @('vehicle') -CursorSource cache).status | Should -Be 409
+    }
+}
+
+Describe 'Vehicle lifecycle PostgreSQL model' -Skip:(-not $env:DST_TEST_POSTGRES_PSQL -or -not $env:DST_TEST_POSTGRES_DATABASE) {
+    BeforeEach {
+        Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; namespace = 'funcom-seabass-sh-test'; world = 'sh-test' } }
+        Mock Test-DuneVehicleWindowStopped { @{ ok = $true } }
+        Mock Invoke-DuneSqlQuery {
+            param($Sql, $ReadOnly)
+            if ($ReadOnly) { $Sql = Wrap-DuneReadOnlySql -Sql $Sql }
+            Invoke-TestVehicleSql -Sql $Sql
+        }
+        $schema = @'
+CREATE SCHEMA dune;
+SET search_path TO dune, public;
+CREATE TABLE dune.actors (id bigint PRIMARY KEY, class text, map text, owner_account_id bigint);
+CREATE TABLE dune.vehicles (id bigint PRIMARY KEY REFERENCES dune.actors(id) ON DELETE CASCADE);
+CREATE TABLE dune.actor_state (actor_id bigint REFERENCES dune.actors(id) ON DELETE CASCADE, state text);
+CREATE TABLE dune.vehicle_modules (
+    id bigint PRIMARY KEY, vehicle_id bigint REFERENCES dune.vehicles(id) ON DELETE CASCADE,
+    template_id text, stats jsonb
+);
+CREATE TABLE dune.inventories (
+    id bigint PRIMARY KEY, actor_id bigint REFERENCES dune.actors(id) ON DELETE CASCADE,
+    inventory_type int, vehicle_module_id bigint REFERENCES dune.vehicle_modules(id) ON DELETE CASCADE,
+    exchange_id bigint, item_id bigint, max_item_count int, max_item_volume numeric
+);
+CREATE TABLE dune.items (
+    id bigint PRIMARY KEY, inventory_id bigint REFERENCES dune.inventories(id) ON DELETE CASCADE,
+    template_id text, stack_size int, quality_level int, stats jsonb
+);
+CREATE TABLE dune.player_state (player_pawn_id bigint, player_controller_id bigint, character_name text, account_id bigint);
+CREATE TABLE dune.permission_actor (actor_id bigint PRIMARY KEY, actor_type int, actor_name text);
+CREATE TABLE dune.permission_actor_rank (permission_actor_id bigint, player_id bigint, rank int);
+CREATE TABLE dune.recovered_vehicles (vehicle_id bigint REFERENCES dune.vehicles(id) ON DELETE CASCADE, character_id bigint, chassis_durability numeric);
+CREATE TABLE dune.backup_vehicles (vehicle_id bigint REFERENCES dune.vehicles(id) ON DELETE CASCADE, character_id bigint);
+CREATE TABLE dune.overmap_players (vehicle_id bigint REFERENCES dune.actors(id) ON DELETE SET NULL);
+CREATE TABLE dune.markers (marker_hash_id bigint);
+CREATE TABLE dune.player_markers (marker_hash_id bigint);
+CREATE TABLE dune.placeables (id bigint, building_type text, is_hologram boolean, owner_entity_id bigint);
+CREATE TABLE dune.actor_fgl_entities (actor_id bigint, entity_id bigint);
+CREATE FUNCTION dune.permission_actor_destroy(target bigint) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+    DELETE FROM permission_actor_rank WHERE permission_actor_id = target;
+    DELETE FROM permission_actor WHERE actor_id = target;
+    DELETE FROM markers WHERE marker_hash_id = target;
+    DELETE FROM player_markers WHERE marker_hash_id = target;
+END $$;
+CREATE FUNCTION dune.delete_actors(targets bigint[]) RETURNS void LANGUAGE sql AS $$
+    DELETE FROM actors WHERE id = ANY(targets);
+$$;
+INSERT INTO dune.actors VALUES (42, 'BP_Buggy_C', 'Hagga', NULL), (43, 'BP_Unknown_C', 'Hagga', NULL),
+    (100, 'BP_Player_C', 'Hagga', 900), (200, 'BP_Container_C', 'Hagga', NULL);
+INSERT INTO dune.vehicles VALUES (42), (43);
+INSERT INTO dune.player_state VALUES (100, 101, 'Owner', 900), (110, 111, 'Shared', 901);
+INSERT INTO dune.permission_actor VALUES (42, 2, 'Scout');
+INSERT INTO dune.permission_actor_rank VALUES (42, 101, 1), (42, 111, 2);
+INSERT INTO dune.actor_state VALUES (42, 'Default'), (42, 'Default');
+INSERT INTO dune.vehicle_modules VALUES (300, 42, 'Chassis', '{"FVehicleModuleDurabilityStats":[{},{"CurrentDurability":25,"MaxDurability":100,"DecayedMaxDurability":80}]}'),
+    (301, 42, 'Engine', '{}');
+INSERT INTO dune.inventories (id, actor_id, inventory_type, max_item_count, max_item_volume) VALUES
+    (500, 42, 0, 10, 100), (501, 42, NULL, 1, 1), (502, 43, 0, 0, 0), (503, 100, 0, 10, 100), (504, 200, 0, 10, 100);
+INSERT INTO dune.items VALUES (600, 500, 'Copper', 7, 1, '{}'), (601, 501, 'Copper', 99, 1, '{}'),
+    (602, 503, 'Copper', 88, 1, '{}'), (603, 504, 'Copper', 77, 1, '{}');
+INSERT INTO dune.recovered_vehicles VALUES (42, 1000, 0.5);
+INSERT INTO dune.backup_vehicles VALUES (42, 1000);
+INSERT INTO dune.markers VALUES (42);
+INSERT INTO dune.player_markers VALUES (42);
+INSERT INTO dune.overmap_players VALUES (42);
+'@
+        $setup = Invoke-TestVehicleSql -Sql $schema
+        if (-not $setup.ok) { throw $setup.error }
+    }
+    AfterEach {
+        $cleanup = Invoke-TestVehicleSql -Sql 'SET client_min_messages = warning; DROP SCHEMA IF EXISTS dune CASCADE;'
+        if (-not $cleanup.ok) { throw $cleanup.error }
+    }
+
+    It 'reads claimed and unclaimed structural vehicles with correct ranks, subtype and nullable integrity' {
+        $fleet = Get-DuneVehicleFleetLive -Ip fixture
+        $fleet.ok | Should -BeTrue -Because $fleet.error
+        $fleet.total | Should -Be 2
+        $claimed = $fleet.vehicles | Where-Object id -eq 42
+        $claimed.owners | Should -Be 'Owner'
+        $claimed.permissions.Count | Should -Be 2
+        $claimed.subtype | Should -Be 'Buggy'
+        $claimed.subtype_source | Should -Be 'catalog'
+        $claimed.actor_state | Should -Be 'Default'
+        $claimed.cargo_stack_count | Should -Be 1
+        ($fleet.vehicles | Where-Object id -eq 43).ownership_status | Should -Be 'unowned'
+        $integrity = Get-DuneVehicleIntegrityLive -Ip fixture -VehicleId 42
+        $integrity.ok | Should -BeTrue -Because $integrity.error
+        $integrity.modules[0].current_durability | Should -Be 25
+        $integrity.modules[1].current_durability | Should -BeNullOrEmpty
+    }
+
+    It 'excludes component, player and placeable holds from all vehicle cargo projections' {
+        $items = Invoke-DuneInventorySearchLive -Ip fixture -EntityTypes @('vehicle')
+        $items.ok | Should -BeTrue -Because $items.error
+        $items.items.Count | Should -Be 1
+        $items.items[0].id | Should -Be 600
+        $items.items[0].entity.workspacePath | Should -Be '/vehicles?view=cargo&scope_type=vehicle&scope_id=42'
+        $grouped = Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('vehicle') -ScopeType vehicle -ScopeId 42
+        $grouped.ok | Should -BeTrue -Because $grouped.error
+        $grouped.groups[0].totalQuantity | Should -Be 7
+        $grouped.players[0].id | Should -Be 100
+        $rows = Invoke-DuneInventoryOccurrencesLive -Ip fixture -EntityTypes @('vehicle') -ScopeType vehicle -ScopeId 42 -TemplateId Copper
+        $rows.ok | Should -BeTrue -Because $rows.error
+        $rows.items.Count | Should -Be 1
+        $wrongScope = Invoke-DuneInventoryOccurrencesLive -Ip fixture -EntityTypes @('vehicle') -ScopeType vehicle -ScopeId 43 -TemplateId Copper
+        $wrongScope.ok | Should -BeTrue -Because $wrongScope.error
+        $wrongScope.items.Count | Should -Be 0
+    }
+
+    It 'refuses multiple cargo holds and does not attribute cargo to a shared or ambiguous owner' {
+        [void](Invoke-TestVehicleSql -Sql 'INSERT INTO dune.inventories (id, actor_id, inventory_type) VALUES (505, 42, 0);')
+        (Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('vehicle')).ok | Should -BeFalse
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].deletion_blocked_reason | Should -Match 'ambiguous'
+        [void](Invoke-TestVehicleSql -Sql 'DELETE FROM dune.inventories WHERE id = 505; INSERT INTO dune.permission_actor_rank VALUES (42,111,1);')
+        $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
+        $fleet.vehicles[0].ownership_status | Should -Be 'ambiguous'
+        $cargo = Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('vehicle') -PlayerId 110
+        $cargo.ok | Should -BeTrue -Because $cargo.error
+        $cargo.groups.Count | Should -Be 0
+    }
+
+    It 'binds cargo and permission changes to deletion but ignores ordinary integrity updates' {
+        $before = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
+        [void](Invoke-TestVehicleSql -Sql "UPDATE dune.vehicle_modules SET stats = '{}' WHERE id = 300;")
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision | Should -Be $before
+        [void](Invoke-TestVehicleSql -Sql 'UPDATE dune.items SET stack_size = 8 WHERE id = 600;')
+        $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $before -DatabaseScope $script:scopeKey
+        $result.ok | Should -BeFalse
+        $result.error | Should -Match 'changed'
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).total | Should -Be 1
+    }
+
+    It 'deletes exactly one vehicle and proves cargo, markers, modules and recovery cleanup' {
+        $revision = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
+        $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $revision -DatabaseScope $script:scopeKey
+        $result.ok | Should -BeTrue -Because $result.error
+        (Get-DuneVehicleFleetLive -Ip fixture).total | Should -Be 1
+        $survivors = Invoke-TestVehicleSql -Sql 'SELECT count(*) FROM dune.items;'
+        $survivors.rows[0][0] | Should -Be '2'
+    }
+
+    It 'blocks travel, recovery and backup states inside the transaction' -TestCases @(@{ State = 'Travel' }, @{ State = 'VehicleRecovery' }, @{ State = 'VehicleBackup' }) {
+        param($State)
+        $revision = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
+        [void](Invoke-TestVehicleSql -Sql "INSERT INTO dune.actor_state VALUES (42, '$State');")
+        $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $revision -DatabaseScope $script:scopeKey
+        $result.ok | Should -BeFalse
+        $result.error | Should -Match 'still pending'
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).total | Should -Be 1
+    }
+
+    It 'rejects an actual connected game session inside the deletion transaction' {
+        $revision = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
+        $sleepPath = Join-Path $TestDrive 'game-session.sql'
+        [IO.File]::WriteAllText($sleepPath, "SET application_name = 'DuneSandbox - fixture'; SELECT pg_sleep(30);")
+        $process = Start-Process -FilePath $env:DST_TEST_POSTGRES_PSQL -ArgumentList "-X -q -d $env:DST_TEST_POSTGRES_DATABASE -f `"$sleepPath`"" `
+            -RedirectStandardOutput (Join-Path $TestDrive 'game-session.out') -RedirectStandardError (Join-Path $TestDrive 'game-session.err') -PassThru -WindowStyle Hidden
+        $backendPid = 0
+        try {
+            $connected = $false
+            for ($attempt = 0; $attempt -lt 10 -and -not $connected; $attempt++) {
+                $probe = Invoke-TestVehicleSql -Sql "SELECT pid::text FROM pg_stat_activity WHERE application_name = 'DuneSandbox - fixture';"
+                $connected = $probe.ok -and $probe.rows.Count -eq 1
+                if ($connected) { $backendPid = [int]$probe.rows[0][0] }
+                if (-not $connected) { Start-Sleep -Milliseconds 100 }
+            }
+            $connected | Should -BeTrue
+            $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $revision -DatabaseScope $script:scopeKey
+            $result.ok | Should -BeFalse
+            $result.error | Should -Match 'live game database session'
+            (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).total | Should -Be 1
+        } finally {
+            if ($backendPid -gt 0) { [void](Invoke-TestVehicleSql -Sql "SELECT pg_terminate_backend($backendPid);") }
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id }
+            $process.Dispose()
+        }
+    }
+
+    It 'rolls permission cleanup back when a dependent record fails postflight' {
+        [void](Invoke-TestVehicleSql -Sql 'CREATE OR REPLACE FUNCTION dune.permission_actor_destroy(target bigint) RETURNS void LANGUAGE sql AS $$ DELETE FROM dune.permission_actor WHERE actor_id = target; $$;')
+        $revision = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
+        $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $revision -DatabaseScope $script:scopeKey
+        $result.ok | Should -BeFalse
+        $result.error | Should -Match 'postflight failed'
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision | Should -Be $revision
+    }
+}

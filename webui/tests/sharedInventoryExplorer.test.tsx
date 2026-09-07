@@ -165,6 +165,19 @@ afterEach(() => {
 })
 
 describe('Shared Inventory Explorer grouped catalog', () => {
+  it('accepts a vehicle scope but never offers cargo mutation controls to an administrator', async () => {
+    window.history.replaceState(null, '', '/vehicles?view=cargo&scope_type=vehicle&scope_id=70001')
+    occurrenceApi.mockResolvedValue({ ...occurrenceFixture, data: { ...occurrenceFixture.data, items: [{ ...occurrence, entity: { ...occurrence.entity, type: 'vehicle', id: 70001, label: 'Scout', inventoryType: 0, workspacePath: '/vehicles?view=cargo&scope_type=vehicle&scope_id=70001' } }] } })
+    const user = userEvent.setup()
+    render(<BrowserRouter><SharedInventoryExplorer entityTypes={['vehicle']} /></BrowserRouter>)
+    await user.click(await screen.findByRole('button', { name: /Copper, total quantity 30/ }))
+    await screen.findByText('Vehicle cargo: Scout')
+    expect(inventoryApi).toHaveBeenCalledWith(expect.objectContaining({ scopeType: 'vehicle', scopeId: 70001, types: ['vehicle'] }))
+    expect(screen.queryByRole('button', { name: 'Delete Copper from Scout' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Select Copper in Scout' })).not.toBeInTheDocument()
+    expect(deleteInventoryItemApi).not.toHaveBeenCalled()
+    expect(deleteStorageItemApi).not.toHaveBeenCalled()
+  })
   it('defaults to all players and locations and renders one aggregate slot', async () => {
     renderExplorer()
     const slot = await screen.findByRole('button', { name: /Copper, total quantity 30, 3 occurrences across 3 locations, quality 0-2/ })
