@@ -74,11 +74,10 @@ describe('inventory workspace embedding', () => {
     expect(screen.getByRole('link', { name: 'Blueprints' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('keeps vehicle cargo visibly unavailable instead of mounting fleet writes', () => {
+  it('embeds proven read-only vehicle cargo rather than fleet writes', () => {
     window.history.replaceState(null, '', '/vehicles?view=cargo')
     render(<BrowserRouter><VehiclesWorkspace /></BrowserRouter>)
-    expect(screen.getByText('Inventory fixture: unavailable')).toBeInTheDocument()
-    expect(screen.getByText(/vehicle-to-cargo inventory join is not/i)).toBeInTheDocument()
+    expect(screen.getByText('Inventory fixture: vehicle')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /queue removal/i })).not.toBeInTheDocument()
   })
 

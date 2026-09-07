@@ -61,7 +61,7 @@ function errorMessage(error: unknown) {
 }
 
 function entityTypeLabel(type: InventoryEntityType) {
-  return type === 'player' ? 'Backpack' : 'Storage box'
+  return type === 'player' ? 'Backpack' : type === 'vehicle' ? 'Vehicle cargo' : 'Storage box'
 }
 
 function valueOrNotReported(value: string) {
@@ -161,7 +161,7 @@ export function SharedInventoryExplorer({
   const parsedScopeId = parsePositiveId(requestedScopeId)
   const hasScopeType = params.has('scope_type')
   const hasScopeId = params.has('scope_id')
-  const validScopeType = requestedScopeType === 'player' || requestedScopeType === 'storage'
+  const validScopeType = requestedScopeType === 'player' || requestedScopeType === 'storage' || requestedScopeType === 'vehicle'
   const scopeError = hasScopeType !== hasScopeId
     ? 'Both scope_type and scope_id are required for a scoped inventory link.'
     : hasScopeType && (!validScopeType || !entityTypes.includes(requestedScopeType as InventoryEntityType))
@@ -175,7 +175,7 @@ export function SharedInventoryExplorer({
     ? 'The requested player ID must be a positive integer.'
     : ''
   const requestedLocationType = params.get('location_type')
-  const locationType = requestedLocationType === 'player' || requestedLocationType === 'storage'
+  const locationType = requestedLocationType === 'player' || requestedLocationType === 'storage' || requestedLocationType === 'vehicle'
     ? requestedLocationType : undefined
   const locationId = parsePositiveId(params.get('location_id'))
   const locationError = params.has('location_type') !== params.has('location_id')
@@ -287,7 +287,7 @@ export function SharedInventoryExplorer({
     setLoading(true)
     setError('')
     try {
-      await refreshSharedInventory()
+      if (!entityTypes.includes('vehicle')) await refreshSharedInventory()
       await load(undefined, false, true)
     } catch (reason) {
       setError(errorMessage(reason))
@@ -343,7 +343,7 @@ export function SharedInventoryExplorer({
     <WorkspaceSection id="shared-inventory" title={title} description={description}>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="pill border-info/40 text-info">Inventory catalog</span>
-        {entityTypes.map(type => <span key={type} className="pill border-border text-text-muted">{type === 'player' ? 'Player backpacks' : 'Storage boxes'}</span>)}
+        {entityTypes.map(type => <span key={type} className="pill border-border text-text-muted">{type === 'player' ? 'Player backpacks' : type === 'vehicle' ? 'Vehicle cargo (read-only)' : 'Storage boxes'}</span>)}
         {canManageBases && entityTypes.includes('storage') && <span className="pill border-accent/40 text-accent-bright">Box names editable</span>}
         {current && <FreshnessBadge state={current.freshness.state} observedAt={current.freshness.observedAt} label={current.data.mode === 'demo' ? 'Demo inventory' : 'Live database'} />}
       </div>
@@ -563,7 +563,7 @@ function OccurrencePanel({
     filteredLocations, location => location.label, location => `${location.type}:${location.id}`,
   ), [filteredLocations])
   const canDelete = (item: SharedInventoryItem) => !demo && (
-    item.entity.type === 'player' ? canDeletePlayerItems : canDeleteStorageItems
+    item.entity.type === 'player' ? canDeletePlayerItems : item.entity.type === 'storage' && canDeleteStorageItems
   )
   const deletableItems = items.filter(canDelete)
   const selectedItems = deletableItems.filter(item => selectedItemKeys.has(inventoryItemKey(item)))
@@ -859,7 +859,7 @@ function OccurrencePanel({
                     <div><dt className="text-text-dim">Item</dt><dd>{item.id}</dd></div>
                     <div><dt className="text-text-dim">Inventory</dt><dd>{item.entity.inventoryType}</dd></div>
                   </dl>
-                  <Link className="mt-2 inline-flex text-xs font-semibold text-info hover:text-ibad" to={item.entity.workspacePath}>Open {item.entity.type === 'player' ? 'player' : 'container'}</Link>
+                  <Link className="mt-2 inline-flex text-xs font-semibold text-info hover:text-ibad" to={item.entity.workspacePath}>Open {item.entity.type === 'player' ? 'player' : item.entity.type === 'vehicle' ? 'vehicle cargo' : 'container'}</Link>
                 </li>
               ))}
               </ul>

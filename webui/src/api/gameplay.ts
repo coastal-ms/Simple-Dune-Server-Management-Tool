@@ -14,7 +14,7 @@ export interface GameplayStatus {
   source: DataSource
 }
 
-export type InventoryEntityType = 'player' | 'storage'
+export type InventoryEntityType = 'player' | 'storage' | 'vehicle'
 
 export interface InventoryItemMetadata {
   category: string
@@ -107,7 +107,7 @@ export interface SharedInventoryResponse extends InventoryEnvelope {
     mode: 'live' | 'demo'
     query: string
     supportedEntityTypes: InventoryEntityType[]
-    unavailableEntityTypes: Array<'base' | 'vehicle'>
+    unavailableEntityTypes: Array<'base'>
     playerId: number | null
     location: { type: InventoryEntityType; id: number } | null
     selectedPlayerValid: boolean
@@ -2025,6 +2025,26 @@ export interface VehicleFleetRow {
   map?: string
   actor_state?: string
   owners?: string
+  subtype?: string
+  subtype_source?: 'catalog' | 'actor-class'
+  ownership_status?: 'owned' | 'unowned' | 'ambiguous'
+  permissions?: Array<{ player_id: string; rank: number; character_name: string | null }>
+  module_count?: number
+  recovery_count?: number
+  recovery_durability?: number | null
+  backup_count?: number
+  cargo_hold_count?: number
+  cargo_stack_count?: number
+  cargo_max_item_count?: number | null
+  cargo_max_item_volume?: number | null
+  target_revision?: string
+  deletion_blocked_reason?: string | null
+}
+
+export interface VehicleIntegrity {
+  modules: Array<{ id: string; template_id: string; current_durability: number | null; max_durability: number | null; decayed_max_durability: number | null }>
+  source: 'live'
+  observed_at: string
 }
 
 export interface VehicleDeletionEntry extends Omit<VehicleFleetRow, 'id'> {
@@ -2035,26 +2055,33 @@ export interface VehicleDeletionEntry extends Omit<VehicleFleetRow, 'id'> {
   created_at: string
   finished_at?: string
   message?: string
+  safety_backup?: string
 }
 
 export interface VehicleDeletionQueue {
   entries: VehicleDeletionEntry[]
   history: VehicleDeletionEntry[]
   running: boolean
+  revision?: string
+  last_error?: string
 }
 
 export function getVehicleFleet() {
-  return api<{ vehicles: VehicleFleetRow[]; total: number; source: DataSource }>('/api/gameplay/vehicles')
+  return api<{ vehicles: VehicleFleetRow[]; total: number; source: DataSource; observed_at?: string; stale_after_seconds?: number }>('/api/gameplay/vehicles')
+}
+
+export function getVehicleIntegrity(vehicleId: number) {
+  return api<VehicleIntegrity>(`/api/gameplay/vehicles/${vehicleId}/integrity`)
 }
 
 export function getVehicleDeletionQueue() {
   return api<VehicleDeletionQueue>('/api/gameplay/vehicles/deletions')
 }
 
-export function queueVehicleDeletion(vehicleId: number, confirm: string) {
+export function queueVehicleDeletion(vehicleId: number, confirm: string, targetRevision: string) {
   return api<{ ok: boolean; message: string; entry: VehicleDeletionEntry }>('/api/gameplay/vehicles/deletions', {
     method: 'POST',
-    body: JSON.stringify({ vehicle_id: vehicleId, confirm }),
+    body: JSON.stringify({ vehicle_id: vehicleId, confirm, target_revision: targetRevision }),
   })
 }
 
@@ -2064,13 +2091,13 @@ export function cancelVehicleDeletion(entryId: string) {
   })
 }
 
-export function processVehicleDeletions(confirm: string) {
+export function processVehicleDeletions(confirm: string, queueRevision: string) {
   return withOnlinePlayerGuard(force =>
     api<{ ok: boolean; processed: number; failed: number; message: string }>(
       `/api/gameplay/vehicles/deletions/process${force ? '?force=true' : ''}`,
       {
         method: 'POST',
-        body: JSON.stringify({ confirm }),
+        body: JSON.stringify({ confirm, queue_revision: queueRevision }),
       },
     ),
   )
