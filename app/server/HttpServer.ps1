@@ -833,6 +833,18 @@ function Resolve-DuneStaticPath {
 
 # ---------- Token --------------------------------------------------------------
 
+function Test-DuneLegacyCloudflareLaunchTokenRequest {
+    param($Request)
+
+    # Only the full portal receives the per-launch token after a verified
+    # Cloudflare Access browser request. Do not treat native service-token,
+    # Tailscale bridge, or genuine desktop traffic as this legacy browser path.
+    $email = ''
+    try { $email = [string]$Request.Headers['Cf-Access-Authenticated-User-Email'] } catch {}
+    if (-not $email) { return $false }
+    return -not (Test-DuneLocalOnlyRequest -Request $Request)
+}
+
 function Test-DuneToken {
     param($Request)
     $hdr = $Request.Headers['X-Dune-Token']
@@ -840,7 +852,16 @@ function Test-DuneToken {
 
     # Per-launch token (desktop portal + local API). Empty == dev-mode escape hatch.
     if ([string]::IsNullOrEmpty($script:DuneToken)) { return $true }
-    if ($hdr -eq $script:DuneToken) { return $true }
+    if ($hdr -eq $script:DuneToken) {
+        if (Test-DuneLegacyCloudflareLaunchTokenRequest -Request $Request) {
+            try {
+                if (-not (Test-DuneLegacyCloudflarePortalEnabled)) { return $false }
+            } catch {
+                return $false
+            }
+        }
+        return $true
+    }
 
     # Permanent remote token (the paired mobile app / friend magic link). The
     # per-launch token rotates every start, so the phone holds this stable one
@@ -1182,9 +1203,11 @@ function Invoke-DuneContext {
     $isRemoteApi = $rawPath.StartsWith('/api/remote/')
     $isRemoteSpa = $rawPath.StartsWith('/remote/') -or $rawPath -eq '/remote'
     if ($isRemoteApi -or $isRemoteSpa) {
-        $legacyRemoteDisabled = $false
-        try { $legacyRemoteDisabled = [bool](Test-DunePortalAccountModeEnabled) } catch {}
-        if ($legacyRemoteDisabled) {
+        $legacyRemoteEnabled = $false
+        try { $legacyRemoteEnabled = [bool](Test-DuneLegacyCloudflarePortalEnabled) } catch {}
+        $accountMode = $false
+        try { $accountMode = [bool](Test-DunePortalAccountModeEnabled) } catch {}
+        if (-not $legacyRemoteEnabled -or $accountMode) {
             Write-DuneError -Response $res -Status 404 -Message 'Not found.'
             return
         }

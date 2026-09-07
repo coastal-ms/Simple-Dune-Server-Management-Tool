@@ -7,6 +7,7 @@ BeforeAll {
     . (Join-Path (Get-DstRepoRoot) 'app\server\lib\RemoteIdentity.ps1')
     . (Join-Path (Get-DstRepoRoot) 'app\server\lib\PortalAuth.ps1')
     . (Join-Path (Get-DstRepoRoot) 'app\server\lib\RemoteAccess.ps1')
+    . (Join-Path (Get-DstRepoRoot) 'app\server\lib\RequestPrincipal.ps1')
     . (Join-Path (Get-DstRepoRoot) 'app\server\HttpServer.ps1')
     function New-PortalTestRequest {
         param([string]$Cookie = '', [string]$Address = '127.0.0.1', [string]$Origin = 'https://portal.example.test')
@@ -81,6 +82,205 @@ Describe 'Portal account migration safety' {
         Save-DunePortalAccountStore $store
         Set-Content -LiteralPath (Get-DunePortalAccountsPath) -Value '{broken' -Encoding UTF8
         (Get-DunePortalAccountStore).accountLoginEnabled | Should -BeFalse
+    }
+}
+
+Describe 'Legacy Cloudflare ACL enablement' {
+    BeforeEach { Remove-Item -LiteralPath $script:PortalTestRoot -Recurse -Force -ErrorAction SilentlyContinue }
+
+    It 'defaults legacy ACLs to disabled while preserving their re-enable metadata' {
+        $aclDir = Split-Path -Parent (Get-DuneRemoteAclPath)
+        New-Item -ItemType Directory -Path $aclDir -Force | Out-Null
+        @{
+            owner = 'OWNER@example.test'
+            admins = @('Admin@example.test')
+            hostname = 'portal.example.test'
+            cloudflareTeamDomain = 'team.cloudflareaccess.com'
+            cloudflareAudience = 'audience-value'
+        } | ConvertTo-Json | Set-Content -LiteralPath (Get-DuneRemoteAclPath) -Encoding UTF8
+
+        $acl = Get-DuneRemoteAcl
+
+        $acl.legacyCloudflareEnabled | Should -BeFalse
+        (Test-DuneLegacyCloudflarePortalEnabled) | Should -BeFalse
+        $acl.owner | Should -Be 'owner@example.test'
+        $acl.admins | Should -Contain 'admin@example.test'
+        $acl.hostname | Should -Be 'portal.example.test'
+        $acl.cloudflareTeamDomain | Should -Be 'team.cloudflareaccess.com'
+        $acl.cloudflareAudience | Should -Be 'audience-value'
+    }
+
+    It 'fails closed when the persisted enablement field is malformed' {
+        $aclDir = Split-Path -Parent (Get-DuneRemoteAclPath)
+        New-Item -ItemType Directory -Path $aclDir -Force | Out-Null
+        @{
+            owner = 'owner@example.test'
+            legacyCloudflareEnabled = 'true'
+        } | ConvertTo-Json | Set-Content -LiteralPath (Get-DuneRemoteAclPath) -Encoding UTF8
+
+        $acl = Get-DuneRemoteAcl
+
+        $acl.legacyCloudflareEnabled | Should -BeFalse
+        $acl.owner | Should -Be 'owner@example.test'
+    }
+
+    It 'persists only an explicit boolean enablement setting' {
+        $saved = Save-DuneRemoteAcl -Acl @{
+            owner = 'owner@example.test'
+            admins = @('admin@example.test')
+            hostname = 'portal.example.test'
+            cloudflareTeamDomain = 'team.cloudflareaccess.com'
+            cloudflareAudience = 'audience-value'
+            legacyCloudflareEnabled = $true
+        }
+
+        $saved.legacyCloudflareEnabled | Should -BeTrue
+        (Get-DuneRemoteAcl).legacyCloudflareEnabled | Should -BeTrue
+        { Save-DuneRemoteAcl -Acl @{ legacyCloudflareEnabled = 'true' } } |
+            Should -Throw '*must be a boolean*'
+    }
+
+    It 'denies disabled legacy Cloudflare traffic before JWT validation' {
+        Save-DuneRemoteAcl -Acl @{
+            owner = 'owner@example.test'
+            legacyCloudflareEnabled = $false
+        } | Out-Null
+        Mock Test-DuneCloudflareAccessJwt { throw 'JWT validation must not run while disabled' }
+
+        $result = Test-DuneRemoteRequest -Request ([pscustomobject]@{ Headers = @{} })
+
+        $result.ok | Should -BeFalse
+        $result.status | Should -Be 401
+        Assert-MockCalled Test-DuneCloudflareAccessJwt -Times 0 -Exactly
+    }
+
+    It 'keeps JWT and owner authorization unchanged after an explicit re-enable' {
+        Save-DuneRemoteAcl -Acl @{
+            owner = 'owner@example.test'
+            legacyCloudflareEnabled = $true
+        } | Out-Null
+        Mock Test-DuneCloudflareAccessJwt { @{ ok = $true; email = 'owner@example.test' } }
+
+        $result = Test-DuneRemoteRequest -Request ([pscustomobject]@{ Headers = @{} })
+
+        $result.ok | Should -BeTrue
+        $result.role | Should -Be 'owner'
+        Assert-MockCalled Test-DuneCloudflareAccessJwt -Times 1 -Exactly
+    }
+
+    It 'revokes ordinary API and WebSocket launch-token access after disablement' {
+        $originalRoutes = $script:DuneRoutes
+        $originalWsRoutes = $script:DuneWsRoutes
+        $originalToken = $script:DuneToken
+        $originalRemoteToken = $script:DuneRemoteToken
+        $originalPoolState = $script:DuneApiPoolEnabled
+        try {
+            $script:DuneRoutes = [Collections.Generic.List[object]]::new()
+            $script:DuneWsRoutes = [Collections.Generic.List[object]]::new()
+            $script:DuneToken = 'legacy-launch-token'
+            $script:DuneApiPoolEnabled = $false
+            Register-DuneRoute -Method GET -Path '/api/legacy-token-regression' -Handler {
+                param($req, $res, $routeParams, $body)
+                Write-DuneJson -Response $res -Body @{
+                    principal = $routeParams.requestPrincipal.type
+                    transport = $routeParams.requestPrincipal.transport.kind
+                }
+            }
+
+            $newRequest = {
+                param([bool]$IsWebSocket = $false)
+                $url = if ($IsWebSocket) {
+                    'http://127.0.0.1/ws/legacy-token-regression'
+                } else {
+                    'http://127.0.0.1/api/legacy-token-regression'
+                }
+                [pscustomobject]@{
+                    Url = [uri]$url
+                    HttpMethod = 'GET'
+                    IsWebSocketRequest = $IsWebSocket
+                    HasEntityBody = $false
+                    Headers = @{
+                        'X-Dune-Token' = 'legacy-launch-token'
+                        'Cf-Access-Authenticated-User-Email' = 'owner@example.test'
+                    }
+                    QueryString = [Collections.Specialized.NameValueCollection]::new()
+                    RemoteEndPoint = [pscustomobject]@{ Address = [Net.IPAddress]::Loopback }
+                }
+            }
+            $newResponse = {
+                [pscustomobject]@{
+                    StatusCode = 0
+                    ContentType = ''
+                    ContentLength64 = 0L
+                    Headers = @{}
+                    OutputStream = [IO.MemoryStream]::new()
+                }
+            }
+
+            Save-DuneRemoteAcl -Acl @{
+                owner = 'owner@example.test'
+                legacyCloudflareEnabled = $true
+            } | Out-Null
+            $enabledResponse = & $newResponse
+            Invoke-DuneContext -Ctx ([pscustomobject]@{
+                Request = (& $newRequest)
+                Response = $enabledResponse
+            })
+            $enabledBody = [Text.Encoding]::UTF8.GetString($enabledResponse.OutputStream.ToArray()) | ConvertFrom-Json
+
+            $enabledResponse.StatusCode | Should -Be 200
+            $enabledBody.principal | Should -Be 'legacy-token'
+            $enabledBody.transport | Should -Be 'cloudflare-access'
+
+            Save-DuneRemoteAcl -Acl @{
+                owner = 'owner@example.test'
+                legacyCloudflareEnabled = $false
+            } | Out-Null
+            $disabledResponse = & $newResponse
+            Invoke-DuneContext -Ctx ([pscustomobject]@{
+                Request = (& $newRequest)
+                Response = $disabledResponse
+            })
+
+            $disabledResponse.StatusCode | Should -Be 401
+
+            $disabledWsResponse = & $newResponse
+            Invoke-DuneContext -Ctx ([pscustomobject]@{
+                Request = (& $newRequest $true)
+                Response = $disabledWsResponse
+            })
+
+            $disabledWsResponse.StatusCode | Should -Be 401
+
+            $desktopRequest = & $newRequest
+            $desktopRequest.Headers.Remove('Cf-Access-Authenticated-User-Email')
+            $desktopResponse = & $newResponse
+            Invoke-DuneContext -Ctx ([pscustomobject]@{
+                Request = $desktopRequest
+                Response = $desktopResponse
+            })
+
+            $desktopResponse.StatusCode | Should -Be 200
+
+            $script:DuneRemoteToken = 'paired-service-token'
+            $serviceRequest = & $newRequest
+            $serviceRequest.Headers['X-Dune-Token'] = 'paired-service-token'
+            $serviceRequest.Headers.Remove('Cf-Access-Authenticated-User-Email')
+            $serviceRequest.Headers['Cf-Ray'] = 'service-token-path'
+            $serviceResponse = & $newResponse
+            Invoke-DuneContext -Ctx ([pscustomobject]@{
+                Request = $serviceRequest
+                Response = $serviceResponse
+            })
+
+            $serviceResponse.StatusCode | Should -Be 200
+        } finally {
+            $script:DuneRoutes = $originalRoutes
+            $script:DuneWsRoutes = $originalWsRoutes
+            $script:DuneToken = $originalToken
+            $script:DuneRemoteToken = $originalRemoteToken
+            $script:DuneApiPoolEnabled = $originalPoolState
+        }
     }
 }
 
@@ -257,7 +457,12 @@ Describe 'Portal auth route enforcement' {
     }
 
     It 'never trusts a raw Cloudflare email header without a signed JWT' {
-        Save-DuneRemoteAcl -Acl @{ owner = 'owner@example.test'; admins = @(); hostname = 'portal.example.test' } | Out-Null
+        Save-DuneRemoteAcl -Acl @{
+            owner = 'owner@example.test'
+            admins = @()
+            hostname = 'portal.example.test'
+            legacyCloudflareEnabled = $true
+        } | Out-Null
         $request = [pscustomobject]@{ Headers = @{ 'Cf-Access-Authenticated-User-Email' = 'owner@example.test' } }
         $result = Test-DuneRemoteRequest -Request $request
         $result.ok | Should -BeFalse

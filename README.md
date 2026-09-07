@@ -14,7 +14,7 @@ Solo saves.
 [Changelog](CHANGELOG.md) ·
 [Discord](https://discord.gg/tj2x7cywSC)**
 
-Current stable release: **v14.0.1**
+Current stable release: **v15.0.0**
 
 Confirmed compatible with Dune: Awakening **1.4.10.4**.
 
@@ -34,8 +34,9 @@ guarded controls in one native Windows app.
 - Manage one local VM or a separate Hyper-V host over LAN.
 - Use the responsive full Browser Portal from a phone, tablet, or PC with
   optional host-managed Owner and Admin accounts.
-- Use Tailscale Funnel for new remote setups. Existing Cloudflare custom-domain
-  configurations remain supported during deprecation but are planned for removal.
+- Use Tailscale Funnel and the Browser Portal for new remote setups. v15 keeps
+  existing Cloudflare custom-domain configuration but disables its legacy portal
+  by default; the host can explicitly re-enable it in local Settings.
 
 ### Solo Mode
 
@@ -230,8 +231,8 @@ controls and read-only previews follow the selected light/dark palette.
 The Spatial dashboard reserves its dock below the globe and controls, without
 overlap. In other themed workspaces, the same single dock floats when its natural
 footer position is offscreen and returns without a horizontal jump.
-The UX is intended for a **finalphase-1** community-review prerelease before
-promotion to stable.
+The v15 Command Deck is an opt-in alternative to the Classic layout and retains
+the same guarded administration behavior.
 
 **Signal**, available through **Settings > Appearance**, is a complete alternative
 visual treatment for both layouts: carbon canvas, graphite panels, violet primary
