@@ -84,7 +84,7 @@ describe('workspace manifest', () => {
     expect(localPaths).toContain('/database')
     expect(localPaths).toContain('/terminal')
     expect(localPaths).toContain('/solo')
-    expect(localPaths).toContain('/map?view=lifecycle')
+    expect(localPaths).toContain('/map?view=atlas')
     expect(localPaths).toContain('/sponsors')
   })
 
@@ -97,22 +97,22 @@ describe('workspace manifest', () => {
     })
     expect(localItems[0].label).toBe('Server Overview')
     expect(localItems.filter(item => item.label === 'Gameplay Admin')).toHaveLength(1)
-    expect(localItems.filter(item => item.label === 'Map SpinUp')).toHaveLength(1)
+    expect(localItems.filter(item => item.label === 'DD Atlas')).toHaveLength(1)
     expect(localItems.some(item => ['Map', 'Players', 'Bases', 'Vehicles', 'Economy'].includes(item.label))).toBe(false)
     expect(new Set(localItems.map(item => item.to)).size).toBe(localItems.length)
     expect(localItems.length).toBeLessThanOrEqual(14)
   })
 
-  it('highlights Map SpinUp instead of Gameplay Admin on the lifecycle view', () => {
+  it('highlights DD Atlas instead of Gameplay Admin on the static atlas view', () => {
     const gameplay = NAV_ITEMS.find(item => item.label === 'Gameplay Admin')
-    const mapSpinUp = NAV_ITEMS.find(item => item.label === 'Map SpinUp')
+    const atlas = NAV_ITEMS.find(item => item.label === 'DD Atlas')
 
     expect(gameplay).toBeDefined()
-    expect(mapSpinUp).toBeDefined()
+    expect(atlas).toBeDefined()
     expect(isNavItemActive(gameplay!, '/map', 'view=lifecycle')).toBe(false)
-    expect(isNavItemActive(mapSpinUp!, '/map', 'view=lifecycle')).toBe(true)
-    expect(isNavItemActive(gameplay!, '/map', 'view=atlas')).toBe(true)
-    expect(isNavItemActive(mapSpinUp!, '/map', 'view=atlas')).toBe(false)
+    expect(isNavItemActive(atlas!, '/map', 'view=lifecycle')).toBe(false)
+    expect(isNavItemActive(gameplay!, '/map', 'view=atlas')).toBe(false)
+    expect(isNavItemActive(atlas!, '/map', 'view=atlas')).toBe(true)
   })
 
   it('defines one compact Gameplay Admin destination set and singular route state', () => {
