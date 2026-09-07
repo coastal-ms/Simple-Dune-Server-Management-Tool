@@ -35,9 +35,11 @@ Processing requires `RESTART AND DELETE` plus the exact reviewed queue revision.
 Legacy entries without this binding must be cancelled and queued again.
 
 Before disruption, every target is re-read. Travel, VehicleBackup, VehicleRecovery
-and ambiguous ownership/cargo are refused. A uniquely named full database safety
-backup must succeed and be found on disk with a nontrivial byte count; its recovery
-path is retained with the queue outcome.
+and ambiguous ownership/cargo are refused. Every inventory in the deletion closure,
+including module-linked inventories, must be unowned or belong to the target vehicle.
+An actor-owned inventory cannot point to a different vehicle's module either.
+A uniquely named full database safety backup must succeed and be found on disk with a
+nontrivial byte count; its recovery path is retained with the queue outcome.
 
 DST then stops the battlegroup. Every target requires a fresh matching namespace,
 an explicit Stopped phase, and no connected DuneSandbox database sessions. The
@@ -47,6 +49,12 @@ dependent records before commit. It checks game sessions again before commit and
 performs a separate strict postflight read. Failures remain visible; completed
 outcomes are persisted before restart. Restart is attempted even if the stop or
 delete operation fails.
+
+Automated SQL tests use only the disposable loopback PostgreSQL fixture on port
+55439, a `dst_inventory` database (or suffixed fixture database), and the
+`dst_inventory` role. Every fixture subprocess rejects host-address/service
+overrides, strips inherited libpq settings, and pins its connection explicitly.
+Existing `dune` schemas are not overwritten to prepare these tests.
 
 Use this window without concurrent external battlegroup controls. DST serializes
 its HTTP maintenance admission and queue operations, but does not control an

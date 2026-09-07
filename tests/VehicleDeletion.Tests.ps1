@@ -119,6 +119,11 @@ Describe 'Vehicle deletion SQL' {
         $script:queries[0] | Should -Match 'Vehicle cargo hold has conflicting ownership references'
         $script:queries[0] | Should -Match 'inv\.inventory_type = 0'
         $script:queries[0] | Should -Match 'inv\.exchange_id IS NOT NULL OR inv\.item_id IS NOT NULL OR inv\.vehicle_module_id IS NOT NULL'
+        $script:queries[0] | Should -Match 'Vehicle deletion closure includes inventory owned by another actor'
+        $script:queries[0] | Should -Match 'inv\.vehicle_module_id IN \(SELECT id FROM dune\.vehicle_modules WHERE vehicle_id = 42::bigint\)'
+        $script:queries[0] | Should -Match 'inv\.actor_id IS NOT NULL'
+        $script:queries[0] | Should -Match 'inv\.actor_id <> 42::bigint'
+        $script:queries[0] | Should -Match 'vm\.id = inv\.vehicle_module_id AND vm\.vehicle_id = 42::bigint'
     }
 
     It 'aggregates duplicate actor-state rows into one vehicle row' {

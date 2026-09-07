@@ -79,6 +79,12 @@ SELECT a.id::text AS vehicle_id, a.class, COALESCE(a.map, '') AS map,
        (SELECT count(*) FROM dune.inventories inv
         WHERE inv.actor_id = a.id AND inv.inventory_type = 0
           AND (inv.exchange_id IS NOT NULL OR inv.item_id IS NOT NULL OR inv.vehicle_module_id IS NOT NULL))::text AS cargo_conflict_count,
+       (SELECT count(*) FROM dune.inventories inv
+        WHERE (inv.vehicle_module_id IN (SELECT vm.id FROM dune.vehicle_modules vm WHERE vm.vehicle_id = a.id)
+               AND inv.actor_id IS NOT NULL AND inv.actor_id <> a.id)
+           OR (inv.actor_id = a.id AND inv.vehicle_module_id IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM dune.vehicle_modules vm
+                               WHERE vm.id = inv.vehicle_module_id AND vm.vehicle_id = a.id)))::text AS closure_owner_conflict_count,
        (SELECT count(*) FROM dune.items i JOIN dune.inventories inv ON inv.id = i.inventory_id
         WHERE inv.actor_id = a.id AND inv.inventory_type = 0)::text AS cargo_stack_count,
        (SELECT CASE WHEN count(*) = 1 THEN min(inv.max_item_count)::text END FROM dune.inventories inv
@@ -115,6 +121,7 @@ ORDER BY COALESCE(NULLIF(pa.actor_name, ''), a.class), a.id;
         $recoveryCount = [int](ConvertTo-DuneInt $row['recovery_count'])
         $cargoHolds = [int](ConvertTo-DuneInt $row['cargo_hold_count'])
         $cargoConflicts = [int](ConvertTo-DuneInt $row['cargo_conflict_count'])
+        $closureOwnerConflicts = [int](ConvertTo-DuneInt $row['closure_owner_conflict_count'])
         $blockedState = @(([string]$row['actor_state'] -split ', ') | Where-Object { $_ -in @('Travel','VehicleBackup','VehicleRecovery') })
         $revision = [string]$row['target_revision']
         if ($revision -notmatch '^[a-f0-9]{32}$') { throw 'Vehicle target revision is unavailable.' }
@@ -143,7 +150,7 @@ ORDER BY COALESCE(NULLIF(pa.actor_name, ''), a.class), a.id;
             deletion_blocked_reason = if ($blockedState.Count -gt 0) {
                 "Vehicle is in $($blockedState -join ', '). Finish travel or recovery in-game before queuing removal."
             } elseif ($ownership -eq 'ambiguous' -or $invalidRoster -or $recoveryCount -gt 1 -or
-                $cargoHolds -gt 1 -or $cargoConflicts -gt 0) {
+                $cargoHolds -gt 1 -or $cargoConflicts -gt 0 -or $closureOwnerConflicts -gt 0) {
                 'Ownership, recovery, or cargo scope is ambiguous. Resolve it in-game before queuing removal.'
             } else { $null }
         }

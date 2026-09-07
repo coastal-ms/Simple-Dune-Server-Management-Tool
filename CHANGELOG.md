@@ -28,6 +28,8 @@ here cover everything those tags shipped.
 ### Fixed
 
 - Routed Command Deck Map navigation to the static **DD Atlas**.
+- Hardened Vehicle Lifecycle removal to reject any deletion closure that includes
+  an inventory owned by another actor.
 
 ## [15.0.0] - 2026-09-07
 

@@ -1,5 +1,6 @@
 BeforeAll {
     . (Join-Path $PSScriptRoot '_TestHelpers.ps1')
+    . (Join-Path $PSScriptRoot '_PostgresFixture.ps1')
     Import-DstLib 'Database.ps1'
     Import-DstLib 'ApiContract.ps1'
     Import-DstLib 'Gameplay.ps1'
@@ -17,14 +18,11 @@ BeforeAll {
     $script:DuneGameplayItemRules = @{}
     function Invoke-TestVehicleSql {
         param([string]$Sql)
-        if ($env:DST_TEST_POSTGRES_DATABASE -notmatch '^dst_inventory(?:_[A-Za-z0-9_-]+)?$' -or $env:PGHOST -ne '127.0.0.1') {
-            throw 'Vehicle integration tests require an explicit disposable loopback dst_inventory database.'
-        }
         $path = Join-Path $TestDrive 'vehicle-query.sql'
         [IO.File]::WriteAllText($path, $Sql, [Text.UTF8Encoding]::new($false))
-        $output = (& $env:DST_TEST_POSTGRES_PSQL -X -q --csv -v ON_ERROR_STOP=1 -d $env:DST_TEST_POSTGRES_DATABASE -f $path 2>&1) -join "`n"
-        if ($LASTEXITCODE -ne 0) { return @{ ok = $false; error = $output } }
-        return ConvertFrom-DunePsqlCsv -Output $output -MaxRows 10001
+        $result = Invoke-TestPostgresFile -SqlPath $path
+        if ($result.ExitCode -ne 0) { return @{ ok = $false; error = $result.Error } }
+        return ConvertFrom-DunePsqlCsv -Output $result.Output -MaxRows 10001
     }
 }
 
@@ -80,9 +78,95 @@ Describe 'Vehicle lifecycle host safety' {
         (Invoke-DuneInventoryGroupedPage -Mode live -EntityTypes @('vehicle') -CursorSource cache).status | Should -Be 409
         (Invoke-DuneInventoryOccurrencesPage -Mode live -TemplateId Copper -EntityTypes @('vehicle') -CursorSource cache).status | Should -Be 409
     }
+
+}
+
+Describe 'Disposable PostgreSQL fixture routing' {
+    BeforeEach {
+        $script:fixtureEnvironment = @{}
+        foreach ($name in @('DST_TEST_POSTGRES_DATABASE', 'DST_TEST_POSTGRES_PSQL',
+            'PGHOST', 'PGPORT', 'PGUSER', 'PGDATABASE', 'PGHOSTADDR', 'PGSERVICE',
+            'PGSERVICEFILE', 'PGSYSCONFDIR', 'PGOPTIONS', 'PGPASSFILE')) {
+            $script:fixtureEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
+            [Environment]::SetEnvironmentVariable($name, $null)
+        }
+        $env:DST_TEST_POSTGRES_PSQL = 'fixture-must-not-launch.exe'
+        $env:DST_TEST_POSTGRES_DATABASE = 'dst_inventory_fixture_guard'
+        $env:PGHOST = 'localhost'
+        $env:PGPORT = '55439'
+        $env:PGUSER = 'dst_inventory'
+    }
+    AfterEach {
+        foreach ($name in $script:fixtureEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $script:fixtureEnvironment[$name])
+        }
+    }
+
+    It 'rejects <Name> overrides before executing any SQL' -TestCases @(
+        @{ Name = 'PGHOSTADDR'; Value = '192.0.2.123' }
+        @{ Name = 'PGHOSTADDR'; Value = '127.0.0.1,192.0.2.123' }
+        @{ Name = 'PGHOSTADDR'; Value = ' ' }
+        @{ Name = 'PGSERVICE'; Value = 'other-service' }
+        @{ Name = 'PGSERVICEFILE'; Value = 'other-service.conf' }
+        @{ Name = 'PGSYSCONFDIR'; Value = 'other-service-directory' }
+    ) {
+        param($Name, $Value)
+        [Environment]::SetEnvironmentVariable($Name, $Value)
+        { Invoke-TestVehicleSql -Sql 'SELECT 1;' } | Should -Throw "*$Name*"
+        { New-TestPostgresStartInfo -SqlPath 'game-session.sql' } | Should -Throw "*$Name*"
+    }
+
+    It 'rejects non-fixture or connection-string <Name> values' -TestCases @(
+        @{ Name = 'PGHOST'; Value = '192.0.2.123' }
+        @{ Name = 'PGHOST'; Value = 'localhost,192.0.2.123' }
+        @{ Name = 'PGPORT'; Value = '5432' }
+        @{ Name = 'PGUSER'; Value = 'postgres' }
+        @{ Name = 'PGDATABASE'; Value = 'service=other-service' }
+        @{ Name = 'DST_TEST_POSTGRES_DATABASE'; Value = 'service=other-service' }
+        @{ Name = 'DST_TEST_POSTGRES_DATABASE'; Value = 'postgresql://192.0.2.123/dst_inventory' }
+        @{ Name = 'DST_TEST_POSTGRES_DATABASE'; Value = 'dst_inventory host=192.0.2.123' }
+    ) {
+        param($Name, $Value)
+        [Environment]::SetEnvironmentVariable($Name, $Value)
+        { Invoke-TestVehicleSql -Sql 'SELECT 1;' } | Should -Throw '*explicit disposable loopback*'
+    }
+
+    It 'pins the supported <HostValue> form and sanitizes each subprocess snapshot' -TestCases @(
+        @{ HostValue = 'localhost'; Address = '127.0.0.1' }
+        @{ HostValue = '127.0.0.1'; Address = '127.0.0.1' }
+        @{ HostValue = '::1'; Address = '::1' }
+    ) {
+        param($HostValue, $Address)
+        $env:PGHOST = $HostValue
+        $env:PGDATABASE = $env:DST_TEST_POSTGRES_DATABASE
+        $env:PGOPTIONS = '-c search_path=other_schema'
+        $env:PGPASSFILE = 'personal-password-file'
+        $start = New-TestPostgresStartInfo -SqlPath 'fixture with spaces.sql'
+        @($start.ArgumentList) | Should -Contain $Address
+        @($start.ArgumentList) | Should -Contain '55439'
+        @($start.ArgumentList) | Should -Contain 'dst_inventory'
+        @($start.ArgumentList) | Should -Contain 'dst_inventory_fixture_guard'
+        @($start.ArgumentList) | Should -Contain 'fixture with spaces.sql'
+        @($start.ArgumentList) | Should -Contain '-X'
+        @($start.ArgumentList) | Should -Contain '-w'
+        @($start.Environment.Keys) | Should -Not -Contain 'PGOPTIONS'
+        @($start.Environment.Keys) | Should -Not -Contain 'PGHOSTADDR'
+        @($start.Environment.Keys) | Should -Not -Contain 'PGSERVICE'
+        $start.Environment['PGPASSFILE'] | Should -Not -Be 'personal-password-file'
+        $start.Environment['PGSSLMODE'] | Should -Be 'disable'
+        $env:PGHOSTADDR = '192.0.2.123'
+        @($start.Environment.Keys) | Should -Not -Contain 'PGHOSTADDR'
+        { New-TestPostgresStartInfo -SqlPath 'next-query.sql' } | Should -Throw '*PGHOSTADDR*'
+    }
 }
 
 Describe 'Vehicle lifecycle PostgreSQL model' -Skip:(-not $env:DST_TEST_POSTGRES_PSQL -or -not $env:DST_TEST_POSTGRES_DATABASE) {
+    BeforeAll {
+        $existing = Invoke-TestVehicleSql -Sql "SELECT to_regnamespace('dune') IS NULL AS empty;"
+        if (-not $existing.ok -or $existing.rows[0][0] -ne 't') {
+            throw 'Vehicle fixture schema must be absent before running destructive tests.'
+        }
+    }
     BeforeEach {
         Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; namespace = 'funcom-seabass-sh-test'; world = 'sh-test' } }
         Mock Test-DuneVehicleWindowStopped { @{ ok = $true } }
@@ -219,6 +303,38 @@ INSERT INTO dune.overmap_players VALUES (42);
         (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).total | Should -Be 1
     }
 
+    It 'rejects cross-actor module inventory type <InventoryType> before queueing and inside deletion' -TestCases @(
+        @{ InventoryType = '0' }
+        @{ InventoryType = '1' }
+        @{ InventoryType = 'NULL' }
+    ) {
+        param($InventoryType)
+        $setup = Invoke-TestVehicleSql -Sql "INSERT INTO dune.inventories (id, actor_id, inventory_type, vehicle_module_id) VALUES (506, 100, $InventoryType, 300);"
+        $setup.ok | Should -BeTrue -Because $setup.error
+        $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
+        $fleet.vehicles[0].deletion_blocked_reason | Should -Match 'ambiguous'
+        $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $fleet.vehicles[0].target_revision -DatabaseScope $script:scopeKey
+        $result.ok | Should -BeFalse
+        $result.error | Should -Match 'owned by another actor'
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).total | Should -Be 1
+    }
+
+    It 'rejects a target-owned non-cargo inventory linked to another vehicle module' {
+        $setup = Invoke-TestVehicleSql -Sql @'
+INSERT INTO dune.vehicle_modules VALUES (302, 43, 'Engine', '{}');
+INSERT INTO dune.inventories (id, actor_id, inventory_type, vehicle_module_id) VALUES (506, 42, 1, 302);
+'@
+        $setup.ok | Should -BeTrue -Because $setup.error
+        $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
+        $fleet.vehicles[0].deletion_blocked_reason | Should -Match 'ambiguous'
+        $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $fleet.vehicles[0].target_revision -DatabaseScope $script:scopeKey
+        $result.ok | Should -BeFalse
+        $result.error | Should -Match 'owned by another actor'
+        (Get-DuneVehicleFleetLive -Ip fixture).total | Should -Be 2
+        $survivor = Invoke-TestVehicleSql -Sql 'SELECT count(*) FROM dune.inventories WHERE id = 506;'
+        $survivor.rows[0][0] | Should -Be '1'
+    }
+
     It 'binds actor and module inventory changes to deletion but ignores ordinary integrity updates' {
         $before = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
         [void](Invoke-TestVehicleSql -Sql "UPDATE dune.vehicle_modules SET stats = '{}' WHERE id = 300;")
@@ -258,8 +374,7 @@ INSERT INTO dune.overmap_players VALUES (42);
         $revision = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
         $sleepPath = Join-Path $TestDrive 'game-session.sql'
         [IO.File]::WriteAllText($sleepPath, "SET application_name = 'DuneSandbox - fixture'; SELECT pg_sleep(30);")
-        $process = Start-Process -FilePath $env:DST_TEST_POSTGRES_PSQL -ArgumentList "-X -q -d $env:DST_TEST_POSTGRES_DATABASE -f `"$sleepPath`"" `
-            -RedirectStandardOutput (Join-Path $TestDrive 'game-session.out') -RedirectStandardError (Join-Path $TestDrive 'game-session.err') -PassThru -WindowStyle Hidden
+        $process = [Diagnostics.Process]::Start((New-TestPostgresStartInfo -SqlPath $sleepPath))
         $backendPid = 0
         try {
             $connected = $false

@@ -44,9 +44,10 @@ servers or successful simulated writes:
 | `settings.png` | Unconfigured host; legacy Cloudflare disabled |
 | `browser-portal.png` | Phone sign-in, empty fields; no remote session |
 
-Desktop captures are 1600 x 1000; phone capture is 390 x 844. Captions distinguish
-these states from field evidence. The Atlas filename is retained for existing
-links, but the public feature name is **DD Atlas**.
+Desktop captures are 1600 x 1000, except Classic Server Health at 1600 x 960;
+the phone capture is 390 x 844. Captions distinguish these states from field
+evidence. The Atlas filename is retained for existing links, but the public
+feature name is **DD Atlas**.
 
 To refresh, build `webui` and serve **only** `webui\dist` with an isolated local
 static server. Do not use the WebUI Vite dev server: its API proxy can reach a

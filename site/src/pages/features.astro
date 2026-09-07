@@ -13,7 +13,7 @@ const sections = [
     caption: "Offline World view. The globe organizes navigation and reported status; it is not live game geography.",
   },
   {
-    id: "health", title: "Classic, still at home", img: "server-health.png",
+    id: "health", title: "Classic, still at home", img: "server-health.png", height: 960,
     location: "Classic → Server Overview",
     body: "Keep the familiar sidebar and Server Health dashboard. When connected, inspect VM, battlegroup, database, gateway, game pods, public ports, and restart information. Raw output and log exports help distinguish missing information from a healthy server.",
     alt: "v15 Classic Server Health dashboard with the updated sidebar and Try Command Deck control, showing a not-configured VM",
@@ -92,7 +92,7 @@ const sections = [
           <div><h2>{s.title}</h2><div class="tour-location">{s.location}</div></div>
           <p>{s.body}</p>
         </div>
-        <Screenshot src={`${base}screenshots/${s.img}`} alt={s.alt} caption={s.caption} />
+        <Screenshot src={`${base}screenshots/${s.img}`} alt={s.alt} caption={s.caption} height={s.height ?? 1000} />
       </section>
     ))}
     <section id="browser-portal" class="tour-section phone-tour">
