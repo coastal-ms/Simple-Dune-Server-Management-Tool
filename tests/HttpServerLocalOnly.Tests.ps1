@@ -117,10 +117,10 @@ Describe 'HTTP local-only request enforcement' {
         $server | Should -Match "\`$routeParams\['portalAccountRole'\]"
     }
 
-    It 'disables the legacy remote surface while account mode is enabled' {
+    It 'fails closed on the legacy remote surface unless its explicit ACL flag is enabled' {
         $source = Get-Content (Join-Path (Get-DstRepoRoot) 'app\server\HttpServer.ps1') -Raw
-        $source | Should -Match '\$legacyRemoteDisabled = \[bool\]\(Test-DunePortalAccountModeEnabled\)'
-        $source | Should -Match 'if \(\$legacyRemoteDisabled\)[\s\S]+?Status 404'
+        $source | Should -Match '\$legacyRemoteEnabled = \[bool\]\(Test-DuneLegacyCloudflarePortalEnabled\)'
+        $source | Should -Match 'if \(-not \$legacyRemoteEnabled -or \$accountMode\)[\s\S]+?Status 404'
     }
 
     It 'keeps the launch-token browser handoff host-only' {

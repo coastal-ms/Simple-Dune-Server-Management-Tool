@@ -103,6 +103,21 @@ Describe 'Invoke-DstRedaction' -Tag 'Pure' {
         $out | Should -Not -Match 'server-secret'
     }
 
+    It 'redacts private sender and location values from chat teleport traces' {
+        $raw = @'
+[2026-09-07T12:00:00.000Z] [INFO] chat command !tp from Funcom-Private-Handle: ok=True trace=msg_abc-123
+[2026-09-07T12:00:00.000Z] [INFO] chat tp trace=msg_abc-123 stage=dequeued channel="global" chat_origin_x="123.45" chat_origin_y="-67.89" chat_origin_z="42" command_timestamp="2026-09-07T12:00:00Z" destination="My Hidden Base"
+[2026-09-07T12:00:00.000Z] [INFO] chat tp trace=msg_abc-123 stage=dispatch destination="My Hidden Base" source_dimension="0" source_map="Hagga Basin" source_partition="21" source_x="123.45" source_y="-67.89" source_z="42" target_dimension="0" target_map="Hagga Basin" target_partition="21" target_x="900.1" target_y="800.2" target_z="700.3"
+[2026-09-07T12:00:00.000Z] [INFO] chat tp trace=msg_abc-123 stage=post-dispatch-db-readback dimension="0" map="Hagga Basin" ok="True" partition="21" sample="1" x="900.1" y="800.2" z="700.3"
+'@
+        $out = Invoke-DstRedaction -Text $raw
+
+        $out | Should -Match 'chat command !tp from <chat-sender>: ok=True trace=msg_abc-123'
+        $out | Should -Match 'chat tp trace=msg_abc-123 stage=dispatch'
+        $out | Should -Match 'stage=post-dispatch-db-readback.*ok="True".*sample="1"'
+        $out | Should -Not -Match 'Funcom-Private-Handle|My Hidden Base|Hagga Basin|123\.45|900\.1'
+    }
+
     It 'is a no-op on empty input' {
         Invoke-DstRedaction -Text '' | Should -Be ''
     }

@@ -139,10 +139,11 @@ INSERT INTO dune.permission_actor_rank VALUES (42, 101, 1), (42, 111, 2);
 INSERT INTO dune.actor_state VALUES (42, 'Default'), (42, 'Default');
 INSERT INTO dune.vehicle_modules VALUES (300, 42, 'Chassis', '{"FVehicleModuleDurabilityStats":[{},{"CurrentDurability":25,"MaxDurability":100,"DecayedMaxDurability":80}]}'),
     (301, 42, 'Engine', '{}');
-INSERT INTO dune.inventories (id, actor_id, inventory_type, max_item_count, max_item_volume) VALUES
-    (500, 42, 0, 10, 100), (501, 42, NULL, 1, 1), (502, 43, 0, 0, 0), (503, 100, 0, 10, 100), (504, 200, 0, 10, 100);
+INSERT INTO dune.inventories (id, actor_id, inventory_type, vehicle_module_id, max_item_count, max_item_volume) VALUES
+    (500, 42, 0, NULL, 10, 100), (501, 42, NULL, NULL, 1, 1), (502, 43, 0, NULL, 0, 0), (503, 100, 0, NULL, 10, 100), (504, 200, 0, NULL, 10, 100),
+    (505, NULL, NULL, 300, 1, 1);
 INSERT INTO dune.items VALUES (600, 500, 'Copper', 7, 1, '{}'), (601, 501, 'Copper', 99, 1, '{}'),
-    (602, 503, 'Copper', 88, 1, '{}'), (603, 504, 'Copper', 77, 1, '{}');
+    (602, 503, 'Copper', 88, 1, '{}'), (603, 504, 'Copper', 77, 1, '{}'), (604, 505, 'Copper', 1, 1, '{}');
 INSERT INTO dune.recovered_vehicles VALUES (42, 1000, 0.5);
 INSERT INTO dune.backup_vehicles VALUES (42, 1000);
 INSERT INTO dune.markers VALUES (42);
@@ -194,10 +195,12 @@ INSERT INTO dune.overmap_players VALUES (42);
     }
 
     It 'refuses multiple cargo holds and does not attribute cargo to a shared or ambiguous owner' {
-        [void](Invoke-TestVehicleSql -Sql 'INSERT INTO dune.inventories (id, actor_id, inventory_type) VALUES (505, 42, 0);')
+        $additionalHold = Invoke-TestVehicleSql -Sql 'INSERT INTO dune.inventories (id, actor_id, inventory_type) VALUES (506, 42, 0);'
+        $additionalHold.ok | Should -BeTrue -Because $additionalHold.error
         (Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('vehicle')).ok | Should -BeFalse
         (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].deletion_blocked_reason | Should -Match 'ambiguous'
-        [void](Invoke-TestVehicleSql -Sql 'DELETE FROM dune.inventories WHERE id = 505; INSERT INTO dune.permission_actor_rank VALUES (42,111,1);')
+        $clearAdditionalHold = Invoke-TestVehicleSql -Sql 'DELETE FROM dune.inventories WHERE id = 506; INSERT INTO dune.permission_actor_rank VALUES (42,111,1);'
+        $clearAdditionalHold.ok | Should -BeTrue -Because $clearAdditionalHold.error
         $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
         $fleet.vehicles[0].ownership_status | Should -Be 'ambiguous'
         $cargo = Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('vehicle') -PlayerId 110
@@ -205,7 +208,18 @@ INSERT INTO dune.overmap_players VALUES (42);
         $cargo.groups.Count | Should -Be 0
     }
 
-    It 'binds cargo and permission changes to deletion but ignores ordinary integrity updates' {
+    It 'rejects a conflicting single cargo hold before queueing and inside deletion' {
+        [void](Invoke-TestVehicleSql -Sql 'UPDATE dune.inventories SET exchange_id = 700 WHERE id = 500;')
+        $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
+        $fleet.vehicles[0].cargo_hold_count | Should -Be 1
+        $fleet.vehicles[0].deletion_blocked_reason | Should -Match 'ambiguous'
+        $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $fleet.vehicles[0].target_revision -DatabaseScope $script:scopeKey
+        $result.ok | Should -BeFalse
+        $result.error | Should -Match 'conflicting ownership'
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).total | Should -Be 1
+    }
+
+    It 'binds actor and module inventory changes to deletion but ignores ordinary integrity updates' {
         $before = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
         [void](Invoke-TestVehicleSql -Sql "UPDATE dune.vehicle_modules SET stats = '{}' WHERE id = 300;")
         (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision | Should -Be $before
@@ -213,6 +227,11 @@ INSERT INTO dune.overmap_players VALUES (42);
         $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $before -DatabaseScope $script:scopeKey
         $result.ok | Should -BeFalse
         $result.error | Should -Match 'changed'
+        $afterActorInventoryChange = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
+        [void](Invoke-TestVehicleSql -Sql 'UPDATE dune.items SET stack_size = 2 WHERE id = 604;')
+        $moduleInventoryResult = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $afterActorInventoryChange -DatabaseScope $script:scopeKey
+        $moduleInventoryResult.ok | Should -BeFalse
+        $moduleInventoryResult.error | Should -Match 'changed'
         (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).total | Should -Be 1
     }
 

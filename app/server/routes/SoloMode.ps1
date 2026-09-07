@@ -220,9 +220,18 @@ Register-DuneRoute -Method POST -Path '/api/solo/items/grant' -LocalOnly -Handle
 Register-DuneRoute -Method GET -Path '/api/solo/blueprints' -LocalOnly -Handler {
     param($req, $res, $routeParams, $body)
     try {
-        Write-DuneJson -Response $res -Body (Get-DuneSoloBlueprints)
+        $expectedProfileToken = [string]$req.QueryString['expectedProfileToken']
+        $result = Invoke-WithDuneLock -Name 'solo-profile-data' -Script {
+            Assert-DuneSoloExpectedProfile -ExpectedProfileToken $expectedProfileToken
+            $profile = Get-DuneSoloProfile
+            $blueprints = Get-DuneSoloBlueprints
+            Add-Member -InputObject $blueprints -NotePropertyName profileToken `
+                -NotePropertyValue (Get-DuneSoloProfileToken -DbPath $profile.dbPath) -Force
+            return $blueprints
+        }
+        Write-DuneJson -Response $res -Body $result
     } catch {
-        $status = if ($_.Exception.Message -like '*Connect a valid Solo save*') { 400 } else { 500 }
+        $status = if ($_.Exception.Message -like '*changed in another window*') { 409 } elseif ($_.Exception.Message -like '*Connect a valid Solo save*') { 400 } else { 500 }
         Write-DuneError -Response $res -Status $status -Message $_.Exception.Message
     }
 }
@@ -236,9 +245,14 @@ Register-DuneRoute -Method GET -Path '/api/solo/blueprints/export' -LocalOnly -H
             Write-DuneError -Response $res -Status 400 -Message 'Choose a saved Solo blueprint to export.'
             return
         }
-        Write-DuneJson -Response $res -Body (Export-DuneSoloBlueprint -Id $id)
+        $expectedProfileToken = [string]$req.QueryString['expectedProfileToken']
+        $result = Invoke-WithDuneLock -Name 'solo-profile-data' -Script {
+            Assert-DuneSoloExpectedProfile -ExpectedProfileToken $expectedProfileToken
+            Export-DuneSoloBlueprint -Id $id
+        }
+        Write-DuneJson -Response $res -Body $result
     } catch {
-        $status = if ($_.Exception.Message -like '*still running*' -or $_.Exception.Message -like '*Connect a valid Solo save*') { 400 } else { 500 }
+        $status = if ($_.Exception.Message -like '*changed in another window*') { 409 } elseif ($_.Exception.Message -like '*still running*' -or $_.Exception.Message -like '*Connect a valid Solo save*') { 400 } else { 500 }
         Write-DuneError -Response $res -Status $status -Message $_.Exception.Message
     }
 }

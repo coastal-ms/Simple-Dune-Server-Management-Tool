@@ -374,11 +374,27 @@ function Test-DuneRequestIsLocal {
     # cloudflared adds X-Forwarded-For; a real local request (e.g. the desktop
     # app or curl 127.0.0.1) carries none of these. Treat the presence of ANY
     # proxy/edge header as "arrived through a tunnel" and therefore NOT local.
-    param([System.Net.HttpListenerRequest]$Request)
-    foreach ($h in @('Cf-Ray','Cf-Connecting-Ip','Cf-Worker','X-Forwarded-For','X-Forwarded-Proto','Cf-Warp-Tag-Id')) {
+    param($Request)
+    $isLoopback = $false
+    try { $isLoopback = [Net.IPAddress]::IsLoopback($Request.RemoteEndPoint.Address) } catch {}
+    if (-not $isLoopback) { return $false }
+    foreach ($h in @(
+        'Cf-Ray','Cf-Connecting-Ip','Cf-Worker',
+        'Cf-Access-Authenticated-User-Email','Cf-Access-Jwt-Assertion',
+        'X-Forwarded-For','X-Forwarded-Proto','Cf-Warp-Tag-Id'
+    )) {
         if ($Request.Headers[$h]) { return $false }
     }
     return $true
+}
+
+function Test-DuneBridgeWebSocketUpgradeAllowed {
+    param($Request)
+
+    # The backend must see direct desktop WebSocket upgrades only. A proxied
+    # request loses its edge headers while the bridge opens a new loopback
+    # socket, which would otherwise make a remote terminal look host-local.
+    return (Test-DuneRequestIsLocal -Request $Request)
 }
 
 function Invoke-Request {
@@ -434,6 +450,12 @@ function Invoke-Request {
         $dst = Get-CurrentDst
 
         if ($req.IsWebSocketRequest) {
+            if (-not (Test-DuneBridgeWebSocketUpgradeAllowed -Request $req)) {
+                $res.StatusCode = 403
+                $res.OutputStream.Close()
+                Write-BridgeLog "403 WS $($req.HttpMethod) $path from $client (remote WebSocket refused)"
+                return
+            }
             # WebSocket upgrades (currently just /ws/terminal). Handled inline
             # — see Invoke-WsProxy for the trade-off note about main-loop blocking.
             Invoke-WsProxy -Context $Context -Dst $dst

@@ -13,6 +13,7 @@ export interface RemoteAcl {
   hostname: string
   cloudflareTeamDomain: string
   cloudflareAudience: string
+  legacyCloudflareEnabled: boolean
 }
 
 export interface PortalManagedAccount {

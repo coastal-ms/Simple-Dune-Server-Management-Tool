@@ -116,6 +116,9 @@ Describe 'Vehicle deletion SQL' {
         $script:queries[0] | Should -Match 'actual_revision IS DISTINCT FROM'
         $script:queries[0] | Should -Match 'search_path TO dune, public'
         $script:queries[0] | Should -Match 'Vehicle dependent-record postflight failed'
+        $script:queries[0] | Should -Match 'Vehicle cargo hold has conflicting ownership references'
+        $script:queries[0] | Should -Match 'inv\.inventory_type = 0'
+        $script:queries[0] | Should -Match 'inv\.exchange_id IS NOT NULL OR inv\.item_id IS NOT NULL OR inv\.vehicle_module_id IS NOT NULL'
     }
 
     It 'aggregates duplicate actor-state rows into one vehicle row' {

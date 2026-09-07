@@ -266,6 +266,15 @@ BEGIN
                AND state::text IN ('Travel', 'VehicleBackup', 'VehicleRecovery')) THEN
         RAISE EXCEPTION 'Vehicle travel, backup or recovery is still pending; refusing deletion.';
     END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM dune.inventories inv
+        WHERE inv.actor_id = __VEHICLE_ID__::bigint
+          AND inv.inventory_type = 0
+          AND (inv.exchange_id IS NOT NULL OR inv.item_id IS NOT NULL OR inv.vehicle_module_id IS NOT NULL)
+    ) THEN
+        RAISE EXCEPTION 'Vehicle cargo hold has conflicting ownership references; refusing deletion.';
+    END IF;
     SELECT __REVISION_SQL__ INTO actual_revision
     FROM dune.vehicles v JOIN dune.actors a ON a.id = v.id
     LEFT JOIN dune.permission_actor pa ON pa.actor_id = a.id AND pa.actor_type = 2

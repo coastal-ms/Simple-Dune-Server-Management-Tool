@@ -13,6 +13,48 @@ here cover everything those tags shipped.
 
 ## [Unreleased]
 
+## [15.0.0] - 2026-09-07
+
+### Added
+
+- Added the opt-in **Command Deck** with server-health and spatial dashboards,
+  task-led workspaces, accessible navigation, saved presentation preferences,
+  and focused player, command, base, vehicle, and economy workflows.
+- Added the Shared Inventory Explorer, storage-box naming, guarded occurrence
+  deletion, and an offline Solo inventory browser with supported storage details.
+- Added Solo saved-base blueprint export, selected-profile save-folder browsing,
+  compatible item augments, and loaded-ammo editing.
+- Added Coriolis cycle start controls, expanded player-management cards, and
+  shared Command Deck **Bases → Blueprints** access while retaining the legacy
+  Gameplay Admin route.
+- Added a Command Deck bottom-dock shortcut directly to the static **DD Atlas**.
+
+### Changed
+
+- Made Stable the primary release path. During an active test cycle, Test shows
+  only the newest two eligible builds; after stable publication, a verified
+  same-commit Test mirror keeps Test users on the current stable build.
+- Retained legacy Cloudflare custom-domain configuration in v15.0.0, but leave
+  its portal disabled by default until the host explicitly re-enables it in
+  local Settings. New remote setups continue on the Tailscale Funnel Browser
+  Portal path.
+
+### Fixed
+
+- Hardened item grants, progression actions, Solo save selection, desktop-shell
+  state, and startup responsiveness while preserving existing safeguards.
+- Expanded sanitized diagnostics for update, backend, map, inventory, and
+  teleport dispatch tracing. Teleport tracing improves investigation only; it
+  does not claim a game-side teleport fix.
+- Strengthened diagnostic redaction so support bundles avoid credentials, private
+  identifiers, paths, and raw inventory or map data.
+
+## [15.0.0-finalphase-1.4] - 2026-09-06
+
+### Fixed
+
+- Restored the **Blueprints** tab in the Command Deck Bases workspace while keeping the legacy Gameplay Admin route available.
+
 ## [15.0.0-finalphase-1.3] - 2026-09-06
 
 ### Added
@@ -135,8 +177,7 @@ here cover everything those tags shipped.
   apps. Existing native builds remain functional during the transition, while
   in-app guidance directs users to the responsive Browser Portal over Tailscale.
 - Clarified that deprecated Cloudflare named-tunnel and Access support remains
-  operational through the current test line and is scheduled for removal when
-  v15 promotes to stable.
+  operational through v15 stable while migration to Tailscale Funnel continues.
 
 ## [15.0.0-phase2-test4] - 2026-09-03
 
@@ -8745,7 +8786,8 @@ at the time. Also folds in the v3.0.1 / v3.1.2 patches.
   (`ssh`, `Gameplay Admin`, `setup-guide`, `report-issue`). _(originally
   3.1.2)_
 
-[Unreleased]: https://github.com/coastal-ms/DST-DuneServerTool/compare/v13.8.0...HEAD
+[Unreleased]: https://github.com/coastal-ms/DST-DuneServerTool/compare/v15.0.0...HEAD
+[15.0.0]: https://github.com/coastal-ms/DST-DuneServerTool/compare/v14.0.3...v15.0.0
 [13.8.0]: https://github.com/coastal-ms/DST-DuneServerTool/compare/v13.7.0...v13.8.0
 [13.7.0]: https://github.com/coastal-ms/DST-DuneServerTool/compare/v13.6.5...v13.7.0
 [13.0.2]: https://github.com/coastal-ms/DST-DuneServerTool/compare/v13.0.1...v13.0.2

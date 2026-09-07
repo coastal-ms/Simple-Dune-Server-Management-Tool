@@ -77,6 +77,21 @@ function Invoke-DstRedaction {
         '(?im)^(Username|RunAs User|Machine):\s*.*$',
         '${1}: <redacted>')
 
+    # 1i) Chat teleport traces correlate the command with its dispatch and
+    # readback stages, but their sender, bookmark, map, and position values are
+    # private gameplay data. Keep trace IDs, stages, and result status useful.
+    $out = [regex]::Replace(
+        $out,
+        '(?im)(chat command !tp from )[^:\r\n]+(:)',
+        '${1}<chat-sender>${2}')
+    $out = [regex]::Replace($out, '(?im)^.*\bchat tp trace=[^\r\n]*\r?$', {
+        param($trace)
+        return [regex]::Replace(
+            $trace.Value,
+            '(?i)\b(destination|(?:chat_origin|source|target)_(?:map|partition|dimension|x|y|z)|map|partition|dimension|x|y|z)="[^"]*"',
+            '${1}="<redacted>"')
+    })
+
     # 2) IPv4 addresses (but leave 127.0.0.1 / 0.0.0.0 / 255.255.255.255 alone —
     #    those carry no identifying info and matter for log readability).
     $out = [regex]::Replace($out, '\b(?!(?:127\.0\.0\.1|0\.0\.0\.0|255\.255\.255\.255)\b)(?:\d{1,3}\.){3}\d{1,3}\b', '<ip>')

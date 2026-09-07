@@ -22,7 +22,7 @@ kubectl get namespaces -o jsonpath='{range .items[*]}DST_VEHICLE_SCOPE={.metadat
 function Get-DuneVehicleTargetRevisionSql {
     param([Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$DatabaseScope)
     # Exclude transient actor state and durability: stopping a map flushes those.
-    # Identity, access, installed modules and recovery ownership must still match.
+    # Identity, access, installed modules, their inventory scope, and recovery ownership must still match.
     return @'
 md5(jsonb_build_array('__DATABASE_SCOPE__', a.id::text, a.class, a.map, pa.actor_name,
     (SELECT jsonb_agg(jsonb_build_array(r.player_id::text, r.rank) ORDER BY r.player_id, r.rank)
@@ -36,7 +36,9 @@ md5(jsonb_build_array('__DATABASE_SCOPE__', a.id::text, a.class, a.map, pa.actor
     (SELECT jsonb_agg(jsonb_build_array(to_jsonb(inv),
         (SELECT jsonb_agg(to_jsonb(i) ORDER BY i.id)
          FROM dune.items i WHERE i.inventory_id = inv.id)) ORDER BY inv.id)
-     FROM dune.inventories inv WHERE inv.actor_id = a.id)
+     FROM dune.inventories inv
+     WHERE inv.actor_id = a.id
+        OR inv.vehicle_module_id IN (SELECT m.id FROM dune.vehicle_modules m WHERE m.vehicle_id = a.id))
 )::text)
 '@.Replace('__DATABASE_SCOPE__', $DatabaseScope)
 }
@@ -74,6 +76,9 @@ SELECT a.id::text AS vehicle_id, a.class, COALESCE(a.map, '') AS map,
         FROM dune.recovered_vehicles rv WHERE rv.vehicle_id = a.id) AS recovery_durability,
        (SELECT count(*) FROM dune.backup_vehicles bv WHERE bv.vehicle_id = a.id)::text AS backup_count,
        (SELECT count(*) FROM dune.inventories inv WHERE inv.actor_id = a.id AND inv.inventory_type = 0)::text AS cargo_hold_count,
+       (SELECT count(*) FROM dune.inventories inv
+        WHERE inv.actor_id = a.id AND inv.inventory_type = 0
+          AND (inv.exchange_id IS NOT NULL OR inv.item_id IS NOT NULL OR inv.vehicle_module_id IS NOT NULL))::text AS cargo_conflict_count,
        (SELECT count(*) FROM dune.items i JOIN dune.inventories inv ON inv.id = i.inventory_id
         WHERE inv.actor_id = a.id AND inv.inventory_type = 0)::text AS cargo_stack_count,
        (SELECT CASE WHEN count(*) = 1 THEN min(inv.max_item_count)::text END FROM dune.inventories inv
@@ -109,6 +114,7 @@ ORDER BY COALESCE(NULLIF(pa.actor_name, ''), a.class), a.id;
         })
         $recoveryCount = [int](ConvertTo-DuneInt $row['recovery_count'])
         $cargoHolds = [int](ConvertTo-DuneInt $row['cargo_hold_count'])
+        $cargoConflicts = [int](ConvertTo-DuneInt $row['cargo_conflict_count'])
         $blockedState = @(([string]$row['actor_state'] -split ', ') | Where-Object { $_ -in @('Travel','VehicleBackup','VehicleRecovery') })
         $revision = [string]$row['target_revision']
         if ($revision -notmatch '^[a-f0-9]{32}$') { throw 'Vehicle target revision is unavailable.' }
@@ -136,7 +142,8 @@ ORDER BY COALESCE(NULLIF(pa.actor_name, ''), a.class), a.id;
             target_revision = $revision
             deletion_blocked_reason = if ($blockedState.Count -gt 0) {
                 "Vehicle is in $($blockedState -join ', '). Finish travel or recovery in-game before queuing removal."
-            } elseif ($ownership -eq 'ambiguous' -or $invalidRoster -or $recoveryCount -gt 1 -or $cargoHolds -gt 1) {
+            } elseif ($ownership -eq 'ambiguous' -or $invalidRoster -or $recoveryCount -gt 1 -or
+                $cargoHolds -gt 1 -or $cargoConflicts -gt 0) {
                 'Ownership, recovery, or cargo scope is ambiguous. Resolve it in-game before queuing removal.'
             } else { $null }
         }

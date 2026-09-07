@@ -34,6 +34,7 @@ describe('Command Deck destinations', () => {
   it('uses the existing viewer restrictions including owner and Windows-only tools', () => {
     const admin = getDeckDestinations({ local: false, windows: true, canAccessOwnerSurfaces: false })
     expect(admin.some(item => item.to === '/players')).toBe(true)
+    expect(admin.some(item => item.to === '/map?view=atlas')).toBe(true)
     for (const route of ['/database', '/settings', '/experimental', '/gameconfig', '/terminal', '/solo', '/setup']) {
       expect(admin.some(item => item.to === route)).toBe(false)
     }

@@ -7,8 +7,8 @@
 # Cloudflare tunnel by design (the desktop portal sets the token; the
 # remote SPA does not).
 #
-#   GET  /api/remote-access/acl                    -> {owner; admins[]; hostname}
-#   PUT  /api/remote-access/acl                    body: {owner; admins[]; hostname}
+#   GET  /api/remote-access/acl                    -> {owner; admins[]; hostname; legacyCloudflareEnabled}
+#   PUT  /api/remote-access/acl                    body: {owner; admins[]; hostname; legacyCloudflareEnabled}
 #   GET  /api/remote-access/audit-log?lines=N      -> {lines: [parsed entries...]}
 #   GET  /api/remote-access/cloudflared-status     -> {installed; path; version}
 
@@ -22,6 +22,7 @@ Register-DuneRoute -Method GET -Path '/api/remote-access/acl' -LocalOnly -Handle
             hostname = $acl.hostname
             cloudflareTeamDomain = $acl.cloudflareTeamDomain
             cloudflareAudience = $acl.cloudflareAudience
+            legacyCloudflareEnabled = [bool]$acl.legacyCloudflareEnabled
         }
     } catch {
         Write-DuneError -Response $res -Status 500 -Message $_.Exception.Message
@@ -36,18 +37,33 @@ Register-DuneRoute -Method PUT -Path '/api/remote-access/acl' -LocalOnly -Handle
         $hostname = ''
         $cloudflareTeamDomain = ''
         $cloudflareAudience = ''
+        $legacyCloudflareEnabled = $false
         if ($body -is [hashtable]) {
             if ($body.ContainsKey('owner'))    { $owner    = [string]$body['owner'] }
             if ($body.ContainsKey('admins'))   { $admins   = @($body['admins']) }
             if ($body.ContainsKey('hostname')) { $hostname = [string]$body['hostname'] }
             if ($body.ContainsKey('cloudflareTeamDomain')) { $cloudflareTeamDomain = [string]$body['cloudflareTeamDomain'] }
             if ($body.ContainsKey('cloudflareAudience')) { $cloudflareAudience = [string]$body['cloudflareAudience'] }
+            if ($body.ContainsKey('legacyCloudflareEnabled')) {
+                if ($body['legacyCloudflareEnabled'] -isnot [bool]) {
+                    Write-DuneError -Response $res -Status 400 -Message 'legacyCloudflareEnabled must be a boolean.'
+                    return
+                }
+                $legacyCloudflareEnabled = $body['legacyCloudflareEnabled']
+            }
         } elseif ($null -ne $body) {
             if ($body.PSObject.Properties.Name -contains 'owner')    { $owner    = [string]$body.owner }
             if ($body.PSObject.Properties.Name -contains 'admins')   { $admins   = @($body.admins) }
             if ($body.PSObject.Properties.Name -contains 'hostname') { $hostname = [string]$body.hostname }
             if ($body.PSObject.Properties.Name -contains 'cloudflareTeamDomain') { $cloudflareTeamDomain = [string]$body.cloudflareTeamDomain }
             if ($body.PSObject.Properties.Name -contains 'cloudflareAudience') { $cloudflareAudience = [string]$body.cloudflareAudience }
+            if ($body.PSObject.Properties.Name -contains 'legacyCloudflareEnabled') {
+                if ($body.legacyCloudflareEnabled -isnot [bool]) {
+                    Write-DuneError -Response $res -Status 400 -Message 'legacyCloudflareEnabled must be a boolean.'
+                    return
+                }
+                $legacyCloudflareEnabled = $body.legacyCloudflareEnabled
+            }
         }
         $saved = Save-DuneRemoteAcl -Acl @{
             owner = $owner
@@ -55,6 +71,7 @@ Register-DuneRoute -Method PUT -Path '/api/remote-access/acl' -LocalOnly -Handle
             hostname = $hostname
             cloudflareTeamDomain = $cloudflareTeamDomain
             cloudflareAudience = $cloudflareAudience
+            legacyCloudflareEnabled = [bool]$legacyCloudflareEnabled
         }
         Write-DuneJson -Response $res -Body @{
             owner    = $saved.owner
@@ -62,6 +79,7 @@ Register-DuneRoute -Method PUT -Path '/api/remote-access/acl' -LocalOnly -Handle
             hostname = $saved.hostname
             cloudflareTeamDomain = $saved.cloudflareTeamDomain
             cloudflareAudience = $saved.cloudflareAudience
+            legacyCloudflareEnabled = [bool]$saved.legacyCloudflareEnabled
         }
     } catch {
         Write-DuneError -Response $res -Status 500 -Message "Save failed: $($_.Exception.Message)"
