@@ -13,6 +13,22 @@ here cover everything those tags shipped.
 
 ## [Unreleased]
 
+## [15.0.1] - 2026-09-07
+
+### Added
+
+- Added **Vehicle Lifecycle** to the Vehicles workspace for fleet inspection,
+  integrity and cargo visibility, plus a guarded, reviewable removal queue.
+
+### Changed
+
+- Refreshed the public site, documentation, and screenshots for the v15
+  experience.
+
+### Fixed
+
+- Routed Command Deck Map navigation to the static **DD Atlas**.
+
 ## [15.0.0] - 2026-09-07
 
 ### Added
