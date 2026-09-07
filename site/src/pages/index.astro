@@ -2,159 +2,95 @@
 import Base from "../layouts/Base.astro";
 import DownloadButton from "../components/DownloadButton.astro";
 import Screenshot from "../components/Screenshot.astro";
-import { formatDisplayVersion, getLatestRelease } from "../lib/release";
+import DuneHorizon from "../components/DuneHorizon.astro";
 
 const base = import.meta.env.BASE_URL;
-const release = await getLatestRelease();
-const versionLabel = formatDisplayVersion(release.version);
-
-// Latest Funcom Dune: Awakening release this build is verified against.
-const funcomVersion = "1.4.10.4";
-
-const features = [
-  {
-    title: "Operate Self-Hosted without living in a shell",
-    body: "Health, maps, INIs, PostgreSQL, backups, players, bases, Landsraad, and the Exchange stay in one Windows app with guarded actions and clear recovery paths.",
-  },
-  {
-    title: "Manage a local Solo save safely",
-    body: "Solo Mode validates one local save and keeps backup-first tools for settings, inventory, currencies, cosmetics, packages, vehicle kits, augments, and proven progression.",
-  },
-  {
-    title: "Carry the full portal with you",
-    body: "The responsive Browser Portal works from a phone, tablet, or PC. Hosts can create revocable Owner and Admin accounts without placing credentials in the shared link.",
-  },
-  {
-    title: "See the Deep Desert before it shifts",
-    body: "DD Seed Maps puts all 12 Coriolis layouts inside DST with POI filters, confidence notes, seed selection, and running-map seed detection.",
-  },
-];
 ---
 
 <Base
-  title="DST — Dune Server Tool"
-  description="A Windows operations app for Dune: Awakening Self-Hosted servers and local Solo saves. Open source, Apache 2.0."
+  title="DST — Your Dune world, under your command"
+  description="Run a Dune: Awakening Self-Hosted server or manage a supported local Solo save. Discover v15's optional Command Deck, static DD Atlas, and responsive Browser Portal."
 >
-  <section class="mx-auto max-w-6xl px-6 pt-20 pb-12">
-    <div class="grid lg:grid-cols-[1.1fr_1fr] gap-12 items-center">
+  <section class="desert-hero">
+    <DuneHorizon />
+    <div class="site-width hero-content">
+      <h1>Your world.<br /><span>Under your command.</span></h1>
+      <p class="hero-intro">
+        From your first sietch to a server full of friends.
+        Dune Server Tool brings server operations, gameplay administration,
+        and local Solo saves into one Windows app.
+      </p>
+      <div class="hero-actions">
+        <DownloadButton />
+        <a href={`${base}features`} class="text-link">Explore v15 <span aria-hidden="true">↗</span></a>
+      </div>
+      <p class="hero-footnote">Open source. Apache 2.0. Classic by default. Command Deck by choice.</p>
+    </div>
+  </section>
+
+  <section class="site-width showcase" aria-labelledby="deck-heading">
+    <div class="section-heading">
       <div>
-        <div
-          class="font-mono text-xs uppercase tracking-widest text-dune-accent mb-3"
-        >
-          Open source · Apache 2.0 · {versionLabel}
-        </div>
-        <div
-          class="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300 mb-5"
-        >
-          <span aria-hidden="true">✅</span>
-          Verified compatible with Dune: Awakening {funcomVersion}
-        </div>
-        <h1
-          class="text-5xl sm:text-6xl font-semibold tracking-tight leading-[1.05]"
-        >
-          Run Dune your way,
-          <span class="text-dune-accent">without the YAML.</span>
-        </h1>
-        <p class="mt-6 text-lg text-dune-muted leading-relaxed max-w-xl">
-          DST is a single-window Windows app for Dune: Awakening Self-Hosted
-          servers and local Solo saves. It puts Hyper-V, K3s, PostgreSQL,
-          configuration, backups, gameplay administration, and save tools
-          behind deliberate controls instead of terminal archaeology.
-        </p>
-        <div class="mt-8 flex flex-wrap items-start gap-4">
-          <DownloadButton />
-          <a
-            href={`${base}features`}
-            class="inline-flex items-center gap-2 rounded-lg border border-dune-border hover:border-dune-accent text-dune-text px-6 py-3 transition-colors"
-          >
-            See features →
-          </a>
-        </div>
+        <h2 id="deck-heading">A wider view of your world.</h2>
+        <p>Meet Command Deck: an opt-in World dashboard with focused workspaces and your essential tools in the bottom dock.</p>
+      </div>
+      <a href={`${base}features#command-deck`} class="text-link">Tour Command Deck <span aria-hidden="true">↗</span></a>
+    </div>
+    <Screenshot
+      src={`${base}screenshots/command-deck.png`}
+      alt="Command Deck's World view with its Arrakis globe, status summary, and bottom dock including DD Atlas, Solo Mode, Players, and Bases"
+      caption="v15 World view, captured offline. The globe is a navigation and status workspace, not a live geographical map; no map instances are connected here."
+      eager
+    />
+    <div class="deck-footnotes">
+      <p><strong>Keep the familiar.</strong> Classic remains the default. Choose <strong>Try Command Deck</strong> in the status bar; return with <strong>Classic</strong>.</p>
+      <p><strong>Go straight to the task.</strong> Manage a player, open Bases → Blueprints, or browse Commands by category. No new workflow to install.</p>
+    </div>
+  </section>
+
+  <section class="atlas-section">
+    <div class="site-width atlas-layout">
+      <div class="atlas-copy">
+        <h2>The desert shifts.<br />Bring an atlas.</h2>
+        <p>Explore the twelve Deep Desert Coriolis layouts, with sector grids, points of interest, filters, and confidence notes.</p>
+        <p>The <strong>DD Atlas</strong> shortcut opens the shipped static reference. It does not track live players, resources, or world changes.</p>
+        <a href={`${base}features#maps`} class="text-link">Read the terrain <span aria-hidden="true">↗</span></a>
       </div>
       <Screenshot
-        src={`${base}screenshots/server-health.png`}
-        alt="Server Health dashboard showing battlegroup status, ports, game servers, and active spice fields"
+        src={`${base}screenshots/dd-seed-maps.png`}
+        alt="Shipped static DD Atlas showing seed zero's sector grid and filters for wrecks, testing stations, caves, spice, taxis, and ore"
+        caption="Static seed 0 reference. Current server seed is unavailable in this offline capture."
       />
     </div>
   </section>
 
-  <section class="mx-auto max-w-6xl px-6 py-16">
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      {
-        features.map((f) => (
-          <div class="border-t border-dune-border pt-5">
-            <h3 class="text-lg font-semibold text-dune-text mb-2">{f.title}</h3>
-            <p class="text-sm text-dune-muted leading-relaxed">{f.body}</p>
-          </div>
-        ))
-      }
+  <section class="site-width operating-paths" aria-labelledby="paths-heading">
+    <h2 id="paths-heading">One tool. Your way to play.</h2>
+    <div class="path-columns">
+      <article>
+        <h3>Host a world</h3>
+        <p>Watch server health, adjust Game Config, and look after players, bases, and the economy. Backups, read-only SQL defaults, and explicit warnings put consequential work in context.</p>
+        <a href={`${base}install`} class="text-link">Set up Self-Hosted <span aria-hidden="true">↗</span></a>
+      </article>
+      <article>
+        <h3>Keep it Solo</h3>
+        <p>No VM required. Inspect a supported local Solo save, retain backups, and manage settings, inventory, and progression. Save edits require the game to be closed.</p>
+        <a href={`${base}features#solo`} class="text-link">See Solo Mode <span aria-hidden="true">↗</span></a>
+      </article>
+      <article>
+        <h3>Step away from the desk</h3>
+        <p>Use the responsive Browser Portal on a phone, tablet, or PC. Tailscale Funnel is the recommended transport, with host-created Owner and Admin accounts.</p>
+        <a href={`${base}remote`} class="text-link">Open the remote guide <span aria-hidden="true">↗</span></a>
+      </article>
     </div>
+    <p class="surface-note">Local-only by default. Existing Cloudflare configuration is retained; its legacy portal stays disabled until explicitly re-enabled in local Settings.</p>
   </section>
 
-  <section class="mx-auto max-w-6xl px-6 py-16">
-    <div
-      class="rounded-xl border border-dune-border bg-dune-surface p-8 sm:p-12"
-    >
-      <h2 class="text-2xl sm:text-3xl font-semibold mb-4">
-        What's in the box
-      </h2>
-      <div class="grid sm:grid-cols-2 gap-x-12 gap-y-3 text-dune-muted">
-        <div>✓ VM, battlegroup, pod, port, memory, and spice health</div>
-        <div>✓ Curated Game Config plus isolated Experimental Lab</div>
-        <div>✓ Local-client Game.ini and opt-in Engine.ini management</div>
-        <div>✓ Gameplay Admin for players, bases, storage, blueprints, and Landsraad</div>
-        <div>✓ Duke Market Bot with formula and market-follow pricing</div>
-        <div>✓ Packages, vehicle kits, cosmetics, progression, and base-water tools</div>
-        <div>✓ Interactive DD Seed Maps for all 12 Coriolis layouts</div>
-        <div>✓ Solo Mode with validated, backup-first offline mutations</div>
-        <div>✓ PostgreSQL backup, restore, SQL, migration, and cleanup workflows</div>
-        <div>✓ Three-path setup, including Hyper-V over LAN</div>
-        <div>✓ Responsive Browser Portal with Owner/Admin accounts</div>
-        <div>✓ Scheduled restarts, updater, startup, and background service options</div>
-      </div>
-      <div class="mt-8 flex flex-wrap gap-4">
-        <a
-          href={`${base}install`}
-          class="inline-flex items-center gap-2 text-dune-accent hover:text-dune-accent-soft"
-        >
-          Install guide →
-        </a>
-        <a
-          href="https://github.com/coastal-ms/DST-DuneServerTool"
-          rel="noopener"
-          class="inline-flex items-center gap-2 text-dune-muted hover:text-dune-text"
-        >
-          Browse the code →
-        </a>
-      </div>
+  <section class="site-width community-strip">
+    <div>
+      <h2>No one has to host alone.</h2>
+      <p>Setup help, practical advice, and other Dune: Awakening self-hosters. Find your people in the DST community.</p>
     </div>
-  </section>
-
-  <section class="mx-auto max-w-6xl px-6 pb-20">
-    <div
-      class="rounded-xl border border-dune-accent/40 bg-dune-accent/5 p-8 sm:p-12 sm:flex sm:items-center sm:justify-between gap-8"
-    >
-      <div>
-        <h2 class="text-2xl sm:text-3xl font-semibold mb-3">
-          Join the DST community
-        </h2>
-        <p class="text-dune-muted leading-relaxed max-w-2xl">
-          The <strong class="text-dune-text">DST community Discord</strong> is the
-          place to go for help — install &amp; setup, hosting and networking
-          questions, Game Config &amp; Landsraad tips, and chat with other
-          self-hosters. New releases are announced there too.
-        </p>
-      </div>
-      <div class="mt-6 sm:mt-0 shrink-0">
-        <a
-          href="https://discord.gg/tj2x7cywSC"
-          rel="noopener"
-          target="_blank"
-          class="inline-flex items-center gap-2 rounded-lg bg-dune-accent hover:bg-dune-accent-soft text-dune-bg font-medium px-6 py-3 transition-colors"
-        >
-          Join the Discord →
-        </a>
-      </div>
-    </div>
+    <a href="https://discord.gg/tj2x7cywSC" rel="noopener" target="_blank" class="action-link">Join the Discord <span aria-hidden="true">↗</span></a>
   </section>
 </Base>

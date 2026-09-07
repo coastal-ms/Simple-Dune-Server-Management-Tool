@@ -4,79 +4,105 @@ import PageHeader from "../components/PageHeader.astro";
 import Screenshot from "../components/Screenshot.astro";
 
 const base = import.meta.env.BASE_URL;
-
 const sections = [
   {
-    id: "health",
-    title: "Server Health",
-    img: "server-health.png",
-    body: "See the VM, battlegroup, database, gateway, director, game pods, public ports, active spice fields, scheduled restarts, and memory-pressure warnings in one place. Health cards distinguish normal reconciliation from actual faults, while raw output and log exports remain close when you need evidence.",
+    id: "command-deck", title: "Command Deck", img: "command-deck.png",
+    location: "Opt in with Try Command Deck",
+    body: "An optional World/dashboard view and focused workspaces put the next task within reach. The persistent bottom dock includes the static DD Atlas, Solo Mode, Players, Bases, Economy, Commands, and Database. Find a tool searches the wider collection. Classic remains the default, and the Classic control takes you back.",
+    alt: "Command Deck World view with the Arrakis globe, no connected map instances, and the DD Atlas shortcut in the bottom dock",
+    caption: "Offline World view. The globe organizes navigation and reported status; it is not live game geography.",
   },
   {
-    id: "gameconfig",
-    title: "Game Config",
-    img: "game-config.png",
-    body: "Edit UserGame.ini and UserEngine.ini through typed controls instead of hand-editing files. DST reads live values, shows Funcom defaults, creates restore points, writes isolated managed blocks, and can mirror opted-in settings to the local client. Proven controls stay in Game Config; recovered, unconfirmed controls live separately in Experimental Lab.",
+    id: "health", title: "Classic, still at home", img: "server-health.png",
+    location: "Classic → Server Overview",
+    body: "Keep the familiar sidebar and Server Health dashboard. When connected, inspect VM, battlegroup, database, gateway, game pods, public ports, and restart information. Raw output and log exports help distinguish missing information from a healthy server.",
+    alt: "v15 Classic Server Health dashboard with the updated sidebar and Try Command Deck control, showing a not-configured VM",
+    caption: "Classic's default layout with no server connected. This is not a running-server status report.",
   },
   {
-    id: "gameplay",
-    title: "Gameplay Admin",
-    img: "gameplay-admin.png",
-    body: "Manage players, bases, storage, blueprints, Landsraad Houses, the Exchange, and Duke's Market Bot from one console. Player actions cover currencies, items, packages, vehicle kits, cosmetics, progression, identity, teleports, water, augments, and guarded destructive work. Database writes use explicit offline or live-state checks rather than optimistic guesses.",
+    id: "maps", title: "Read the Deep Desert", img: "dd-seed-maps.png",
+    location: "Bottom dock → DD Atlas",
+    body: "Browse all twelve Coriolis layouts using sector grids, POI filters, and confidence notes. The shipped DD Atlas is a static community reference, not a live map. When server seed data is available, DST distinguishes a running Deep Desert seed from the next farm seed; exact POI placement remains approximate.",
+    alt: "Static DD Atlas seed zero with the sector grid, seven POI filters, seed selector, and shipped static atlas label",
+    caption: "Shipped static seed 0 data. The current server seed is deliberately unavailable in this offline capture.",
   },
   {
-    id: "solo",
-    title: "Solo Mode",
-    img: "solo-mode.png",
-    body: "Manage one local Dune Solo save without a VM or Self-Hosted installation. DST validates the wrapped SQLite save, keeps retained backups, and exposes typed settings plus inventory, currency, water, cosmetics, packages, vehicle kits, augments, and proven progression actions. Mutations require the game to be closed and are backup-first, atomic, and verified.",
+    id: "gameplay", title: "People, not database rows", img: "gameplay-admin.png",
+    location: "Players → Player admin",
+    body: "Find a character and open Manage Player for focused administration: inventory, currency, progression, identity, and supported gameplay actions. Availability and offline checks remain authoritative. Teleport tracing records diagnostic evidence; it does not guarantee that the game executes a teleport.",
+    alt: "v15 Players workspace with the shipped sample-character directory, faction summary, and explicit demo-data notice",
+    caption: "DST's built-in fictional sample roster. No real player or account data is shown.",
   },
   {
-    id: "maps",
-    title: "DD Seed Maps",
-    img: "dd-seed-maps.png",
-    body: "Explore all 12 Deep Desert Coriolis layouts without leaving DST. Each seed has a labeled grid, POI counts, confidence notes, and filters for caves, wrecks, testing stations, large spice fields, taxis, Titanium, and Stravidium. DST also distinguishes the next farm seed from the seed currently running in Deep Desert.",
+    id: "blueprints", title: "Give your bases a second life", img: "blueprints.png",
+    location: "Bases → Blueprints",
+    body: "Blueprints has a dedicated place inside Bases, alongside base management and storage inventory. Inspect the catalogue and use supported import/export tools without hunting through unrelated pages. Import stays unavailable until the live game database is connected.",
+    alt: "Bases workspace with the Blueprints tab selected, an empty demo catalogue, and import unavailable while disconnected",
+    caption: "Empty offline catalogue. No player buildings, imported designs, or successful writes are simulated.",
   },
   {
-    id: "database",
-    title: "Database",
-    img: "database.png",
-    body: "Back up, restore, import, mirror, inspect, and query the battlegroup PostgreSQL database without tracking pod names. Scheduled backups live on the VM, SQL starts read-only, and restore guidance calls out Deep Desert safety. The guarded World Restart workflow can preserve the battlegroup while rebuilding its world database from scratch.",
+    id: "solo", title: "Your save. Your pace.", img: "solo-mode.png",
+    location: "Solo Mode · host-local",
+    body: "Manage one supported local Solo save without a VM or Self-Hosted installation. Start with connection and validation, then use retained backups, typed settings, inventory, currencies, and proven progression tools. The shipped adapter targets the supported PTC save format; do not assume every retail save is compatible. Save mutations require the game to be closed.",
+    alt: "Solo Mode's first-use instructions and safety guide before any local save has been connected",
+    caption: "First-use state with no save loaded. No private save or invented progression is displayed.",
   },
   {
-    id: "settings",
-    title: "Settings",
-    img: "settings.png",
-    body: "Keep installation, updates, appearance, warnings, Remote Device Access, Hyper-V over LAN, Public IP/DDNS, and browser ping in one place. The responsive full Browser Portal supports revocable Owner and Admin accounts: Owners retain trusted remote administration, while Admins keep operational gameplay and Map Management without sensitive host configuration, credentials, Database, or Settings.",
+    id: "gameconfig", title: "Deliberate configuration", img: "game-config.png",
+    location: "Server Controls → Game Config",
+    body: "Edit UserGame.ini and UserEngine.ini with typed controls, restore points, and isolated managed blocks. Client Engine.ini management is a separate opt-in. Proven controls stay in Game Config; recovered, unconfirmed controls belong in Experimental Lab.",
+    alt: "Game Config's backup guidance, server-name area, and separate opt-in for local client Engine.ini management",
+    caption: "Offline safety and connection view. Live INI values are not loaded.",
+  },
+  {
+    id: "commands", title: "The right controls, together", img: "commands.png",
+    location: "Bottom dock → Commands",
+    body: "Command Deck groups commands by Battlegroup, VM & Power, Configuration, Network & Access, Database, Logs & Files, and Terminals & Tools. Review each action's requirements before running it. The custom layout remains available when you prefer your own arrangement.",
+    alt: "Command Deck Commands workspace with category navigation and unavailable server operations in an offline preview",
+    caption: "Shipped command catalogue with server-dependent operations disabled. Nothing is executed.",
+  },
+  {
+    id: "database", title: "A recovery path before a change", img: "database.png",
+    location: "Server Data → Database",
+    body: "Back up, restore, import, mirror, inspect, and query PostgreSQL without tracking pod names. SQL starts read-only, and restore guidance calls out Deep Desert risks. Backups are recovery tools, not a promise that a destructive restore can be undone.",
+    alt: "Database workspace displaying Deep Desert restore safety and disabled backup and restore actions without a running VM",
+    caption: "Offline database workspace. No backups, queries, or restore results are fabricated.",
+  },
+  {
+    id: "settings", title: "Keep control of access", img: "settings.png",
+    location: "System → Settings",
+    body: "Choose appearance, updates, host configuration, and remote access in one place. Browser Portal with Tailscale Funnel is the recommended remote path. Legacy Cloudflare configuration is retained but its portal is disabled by default until explicitly re-enabled in local Settings.",
+    alt: "v15 Settings with appearance controls and a disabled, deprecated Legacy Cloudflare custom-domain section",
+    caption: "Unconfigured local settings. No host paths, account credentials, remote URLs, or QR codes are exposed.",
   },
 ];
 ---
 
-<Base
-  title="Features — DST"
-  description="A page-by-page tour of the Dune Server Tool portal."
->
-  <PageHeader
-    eyebrow="Tour"
-    title="Seven surfaces that do the work"
-    intro="A current tour of DST's core Self-Hosted and Solo workflows, captured from the live app with documentation-safe demo identities."
-  />
-
-  <section class="mx-auto max-w-6xl px-6 pb-20 space-y-20">
-    {
-      sections.map((s, i) => (
-        <div
-          id={s.id}
-          class={`grid md:grid-cols-2 gap-8 items-center ${i % 2 ? "md:[&>:first-child]:order-2" : ""}`}
-        >
-          <Screenshot src={`${base}screenshots/${s.img}`} alt={s.title} />
-          <div>
-            <h2 class="text-2xl font-semibold text-dune-text mb-3">
-              {s.title}
-            </h2>
-            <p class="text-dune-muted leading-relaxed">{s.body}</p>
-          </div>
+<Base title="Explore v15 — DST" description="Tour the shipped v15 Dune Server Tool: optional Command Deck, Classic, static DD Atlas, player and base tools, Solo Mode, and Browser Portal.">
+  <PageHeader title="A field guide to your control room." intro="The same DST tools, a clearer view of the work. Classic remains the default; opt into Command Deck when you want the World view and focused workspaces." />
+  <section class="site-width pb-16">
+    <p class="surface-note !mt-0 !border-t-0 !pt-0">Screenshots show the shipped v15 interface in isolated offline, built-in demo, or static states. They are not live personal-server captures. Select an image to inspect it.</p>
+    <nav class="tour-nav" aria-label="Feature tour">
+      {sections.map(s => <a href={`#${s.id}`}>{s.id === "command-deck" ? "Command Deck" : s.id === "maps" ? "DD Atlas" : s.location.split(" → ").at(-1)?.split(" · ")[0]}</a>)}
+      <a href="#browser-portal">Browser Portal</a>
+    </nav>
+    {sections.map(s => (
+      <section id={s.id} class="tour-section">
+        <div class="tour-intro">
+          <div><h2>{s.title}</h2><div class="tour-location">{s.location}</div></div>
+          <p>{s.body}</p>
         </div>
-      ))
-    }
+        <Screenshot src={`${base}screenshots/${s.img}`} alt={s.alt} caption={s.caption} />
+      </section>
+    ))}
+    <section id="browser-portal" class="tour-section phone-tour">
+      <div>
+        <h2>Leave the desk.<br />Keep the portal.</h2>
+        <p>The full Browser Portal adapts to phones, tablets, and PCs. Host-created Owner and Admin accounts have different permissions; local-only tools such as Solo Mode and PowerShell stay on the host.</p>
+        <p>For new remote setups, use Tailscale Funnel. No separate native mobile app is required. Enabling account login retires the legacy paired native-app path.</p>
+        <a class="text-link" href={`${base}remote`}>Set up Browser Portal <span aria-hidden="true">↗</span></a>
+      </div>
+      <Screenshot src={`${base}screenshots/browser-portal.png`} alt="Browser Portal's responsive sign-in form on a phone-sized screen, with empty username and password fields" caption="Phone sign-in at 390 × 844. No account or remote session is connected." width={390} height={844} />
+    </section>
   </section>
 </Base>
