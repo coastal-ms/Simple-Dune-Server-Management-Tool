@@ -24,6 +24,10 @@ import {
   rememberGameplayDestination,
 } from '../src/platform/gameplay'
 
+vi.mock('../src/pages/gameplay/BlueprintsTab', () => ({
+  BlueprintsTab: () => <div>Blueprints fixture</div>,
+}))
+
 function LocationProbe() {
   const { pathname } = useLocation()
   const search = useSearch()
@@ -213,6 +217,21 @@ describe('router compatibility layer', () => {
     expect(window.location.pathname).toBe('/map')
     expect(window.location.search).toBe('?view=atlas')
     expect(window.location.hash).toBe('#seed-detail')
+  })
+
+  it('keeps the legacy Gameplay Blueprints route working', async () => {
+    window.history.replaceState(null, '', '/gameplay?view=blueprints')
+    render(
+      <BrowserRouter>
+        <Routes>
+          <Route path="/gameplay" element={<GameplayEnvironment />} />
+        </Routes>
+      </BrowserRouter>,
+    )
+
+    expect(await screen.findByText('Blueprints fixture')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/gameplay')
+    expect(window.location.search).toBe('?view=blueprints')
   })
 
   it('updates the persisted gameplay destination when only the hash changes', async () => {

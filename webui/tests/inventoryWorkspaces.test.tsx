@@ -15,6 +15,10 @@ vi.mock('../src/pages/gameplay/BasesTab', () => ({
   BasesTab: () => <div>Bases fixture</div>,
 }))
 
+vi.mock('../src/pages/gameplay/BlueprintsTab', () => ({
+  BlueprintsTab: () => <div>Blueprints fixture</div>,
+}))
+
 vi.mock('../src/components/inventory/SharedInventoryExplorer', () => ({
   SharedInventoryExplorer: ({
     entityTypes,
@@ -54,6 +58,20 @@ describe('inventory workspace embedding', () => {
     render(<BrowserRouter><BasesWorkspace /></BrowserRouter>)
     expect(screen.getByText('Inventory fixture: storage')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Storage inventory' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('makes the existing Blueprints tools discoverable from Bases', () => {
+    window.history.replaceState(null, '', '/bases')
+    const view = render(<BrowserRouter><BasesWorkspace /></BrowserRouter>)
+    expect(screen.getByText('Bases fixture')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Blueprints' })).toHaveAttribute('href', '/bases?view=blueprints')
+    expect(screen.getByRole('link', { name: 'Storage inventory' })).toHaveAttribute('href', '/bases?view=inventory')
+
+    view.unmount()
+    window.history.replaceState(null, '', '/bases?view=blueprints')
+    render(<BrowserRouter><BasesWorkspace /></BrowserRouter>)
+    expect(screen.getByText('Blueprints fixture')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Blueprints' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('keeps vehicle cargo visibly unavailable instead of mounting fleet writes', () => {
