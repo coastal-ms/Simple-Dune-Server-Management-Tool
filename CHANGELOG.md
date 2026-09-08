@@ -3828,8 +3828,6 @@ cache on the VM.
 - **Website link in the menu bar** — a right-aligned "Website" link opens the
   project's marketing site in the browser.
 
-
-
 ### Changed
 
 
