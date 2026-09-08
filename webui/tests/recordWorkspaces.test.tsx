@@ -103,15 +103,17 @@ describe('Record-focused gameplay workspaces', () => {
     expect(screen.getByRole('button', { name: 'Repair vehicle' })).toBeDisabled()
     await waitFor(() => expect(screen.queryByText('1 live vehicle')).not.toBeInTheDocument())
   })
-  it('repairs every module through the existing vehicle repair action', async () => {
+  it('refreshes fleet and module data before showing repair success', async () => {
     render(<VehiclesWorkspace />)
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Repair vehicle' }))
-    expect(await screen.findByText('Repaired 4 vehicle modules.')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Repairing...' })).toBeDisabled()
+    expect(await screen.findByText('Repaired 4 vehicle modules.', {}, { timeout: 3000 })).toBeInTheDocument()
     expect(repairVehicle).toHaveBeenCalledWith(7)
     await waitFor(() => expect(getVehicleIntegrity).toHaveBeenCalledTimes(2), { timeout: 3000 })
-  })
+    expect(within(dialog).getByRole('button', { name: 'Repair vehicle' })).toBeEnabled()
+  }, 8000)
   it('deletes one vehicle through one confirmation and one API action', async () => {
     render(<VehiclesWorkspace />)
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Scout for deletion' }))

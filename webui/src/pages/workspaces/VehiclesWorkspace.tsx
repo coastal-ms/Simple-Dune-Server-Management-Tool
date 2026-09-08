@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { ApiError } from '../../api/client'
 import {
   deleteVehicles,
@@ -53,7 +53,7 @@ function VehicleFleetWorkspace() {
   const [unavailable, setUnavailable] = useState(false)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
-  const [integrityRefreshKey, setIntegrityRefreshKey] = useState(0)
+  const integrityRefresh = useRef<() => Promise<void>>(async () => {})
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<number>>(new Set())
   const [deleteTargets, setDeleteTargets] = useState<VehicleFleetRow[]>([])
 
@@ -94,10 +94,9 @@ function VehicleFleetWorkspace() {
     setBusy(`repair:${vehicle.id}`); setError(''); setMessage('')
     try {
       const result = await repairVehicle(vehicle.id)
-      setMessage(result.message)
       await new Promise(resolve => window.setTimeout(resolve, 2000))
-      await load()
-      setIntegrityRefreshKey(key => key + 1)
+      await Promise.all([load(), integrityRefresh.current()])
+      setMessage(result.message)
     } catch (repairError) {
       setError(errorMessage(repairError))
     } finally {
@@ -312,7 +311,7 @@ function VehicleFleetWorkspace() {
         </li>)}</ul>
         {!selectedVehicle.permissions?.length && <p className="my-3 text-sm text-text-muted">No permission holders reported.</p>}
         <p className="mb-4 text-xs text-text-muted">Roster is read-only. Server custodian is not configured; DST does not infer game access from a local label.</p>
-        <VehicleModuleIntegrity vehicleId={selectedVehicle.id} refreshKey={integrityRefreshKey} />
+        <VehicleModuleIntegrity vehicleId={selectedVehicle.id} refreshRef={integrityRefresh} />
         {selectedVehicle.cargo_hold_count === 1 && <Link className="btn-secondary mb-4" to={`/vehicles?view=cargo&scope_type=vehicle&scope_id=${selectedVehicle.id}`}>Inspect cargo ({selectedVehicle.cargo_stack_count ?? '?'} stacks)</Link>}
         <p className="mb-4 text-xs text-text-muted">Repair restores every installed module to its catalog or recorded maximum durability.</p>
         {selectedVehicle.deletion_blocked_reason && (
@@ -340,16 +339,29 @@ function VehicleFleetWorkspace() {
   )
 }
 
-function VehicleModuleIntegrity({ vehicleId, refreshKey }: { vehicleId: number; refreshKey: number }) {
+function VehicleModuleIntegrity({
+  vehicleId,
+  refreshRef,
+}: {
+  vehicleId: number
+  refreshRef: MutableRefObject<() => Promise<void>>
+}) {
   const [result, setResult] = useState<VehicleIntegrity | null>(null)
   const [error, setError] = useState('')
+  const load = useCallback(async () => {
+    setResult(null)
+    setError('')
+    try {
+      setResult(await getVehicleIntegrity(vehicleId))
+    } catch (reason) {
+      setError(errorMessage(reason))
+    }
+  }, [vehicleId])
   useEffect(() => {
-    let active = true
-    setResult(null); setError('')
-    getVehicleIntegrity(vehicleId).then(value => { if (active) setResult(value) })
-      .catch((reason: unknown) => { if (active) setError(errorMessage(reason)) })
-    return () => { active = false }
-  }, [refreshKey, vehicleId])
+    refreshRef.current = load
+    void load()
+    return () => { refreshRef.current = async () => {} }
+  }, [load, refreshRef])
   return <section className="mb-4" aria-label="Persisted module integrity">
     <h3 className="font-semibold">Persisted module integrity</h3>
     {error ? <DataState state="error" title="Module integrity unavailable" message={error} /> : !result ? <DataState state="loading" title="Loading modules" /> : <>
