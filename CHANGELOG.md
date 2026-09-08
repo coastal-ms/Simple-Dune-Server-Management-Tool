@@ -18,7 +18,7 @@ here cover everything those tags shipped.
 ### Added
 
 - Added **Vehicle Lifecycle** to the Vehicles workspace for fleet inspection,
-  integrity and cargo visibility, plus a guarded, reviewable removal queue.
+  module repair, vehicle-selected cargo visibility, and guarded direct deletion.
 
 ### Changed
 
@@ -31,7 +31,7 @@ here cover everything those tags shipped.
 - Hardened Vehicle Lifecycle removal to reject any deletion closure that includes
   an inventory owned by another actor.
 - Separated recovery-state records from the active fleet, made cargo explicitly
-  vehicle-selected, and replaced browser prompts with clear in-app removal reviews.
+  vehicle-selected, and reduced repair and deletion to direct vehicle actions.
 
 ## [15.0.0] - 2026-09-07
 

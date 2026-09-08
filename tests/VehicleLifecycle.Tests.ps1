@@ -6,6 +6,7 @@ BeforeAll {
     Import-DstLib 'Gameplay.ps1'
     Import-DstLib 'GameplayPlayers.ps1'
     Import-DstLib 'InventoryExplorer.ps1'
+    Import-DstLib 'PlayersWrites.ps1'
     Import-DstLib 'VehicleDeletion.ps1'
     Import-DstLib 'VehicleLifecycle.ps1'
     function Get-DuneVehicleKitCatalog {
@@ -72,6 +73,8 @@ Describe 'Vehicle lifecycle host safety' {
         @([regex]::Matches($source, "Register-DuneRoute -Method (GET|POST|DELETE) -Path '/api/gameplay/vehicles/deletions[^']*' -LocalOnly")).Count | Should -Be 4
         $source | Should -Match "-Path '/api/gameplay/vehicles' -Handler"
         $source | Should -Match "-Path '/api/gameplay/vehicles/\{id\}/integrity' -Handler"
+        $source | Should -Match "-Path '/api/gameplay/vehicles/\{id\}/delete' -LocalOnly"
+        $source | Should -Match "Test-DuneDisruptiveActionGuard"
     }
 
     It 'rejects old inventory-cache cursors for vehicle reads' {
@@ -79,6 +82,41 @@ Describe 'Vehicle lifecycle host safety' {
         (Invoke-DuneInventoryOccurrencesPage -Mode live -TemplateId Copper -EntityTypes @('vehicle') -CursorSource cache).status | Should -Be 409
     }
 
+}
+
+Describe 'Vehicle module repair' {
+    It 'uses one catalog-backed batch update for every repairable module' {
+        $script:repairQueries = @()
+        Mock Get-DuneGameplayItemRule {
+            param($TemplateId)
+            @{ max_durability = if ($TemplateId -eq 'Hull') { 4500 } else { 3000 } }
+        }
+        Mock Invoke-DuneSqlQuery {
+            param($Ip, $Sql, $ReadOnly, $MaxRows, $TimeoutSec)
+            $script:repairQueries += $Sql
+            if ($ReadOnly) {
+                return @{
+                    ok = $true
+                    columns = @('module_id', 'template', 'stat_max')
+                    rows = @(
+                        @('10', 'Hull', '4000'),
+                        @('11', 'Engine', '2500')
+                    )
+                }
+            }
+            return @{ ok = $true; columns = @('repaired'); rows = @(,@('2')) }
+        }
+
+        $result = Invoke-DuneVehicleRepair -Ip fixture -VehicleId 42
+
+        $result.ok | Should -BeTrue
+        $result.repaired | Should -Be 2
+        $script:repairQueries.Count | Should -Be 2
+        $script:repairQueries[1] | Should -Match 'WITH repair'
+        $script:repairQueries[1] | Should -Match '\(10::bigint, 4500::float8\)'
+        $script:repairQueries[1] | Should -Match '\(11::bigint, 3000::float8\)'
+        $script:repairQueries[1] | Should -Match 'UPDATE dune\.vehicle_modules'
+    }
 }
 
 Describe 'Disposable PostgreSQL fixture routing' {

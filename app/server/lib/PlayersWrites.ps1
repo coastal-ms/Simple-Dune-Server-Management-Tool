@@ -751,7 +751,8 @@ WHERE vm.vehicle_id = $VehicleId::bigint;
         return @{ ok = $true; message = "Vehicle $VehicleId has no modules — nothing to repair."; repaired = 0 }
     }
 
-    $repaired = 0; $skipped = 0
+    $repairRows = @()
+    $skipped = 0
     foreach ($row in $mods) {
         $modId = [int64](ConvertTo-DuneInt $row['module_id'])
         $tmpl = [string]$row['template']
@@ -759,23 +760,49 @@ WHERE vm.vehicle_id = $VehicleId::bigint;
         $max = [double]$rule.max_durability
         if ($max -le 0) {
             $statMax = 0.0
-            [double]::TryParse([string]$row['stat_max'], [ref]$statMax) | Out-Null
+            [double]::TryParse(
+                [string]$row['stat_max'],
+                [Globalization.NumberStyles]::Float,
+                [Globalization.CultureInfo]::InvariantCulture,
+                [ref]$statMax
+            ) | Out-Null
             if ($statMax -gt 0) { $max = $statMax } else { $skipped++; continue }
         }
-        $upd = @"
+        $maxSql = $max.ToString('R', [Globalization.CultureInfo]::InvariantCulture)
+        $repairRows += "($modId::bigint, $maxSql::float8)"
+    }
+    if ($repairRows.Count -eq 0) {
+        return @{
+            ok = $true
+            message = "Vehicle $VehicleId has no repairable modules."
+            repaired = 0; skipped = $skipped
+        }
+    }
+    $values = $repairRows -join ",`n        "
+    $upd = @"
+WITH repair(module_id, target_durability) AS (
+    VALUES
+        $values
+),
+updated AS (
 UPDATE dune.vehicle_modules
 SET stats = jsonb_set(
     jsonb_set(stats,
         '{FVehicleModuleDurabilityStats,1,CurrentDurability}',
-        to_jsonb($max::float8)),
+        to_jsonb(repair.target_durability)),
     '{FVehicleModuleDurabilityStats,1,DecayedMaxDurability}',
-    to_jsonb($max::float8))
-WHERE id = $modId::bigint;
+    to_jsonb(repair.target_durability))
+FROM repair
+WHERE vehicle_modules.id = repair.module_id
+  AND vehicle_modules.vehicle_id = $VehicleId::bigint
+RETURNING vehicle_modules.id
+)
+SELECT count(*)::text AS repaired FROM updated;
 "@
-        $ur = Invoke-DuneSqlQuery -Ip $Ip -Sql $upd -ReadOnly $false -MaxRows 1 -TimeoutSec 20
-        if (-not $ur.ok) { $skipped++; continue }
-        $repaired++
-    }
+    $ur = Invoke-DuneSqlQuery -Ip $Ip -Sql $upd -ReadOnly $false -MaxRows 1 -TimeoutSec 20
+    if (-not $ur.ok) { return @{ ok = $false; error = "repair vehicle modules: $($ur.error)" } }
+    $updated = ConvertTo-DuneRowMaps -Result $ur
+    $repaired = if ($updated.Count -eq 1) { [int](ConvertTo-DuneInt $updated[0]['repaired']) } else { 0 }
     return @{
         ok = $true
         message = "Repaired $repaired vehicle module(s) on vehicle $VehicleId (skipped $skipped without catalog durability)."

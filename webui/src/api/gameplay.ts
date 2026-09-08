@@ -2074,6 +2074,18 @@ export function getVehicleIntegrity(vehicleId: number) {
   return api<VehicleIntegrity>(`/api/gameplay/vehicles/${vehicleId}/integrity`)
 }
 
+export function deleteVehicle(vehicleId: number, targetRevision: string) {
+  return withOnlinePlayerGuard(force =>
+    api<{ ok: boolean; processed: number; failed: number; message: string }>(
+      `/api/gameplay/vehicles/${vehicleId}/delete${force ? '?force=true' : ''}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ confirmed: true, target_revision: targetRevision }),
+      },
+    ),
+  )
+}
+
 export function getVehicleDeletionQueue() {
   return api<VehicleDeletionQueue>('/api/gameplay/vehicles/deletions')
 }

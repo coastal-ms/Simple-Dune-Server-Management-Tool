@@ -10,7 +10,7 @@ body:
 
         This issue tracker is for **bugs in this tool's code** — the desktop
         app (Server Health, Commands, PowerShell, Game Config, Gameplay Admin,
-        Maps — DD Atlas / Live state / Lifecycle, Vehicle Lifecycle, Shared Inventory Explorer,
+        Maps — DD Atlas / Live state / Lifecycle, Vehicles, Shared Inventory Explorer,
         Solo Mode, Database, Sietches, Sponsors & Credits, Settings, Setup
         Wizard), the PowerShell script (`dune-server.ps1`), the `.bat`
         launcher, and the installer (`DuneServerSetup.exe`).
@@ -104,7 +104,7 @@ body:
       description: Which part of the tool was affected? Pick the closest match. The primary navigation is server-first; gameplay destinations live inside the Gameplay Admin gateway.
       options:
         - Web portal - Command Deck / Spatial dashboard (globe / saved zoom and orientation / auto rotate / map status / map details / move maps / pulse lines / controls / Solo Mode dock shortcut)
-        - Web portal - Command Deck workspaces (Players dossier / compact inventory / Commands categories and controls / Bases → Blueprints / Vehicles / Vehicle Lifecycle / Economy details / section navigation)
+        - Web portal - Command Deck workspaces (Players dossier / compact inventory / Commands categories and controls / Bases → Blueprints / Vehicles / Economy details / section navigation)
         - Web portal - Appearance (Classic / Try Command Deck / Dashboard or Spatial home / shared themes and custom colors / square dock consistency)
         - Web portal — Server Health (Dashboard / Game Servers responsive pod rows / Game Ready State)
         - Web portal — Database — VM info card (disk / swap / active and failed database operations / failed-operation cleanup / retained build images / old-image cleanup / per-map memory limits)
@@ -132,7 +132,7 @@ body:
         - Web portal — Gameplay Admin — Market / Market Bot
         - Web portal — Gameplay Admin — Players
         - Web portal — Shared Inventory Explorer (Players / Bases / Vehicles / Economy — cached search / freshness / refresh / rename storage box / single or multi-delete / delete quantity / load more / item details / owning entity link)
-        - Web portal — Vehicles — Vehicle Lifecycle (Fleet / Inspect / Cargo / guarded removal queue, cancel, or process)
+        - Web portal — Vehicles (Fleet / Inspect / Cargo / Repair vehicle / Delete vehicle)
         - Web portal — Gameplay Admin — Players — Specs (Set level / Apply level rewards / Repair Pattern / Max / Reset)
         - Web portal — Gameplay Admin — Players — Manage Player (Give Item / kits / packages / cosmetics / repairs)
         - Web portal — Gameplay Admin — Players — Give Item / pre-augmented item / Give Package / Give Vehicle Kit / Grant Cosmetic / All House Swatches / Buildable House Swatches / Max Augment Attributes / loaded weapon ammo / Variant (incl. "Allow overflow")
@@ -315,15 +315,14 @@ body:
   - type: textarea
     id: vehicle_lifecycle_diag
     attributes:
-      label: Vehicle Lifecycle — fleet, cargo, or guarded removal details
+      label: Vehicles — fleet, cargo, repair, or deletion details
       description: |
         Only fill this in for the Vehicles workspace's **Fleet**, **Inspect**,
         or **Cargo** views. Attach a fresh diagnostics ZIP, then tell us:
 
-        - Whether the action was Fleet, Inspect, Cargo, queue, cancel, or
-          process.
-        - The visible vehicle subtype, status text, and whether a snapshot or
-          queue revision was shown.
+        - Whether the action was Fleet, Inspect, Cargo, Repair vehicle, or
+          Delete vehicle.
+        - The visible vehicle subtype and status text.
         - Whether the battlegroup stop/restart phase began, and the visible
           result after it completed.
 
@@ -332,7 +331,7 @@ body:
       placeholder: |
         Action: Vehicles > Fleet > Inspect
         Vehicle subtype: Sandbike
-        Visible status: "Snapshot is stale; refresh before queueing"
+        Visible status: "Refresh the vehicle list and try again"
         Stop/restart phase began: no
     validations:
       required: false

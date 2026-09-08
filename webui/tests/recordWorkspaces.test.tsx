@@ -6,7 +6,7 @@ import { MarketTab } from '../src/pages/gameplay/MarketTab'
 import VehiclesWorkspace from '../src/pages/workspaces/VehiclesWorkspace'
 import {
   getBases, getMarketItems, getMarketStats, getMarketCategories, getMarketListings, getMarketSales,
-  getVehicleFleet, getVehicleDeletionQueue, getVehicleIntegrity, queueVehicleDeletion, processVehicleDeletions, destroyClaim,
+  getVehicleFleet, getVehicleIntegrity, repairVehicle, deleteVehicle, destroyClaim,
 } from '../src/api/gameplay'
 import { COMMAND_DECK_KEY } from '../src/hooks/useCommandDeck'
 import { isLocalViewer } from '../src/util/viewer'
@@ -16,7 +16,7 @@ vi.mock('../src/hooks/useStatus', () => ({ useStatus: () => ({ status: { bg: { s
 vi.mock('../src/api/gameplay', async importOriginal => ({
   ...await importOriginal<typeof import('../src/api/gameplay')>(),
   getBases: vi.fn(), getMarketItems: vi.fn(), getMarketStats: vi.fn(), getMarketCategories: vi.fn(), getMarketListings: vi.fn(), getMarketSales: vi.fn(),
-  getVehicleFleet: vi.fn(), getVehicleDeletionQueue: vi.fn(), getVehicleIntegrity: vi.fn(), queueVehicleDeletion: vi.fn(), processVehicleDeletions: vi.fn(), destroyClaim: vi.fn(),
+  getVehicleFleet: vi.fn(), getVehicleIntegrity: vi.fn(), repairVehicle: vi.fn(), deleteVehicle: vi.fn(), destroyClaim: vi.fn(),
 }))
 beforeEach(() => {
   vi.mocked(isLocalViewer).mockReturnValue(true)
@@ -30,8 +30,9 @@ beforeEach(() => {
   vi.mocked(getMarketListings).mockResolvedValue({ source: 'live', listings: [] })
   vi.mocked(getMarketSales).mockResolvedValue({ source: 'live', sales: [] })
   vi.mocked(getVehicleFleet).mockResolvedValue({ source: 'live', total: 1, observed_at: new Date().toISOString(), stale_after_seconds: 20, vehicles: [{ id: 7, class: 'Buggy', subtype: 'Buggy', vehicle_name: 'Scout', owners: 'Aster', map: 'Survival_1', actor_state: 'Active', target_revision: 'b'.repeat(32), cargo_hold_count: 1, cargo_stack_count: 2, module_count: 4, permissions: [{ player_id: '11', rank: 1, character_name: 'Aster' }, { player_id: '12', rank: 2, character_name: 'Chani' }] }] })
-  vi.mocked(getVehicleDeletionQueue).mockResolvedValue({ entries: [], history: [], running: false, revision: 'a'.repeat(64) })
   vi.mocked(getVehicleIntegrity).mockResolvedValue({ source: 'live', observed_at: new Date().toISOString(), modules: [{ id: '8', template_id: 'Chassis', current_durability: null, max_durability: 100, decayed_max_durability: 80 }] })
+  vi.mocked(repairVehicle).mockResolvedValue({ ok: true, message: 'Repaired 4 vehicle modules.' })
+  vi.mocked(deleteVehicle).mockResolvedValue({ ok: true, message: 'Vehicle deleted.', processed: 1, failed: 0 })
 })
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); vi.restoreAllMocks(); window.history.replaceState({}, '', '/') })
 
@@ -63,20 +64,13 @@ describe('Record-focused gameplay workspaces', () => {
     await user.keyboard('{Escape}')
     expect(inspect).toHaveFocus()
   })
-  it('filters and inspects vehicles before opening the inline removal review', async () => {
-    const user = userEvent.setup()
+  it('filters and inspects vehicles with direct repair and delete actions', async () => {
     render(<VehiclesWorkspace />)
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
     expect(within(dialog).getByText('Buggy')).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Review removal' }))
-    const review = screen.getByRole('alertdialog', { name: 'Review removal of Scout' })
-    const confirm = within(review).getByRole('button', { name: 'Add to deletion queue' })
-    expect(confirm).toBeDisabled()
-    await user.type(within(review).getByRole('textbox', { name: 'Type DELETE 7 to confirm' }), 'DELETE 7')
-    expect(confirm).toBeEnabled()
-    expect(queueVehicleDeletion).not.toHaveBeenCalled()
-    fireEvent.click(within(review).getByRole('button', { name: 'Cancel' }))
+    expect(within(dialog).getByRole('button', { name: 'Repair vehicle' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Delete vehicle' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close detail panel' }))
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search vehicle fleet' }), { target: { value: 'absent' } })
     expect(screen.queryByRole('button', { name: 'Inspect Scout' })).not.toBeInTheDocument()
@@ -104,66 +98,44 @@ describe('Record-focused gameplay workspaces', () => {
     vi.mocked(getVehicleFleet).mockResolvedValue({ source: 'demo', total: 1, vehicles: [{ id: 7, class: 'Buggy', vehicle_name: 'Scout' }] })
     render(<VehiclesWorkspace />)
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
-    expect(screen.getByRole('button', { name: 'Review removal' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete vehicle' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Repair vehicle' })).toBeDisabled()
     await waitFor(() => expect(screen.queryByText('1 live vehicle')).not.toBeInTheDocument())
   })
-  it('shows a removal failure inside the open vehicle panel and retains it after closing', async () => {
-    const user = userEvent.setup()
-    vi.mocked(queueVehicleDeletion).mockRejectedValueOnce(new Error('Removal queue unavailable'))
+  it('repairs every module through the existing vehicle repair action', async () => {
     render(<VehiclesWorkspace />)
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Review removal' }))
-    const review = screen.getByRole('alertdialog', { name: 'Review removal of Scout' })
-    await user.type(within(review).getByRole('textbox', { name: 'Type DELETE 7 to confirm' }), 'DELETE 7')
-    fireEvent.click(within(review).getByRole('button', { name: 'Add to deletion queue' }))
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Removal queue unavailable')
-    expect(queueVehicleDeletion).toHaveBeenCalledWith(7, 'DELETE 7', 'b'.repeat(32))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Close detail panel' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('Removal queue unavailable')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Repair vehicle' }))
+    expect(await within(dialog).findByText('Repaired 4 vehicle modules.')).toBeInTheDocument()
+    expect(repairVehicle).toHaveBeenCalledWith(7)
   })
-  it('keeps queue submission disabled until the exact confirmation is entered', async () => {
-    const user = userEvent.setup()
+  it('deletes one vehicle through one confirmation and one API action', async () => {
     render(<VehiclesWorkspace />)
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Review removal' }))
-    const review = screen.getByRole('alertdialog', { name: 'Review removal of Scout' })
-    await user.type(within(review).getByRole('textbox', { name: 'Type DELETE 7 to confirm' }), 'wrong')
-    expect(within(review).getByRole('button', { name: 'Add to deletion queue' })).toBeDisabled()
-    expect(queueVehicleDeletion).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete vehicle' }))
+    const confirmation = screen.getByRole('alertdialog', { name: 'Delete Scout?' })
+    expect(within(confirmation).getByText(/full database backup/)).toBeInTheDocument()
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Delete vehicle' }))
+    await waitFor(() => expect(deleteVehicle).toHaveBeenCalledWith(7, 'b'.repeat(32)))
   })
-  it('shows successful removal queuing inside the open vehicle panel', async () => {
-    const user = userEvent.setup()
-    vi.mocked(queueVehicleDeletion).mockResolvedValueOnce({
-      ok: true,
-      message: 'Removal queued',
-      entry: { id: 'queue-7', vehicle_id: 7, status: 'queued', attempts: 0, created_at: '2026-09-05T23:00:00Z' },
-    })
+  it('shows a direct deletion failure inside the open vehicle panel', async () => {
+    vi.mocked(deleteVehicle).mockRejectedValueOnce(new Error('Vehicle changed; refresh and try again'))
     render(<VehiclesWorkspace />)
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Review removal' }))
-    const review = screen.getByRole('alertdialog', { name: 'Review removal of Scout' })
-    await user.type(within(review).getByRole('textbox', { name: 'Type DELETE 7 to confirm' }), 'DELETE 7')
-    fireEvent.click(within(review).getByRole('button', { name: 'Add to deletion queue' }))
-    expect(await within(dialog).findByText('Removal queued')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete vehicle' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Delete Scout?' })).getByRole('button', { name: 'Delete vehicle' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Vehicle changed; refresh and try again')
   })
-    it('keeps fleet and cargo readable for remote viewers without requesting the protected queue', async () => {
+    it('keeps fleet and cargo readable for remote viewers', async () => {
       vi.mocked(isLocalViewer).mockReturnValue(false)
       render(<VehiclesWorkspace />)
       fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
-      expect(getVehicleDeletionQueue).not.toHaveBeenCalled()
-      expect(screen.getByRole('button', { name: 'Review removal' })).toBeDisabled()
       expect(screen.getByRole('link', { name: 'Inspect cargo (2 stacks)' })).toHaveAttribute('href', '/vehicles?view=cargo&scope_type=vehicle&scope_id=7')
       expect(await screen.findByText(/Current not reported/)).toBeInTheDocument()
       expect(screen.getByText(/Chani - Co-Owner/)).toBeInTheDocument()
-    })
-    it('retains readable fleet after a protected queue error without enabling removal', async () => {
-      vi.mocked(getVehicleDeletionQueue).mockRejectedValue(new Error('Host authorization required'))
-      render(<VehiclesWorkspace />)
-      fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
-      expect(screen.getByRole('button', { name: 'Review removal' })).toBeDisabled()
     })
     it('disables stale retained snapshots after a failed refresh', async () => {
       render(<VehiclesWorkspace />)
@@ -172,19 +144,6 @@ describe('Record-focused gameplay workspaces', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
       await screen.findByText('Database unavailable')
       fireEvent.click(screen.getByRole('button', { name: 'Inspect Scout' }))
-      expect(screen.getByRole('button', { name: 'Review removal' })).toBeDisabled()
-    })
-    it('binds restart confirmation to the reviewed queue and preserves processing failures', async () => {
-      const user = userEvent.setup()
-      vi.mocked(getVehicleDeletionQueue).mockResolvedValue({ entries: [{ id: 'queue-7', vehicle_id: 7, class: 'Buggy', status: 'queued', attempts: 0, created_at: new Date().toISOString(), target_revision: 'b'.repeat(32), module_count: 4, cargo_stack_count: 2 }], history: [], running: false, revision: 'a'.repeat(64) })
-      vi.mocked(processVehicleDeletions).mockRejectedValueOnce(new Error('Target changed'))
-      render(<VehiclesWorkspace />)
-      fireEvent.click(await screen.findByRole('button', { name: 'Review deletion window (1)' }))
-      const review = screen.getByRole('alertdialog', { name: 'Delete 1 queued vehicle' })
-      expect(within(review).getByText(/Actor 7/)).toBeInTheDocument()
-      await user.type(within(review).getByRole('textbox', { name: 'Type RESTART AND DELETE to confirm' }), 'RESTART AND DELETE')
-      fireEvent.click(within(review).getByRole('button', { name: 'Backup, restart, and delete 1' }))
-      await screen.findByText('Target changed')
-      expect(processVehicleDeletions).toHaveBeenCalledWith('RESTART AND DELETE', 'a'.repeat(64))
+      expect(screen.getByRole('button', { name: 'Delete vehicle' })).toBeDisabled()
     })
 })
