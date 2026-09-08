@@ -770,6 +770,10 @@ SELECT count(*)::text AS repaired,
 FROM updated;
 "@
     $ur = Invoke-DuneSqlQuery -Ip $Ip -Sql $sql -ReadOnly $false -MaxRows 1 -TimeoutSec 30
+    if (-not $ur.ok -and [string]$ur.error -match '(?i)connection .*closed by remote host') {
+        Start-Sleep -Seconds 2
+        $ur = Invoke-DuneSqlQuery -Ip $Ip -Sql $sql -ReadOnly $false -MaxRows 1 -TimeoutSec 30
+    }
     if (-not $ur.ok) { return @{ ok = $false; error = "repair vehicle modules: $($ur.error)" } }
     $updated = ConvertTo-DuneRowMaps -Result $ur
     $repaired = if ($updated.Count -eq 1) { [int](ConvertTo-DuneInt $updated[0]['repaired']) } else { 0 }

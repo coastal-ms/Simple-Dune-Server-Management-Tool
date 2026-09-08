@@ -73,7 +73,9 @@ Describe 'Vehicle lifecycle host safety' {
         @([regex]::Matches($source, "Register-DuneRoute -Method (GET|POST|DELETE) -Path '/api/gameplay/vehicles/deletions[^']*' -LocalOnly")).Count | Should -Be 4
         $source | Should -Match "-Path '/api/gameplay/vehicles' -Handler"
         $source | Should -Match "-Path '/api/gameplay/vehicles/\{id\}/integrity' -Handler"
-        $source | Should -Match "-Path '/api/gameplay/vehicles/\{id\}/delete' -LocalOnly"
+        $source | Should -Match "-Path '/api/gameplay/vehicles/delete' -LocalOnly"
+        $source | Should -Match '\$body.*vehicle_ids'
+        $source | Should -Match 'Select between 1 and 100 vehicles'
         $source | Should -Match "Test-DuneDisruptiveActionGuard"
     }
 
@@ -113,6 +115,26 @@ Describe 'Vehicle module repair' {
         $script:repairQueries[0] | Should -Match '"Engine":3000'
         $script:repairQueries[0] | Should -Match 'UPDATE dune\.vehicle_modules'
         $script:repairQueries[0] | Should -Match 'MaxDurability'
+    }
+
+    It 'retries one idempotent repair after a transient SSH disconnect' {
+        $script:attempt = 0
+        Mock Get-DuneVehicleModuleRepairDefaults { @{ Hull = 4500 } }
+        Mock Start-Sleep {}
+        Mock Invoke-DuneSqlQuery {
+            $script:attempt++
+            if ($script:attempt -eq 1) {
+                return @{ ok = $false; error = 'Connection to 192.0.2.1 closed by remote host.' }
+            }
+            return @{ ok = $true; columns = @('repaired', 'skipped'); rows = @(,@('1', '0')) }
+        }
+
+        $result = Invoke-DuneVehicleRepair -Ip fixture -VehicleId 42
+
+        $result.ok | Should -BeTrue
+        $result.repaired | Should -Be 1
+        Should -Invoke Invoke-DuneSqlQuery -Times 2
+        Should -Invoke Start-Sleep -Times 1 -ParameterFilter { $Seconds -eq 2 }
     }
 }
 

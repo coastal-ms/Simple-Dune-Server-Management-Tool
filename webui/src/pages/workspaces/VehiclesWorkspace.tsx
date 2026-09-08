@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError } from '../../api/client'
 import {
-  deleteVehicle,
+  deleteVehicles,
   getVehicleFleet,
   getVehicleIntegrity,
   repairVehicle,
@@ -18,6 +18,7 @@ import { Link, useSearch } from '../../router'
 import { DetailPanel } from '../../components/platform/DetailPanel'
 import { ConfirmationModal } from '../../components/ConfirmationModal'
 import { SourceBadge } from '../gameplay/shared'
+import { isLocalViewer } from '../../util/viewer'
 
 const TABS: readonly WorkspaceTab[] = [
   { id: 'fleet', label: 'Fleet', to: '/vehicles?view=fleet', icon: 'Truck' },
@@ -46,11 +47,13 @@ function VehicleFleetWorkspace() {
   const [now, setNow] = useState(Date.now())
   const [refreshing, setRefreshing] = useState(false)
   const [readFailed, setReadFailed] = useState(false)
+  const local = isLocalViewer()
   const [error, setError] = useState('')
   const [unavailable, setUnavailable] = useState(false)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<VehicleFleetRow | null>(null)
+  const [selectedForDeletion, setSelectedForDeletion] = useState<Set<number>>(new Set())
+  const [deleteTargets, setDeleteTargets] = useState<VehicleFleetRow[]>([])
 
   const load = useCallback(async () => {
     setError('')
@@ -98,14 +101,15 @@ function VehicleFleetWorkspace() {
     }
   }, [load])
   const removeVehicle = useCallback(async () => {
-    const vehicle = deleteTarget
-    if (!vehicle) return
-    setDeleteTarget(null)
-    setBusy(`delete:${vehicle.id}`); setError('')
+    if (deleteTargets.length === 0) return
+    const ids = deleteTargets.map(vehicle => vehicle.id)
+    setDeleteTargets([])
+    setBusy('delete'); setError('')
     setMessage('Deleting vehicle. Backup and battlegroup restart usually take 1–5 minutes.')
     try {
-      const result = await deleteVehicle(vehicle.id)
+      const result = await deleteVehicles(ids)
       setMessage(result.message)
+      setSelectedForDeletion(new Set())
       setSelectedId(null)
       await load()
     } catch (deleteError) {
@@ -113,7 +117,7 @@ function VehicleFleetWorkspace() {
     } finally {
       setBusy(null)
     }
-  }, [deleteTarget, load])
+  }, [deleteTargets, load])
 
   const loading = vehicles === null
   const selectedVehicle = vehicles?.find(vehicle => vehicle.id === selectedId)
@@ -136,15 +140,7 @@ function VehicleFleetWorkspace() {
     <Icon name={busy === `repair:${vehicle.id}` ? 'Loader2' : 'Wrench'} size={14} className={busy === `repair:${vehicle.id}` ? 'animate-spin' : undefined} />
     {busy === `repair:${vehicle.id}` ? 'Repairing...' : 'Repair vehicle'}
   </button>
-  const deleteButton = (vehicle: VehicleFleetRow) => <button className="btn-danger shrink-0"
-    disabled={busy !== null || source !== 'live' || Boolean(vehicle.deletion_blocked_reason)}
-    onClick={() => {
-      setError('')
-      setDeleteTarget(vehicle)
-    }}>
-    <Icon name={busy === `delete:${vehicle.id}` ? 'Loader2' : 'Trash2'} size={14} className={busy === `delete:${vehicle.id}` ? 'animate-spin' : undefined} />
-    {busy === `delete:${vehicle.id}` ? 'Restarting BG & deleting… 1–5 min' : 'Delete vehicle'}
-  </button>
+  const selectedVehicles = visibleVehicles.filter(vehicle => selectedForDeletion.has(vehicle.id))
 
   if (loading && unavailable) {
     return (
@@ -196,11 +192,25 @@ function VehicleFleetWorkspace() {
                 /> : <span>{vehicles.length} sample vehicles</span>}
                 <SourceBadge source={source ?? undefined} />
               </div>
-              <button className="btn-secondary" disabled={busy !== null || refreshing} onClick={() => { void load() }}>
-                <Icon name="RefreshCw" size={14} />
-                Refresh
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {local && <button
+                  className="btn-danger"
+                  disabled={busy !== null || source !== 'live' || selectedVehicles.length === 0}
+                  onClick={() => {
+                    setError('')
+                    setDeleteTargets(selectedVehicles)
+                  }}
+                >
+                  <Icon name={busy === 'delete' ? 'Loader2' : 'Trash2'} size={14} className={busy === 'delete' ? 'animate-spin' : undefined} />
+                  {busy === 'delete' ? 'Restarting BG & deleting… 1–5 min' : `Delete selected (${selectedVehicles.length})`}
+                </button>}
+                <button className="btn-secondary" disabled={busy !== null || refreshing} onClick={() => { void load() }}>
+                  <Icon name="RefreshCw" size={14} />
+                  Refresh
+                </button>
+              </div>
             </div>
+            <p className="mb-3 text-xs text-warning">Deleting one or more selected vehicles requires one restart of the entire battlegroup.</p>
             {!fresh && <p className="mb-3 text-xs text-text-muted">Displayed values may be older than the game. Repair and delete recheck current database state when run.</p>}
             <label className="operations-search"><Icon name="Search" size={17} /><input type="search" aria-label="Search vehicle fleet" placeholder="Vehicle, subtype, permission holder, map or ID" value={search} onChange={event => setSearch(event.target.value)} /></label>
             {visibleVehicles.length === 0 ? (
@@ -210,7 +220,24 @@ function VehicleFleetWorkspace() {
                 {visibleVehicles.map(vehicle => (
                     <li key={vehicle.id} className="min-w-0 rounded-lg border border-border bg-surface-2 p-4">
                       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
+                        <div className="flex min-w-0 flex-1 gap-3">
+                          {local && <label className="flex min-h-11 shrink-0 items-start pt-1" title={vehicle.deletion_blocked_reason || 'Select vehicle for deletion'}>
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${vehicleLabel(vehicle)} for deletion`}
+                              checked={selectedForDeletion.has(vehicle.id)}
+                              disabled={source !== 'live' || Boolean(vehicle.deletion_blocked_reason)}
+                              onChange={event => {
+                                setSelectedForDeletion(current => {
+                                  const next = new Set(current)
+                                  if (event.target.checked) next.add(vehicle.id)
+                                  else next.delete(vehicle.id)
+                                  return next
+                                })
+                              }}
+                            />
+                          </label>}
+                          <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="break-words font-semibold text-text">{vehicleLabel(vehicle)}</h3>
                             {vehicle.actor_state && <span className="pill border-border text-text-muted">{vehicle.actor_state}</span>}
@@ -228,6 +255,8 @@ function VehicleFleetWorkspace() {
                               <dd className="mt-0.5 break-words text-text">{vehicle.map || 'Not reported'}</dd>
                             </div>
                           </dl>
+                          {vehicle.deletion_blocked_reason && <p className="mt-2 text-xs text-warning">{vehicle.deletion_blocked_reason}</p>}
+                          </div>
                         </div>
                         <button className="btn-secondary shrink-0" onClick={() => setSelectedId(vehicle.id)} aria-label={`Inspect ${vehicleLabel(vehicle)}`}>Inspect vehicle<Icon name="ArrowUpRight" size={15} /></button>
                       </div>
@@ -291,23 +320,19 @@ function VehicleFleetWorkspace() {
         )}
         <div className="flex flex-wrap gap-2">
           {repairButton(selectedVehicle)}
-          {deleteButton(selectedVehicle)}
         </div>
       </DetailPanel>}
-      {deleteTarget && (
+      {deleteTargets.length > 0 && (
         <ConfirmationModal
-          title="Restart the entire battlegroup and delete this vehicle?"
-          description={`${vehicleLabel(deleteTarget)} will be permanently deleted. Every connected player will be disconnected while DST backs up the database, stops the entire battlegroup, deletes and verifies the vehicle, then restarts the battlegroup. This usually takes 1–5 minutes.`}
-          confirmLabel="Restart BG & delete vehicle"
-          onCancel={() => setDeleteTarget(null)}
+          title={`Restart the entire battlegroup and delete ${deleteTargets.length} vehicle${deleteTargets.length === 1 ? '' : 's'}?`}
+          description={`${deleteTargets.length} selected vehicle${deleteTargets.length === 1 ? '' : 's'} will be permanently deleted. Every connected player will be disconnected while DST backs up the database, stops the entire battlegroup once, deletes and verifies the selection, then restarts the battlegroup. This usually takes 1–5 minutes.`}
+          confirmLabel={`Restart BG & delete ${deleteTargets.length}`}
+          onCancel={() => setDeleteTargets([])}
           onConfirm={() => { void removeVehicle() }}
         >
-          <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-            <div><dt className="text-text-muted">Actor</dt><dd>{deleteTarget.id}</dd></div>
-            <div><dt className="text-text-muted">Owner</dt><dd>{deleteTarget.owners || 'Unclaimed'}</dd></div>
-            <div><dt className="text-text-muted">Map</dt><dd>{deleteTarget.map || 'Not reported'}</dd></div>
-            <div><dt className="text-text-muted">Contents</dt><dd>{deleteTarget.module_count ?? '?'} modules · {deleteTarget.cargo_stack_count ?? '?'} cargo stacks</dd></div>
-          </dl>
+          <ul className="space-y-2 text-sm">
+            {deleteTargets.map(vehicle => <li key={vehicle.id}>{vehicleLabel(vehicle)} · Actor {vehicle.id}</li>)}
+          </ul>
           <p className="mt-4 text-sm text-warning">This cannot be undone. Keep all players offline until DST reports that the battlegroup restarted.</p>
         </ConfirmationModal>
       )}

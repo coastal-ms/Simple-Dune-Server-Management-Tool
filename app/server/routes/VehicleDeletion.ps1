@@ -30,29 +30,35 @@ Register-DuneRoute -Method GET -Path '/api/gameplay/vehicles/{id}/integrity' -Ha
     }
 }
 
-Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/{id}/delete' -LocalOnly -Handler {
+Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/delete' -LocalOnly -Handler {
     param($req, $res, $routeParams, $body)
     try {
-        $vehicleId = 0L
-        if (-not [long]::TryParse([string]$routeParams.id, [ref]$vehicleId) -or $vehicleId -le 0 -or $vehicleId -gt 9007199254740991) {
-            Write-DuneError -Response $res -Status 400 -Message 'A valid vehicle id is required.'; return
-        }
         if (-not [bool](Get-DuneBodyValue -Body $body -Name 'confirmed')) {
-            Write-DuneError -Response $res -Status 400 -Message 'Confirmation is required before deleting a vehicle.'; return
+            Write-DuneError -Response $res -Status 400 -Message 'Confirmation is required before deleting vehicles.'; return
         }
-        if (-not (Test-DuneDisruptiveActionGuard -Req $req -Res $res -Action 'deleting a vehicle with a protected backup and battlegroup restart')) { return }
+        $vehicleIds = @()
+        foreach ($rawId in @((Get-DuneBodyValue -Body $body -Name 'vehicle_ids'))) {
+            $vehicleId = 0L
+            if (-not [long]::TryParse([string]$rawId, [ref]$vehicleId) -or $vehicleId -le 0 -or $vehicleId -gt 9007199254740991) {
+                Write-DuneError -Response $res -Status 400 -Message 'Every vehicle id must be a positive integer.'; return
+            }
+            if ($vehicleId -notin $vehicleIds) { $vehicleIds += $vehicleId }
+        }
+        if ($vehicleIds.Count -eq 0 -or $vehicleIds.Count -gt 100) {
+            Write-DuneError -Response $res -Status 400 -Message 'Select between 1 and 100 vehicles.'; return
+        }
+        if (-not (Test-DuneDisruptiveActionGuard -Req $req -Res $res -Action 'deleting vehicles with one protected backup and battlegroup restart')) { return }
 
         $ctx = Get-DuneDbContext
         if (-not $ctx.ok) { Write-DuneError -Response $res -Status 503 -Message $ctx.message; return }
-        $fleet = Get-DuneVehicleFleetLive -Ip $ctx.ip -VehicleId $vehicleId
+        $fleet = Get-DuneVehicleFleetLive -Ip $ctx.ip
         if (-not $fleet.ok) { Write-DuneError -Response $res -Status 503 -Message $fleet.error; return }
-        $vehicle = @($fleet.vehicles | Where-Object { [int64]$_.id -eq $vehicleId } | Select-Object -First 1)
-        if ($vehicle.Count -eq 0) { Write-DuneError -Response $res -Status 404 -Message "Vehicle $vehicleId was not found."; return }
-        $v = $vehicle[0]
-        if ($v.deletion_blocked_reason) {
-            Write-DuneError -Response $res -Status 409 -Message ([string]$v.deletion_blocked_reason); return
+        $selected = @($fleet.vehicles | Where-Object { [int64]$_.id -in $vehicleIds })
+        if ($selected.Count -ne $vehicleIds.Count) {
+            Write-DuneError -Response $res -Status 404 -Message 'One or more selected vehicles were not found. Refresh and select them again.'; return
         }
-        $revision = [string]$v.target_revision
+        $blocked = @($selected | Where-Object deletion_blocked_reason | Select-Object -First 1)
+        if ($blocked.Count) { Write-DuneError -Response $res -Status 409 -Message ([string]$blocked[0].deletion_blocked_reason); return }
 
         $result = Invoke-WithDuneLock -Name 'vehicle-deletion' -TimeoutSec 5 -Script {
             $existing = Get-DuneVehicleDeletionQueue
@@ -60,19 +66,23 @@ Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/{id}/delete' -Loca
             foreach ($entry in @($existing.entries)) {
                 [void](Remove-DuneVehicleDeletion -EntryId ([string]$entry.id))
             }
-            $queued = Add-DuneVehicleDeletion -VehicleId $vehicleId -VehicleClass $v.class -VehicleName $v.vehicle_name -Map $v.map -Owners $v.owners -ActorState $v.actor_state -TargetRevision $revision -ModuleCount $v.module_count -CargoStackCount $v.cargo_stack_count -DatabaseScope $fleet.database_scope
-            if (-not $queued.ok) { return $queued }
+            $queuedIds = @()
+            foreach ($v in $selected) {
+                $queued = Add-DuneVehicleDeletion -VehicleId $v.id -VehicleClass $v.class -VehicleName $v.vehicle_name -Map $v.map -Owners $v.owners -ActorState $v.actor_state -TargetRevision $v.target_revision -ModuleCount $v.module_count -CargoStackCount $v.cargo_stack_count -DatabaseScope $fleet.database_scope
+                if (-not $queued.ok) { return $queued }
+                $queuedIds += [string]$queued.entry.id
+            }
             $current = Get-DuneVehicleDeletionQueue
             $processed = Invoke-DuneVehicleDeletionWindow -Ip $ctx.ip -QueueRevision $current.revision
             if (-not $processed.ok) {
-                [void](Remove-DuneVehicleDeletion -EntryId ([string]$queued.entry.id))
+                foreach ($entryId in $queuedIds) { [void](Remove-DuneVehicleDeletion -EntryId $entryId) }
             }
             return $processed
         }
         if (-not $result.ok) { Write-DuneJson -Response $res -Status 503 -Body $result; return }
         Write-DuneJson -Response $res -Body $result
     } catch {
-        Write-DuneError -Response $res -Status 500 -Message "Delete vehicle failed: $($_.Exception.Message)"
+        Write-DuneError -Response $res -Status 500 -Message "Delete vehicles failed: $($_.Exception.Message)"
     }
 }
 
