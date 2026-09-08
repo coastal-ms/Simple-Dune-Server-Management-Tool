@@ -340,7 +340,7 @@ INSERT INTO dune.overmap_players VALUES (42);
         $additionalHold = Invoke-TestVehicleSql -Sql 'INSERT INTO dune.inventories (id, actor_id, inventory_type) VALUES (506, 42, 0);'
         $additionalHold.ok | Should -BeTrue -Because $additionalHold.error
         (Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('vehicle')).ok | Should -BeFalse
-        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].deletion_blocked_reason | Should -Match 'ambiguous'
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].deletion_blocked_reason | Should -Match 'cannot prove'
         $clearAdditionalHold = Invoke-TestVehicleSql -Sql 'DELETE FROM dune.inventories WHERE id = 506; INSERT INTO dune.permission_actor_rank VALUES (42,111,1);'
         $clearAdditionalHold.ok | Should -BeTrue -Because $clearAdditionalHold.error
         $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
@@ -354,7 +354,7 @@ INSERT INTO dune.overmap_players VALUES (42);
         [void](Invoke-TestVehicleSql -Sql 'UPDATE dune.inventories SET exchange_id = 700 WHERE id = 500;')
         $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
         $fleet.vehicles[0].cargo_hold_count | Should -Be 1
-        $fleet.vehicles[0].deletion_blocked_reason | Should -Match 'ambiguous'
+        $fleet.vehicles[0].deletion_blocked_reason | Should -Match 'cannot prove'
         $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $fleet.vehicles[0].target_revision -DatabaseScope $script:scopeKey
         $result.ok | Should -BeFalse
         $result.error | Should -Match 'conflicting ownership'
@@ -370,7 +370,7 @@ INSERT INTO dune.overmap_players VALUES (42);
         $setup = Invoke-TestVehicleSql -Sql "INSERT INTO dune.inventories (id, actor_id, inventory_type, vehicle_module_id) VALUES (506, 100, $InventoryType, 300);"
         $setup.ok | Should -BeTrue -Because $setup.error
         $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
-        $fleet.vehicles[0].deletion_blocked_reason | Should -Match 'ambiguous'
+        $fleet.vehicles[0].deletion_blocked_reason | Should -Match 'cannot prove'
         $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $fleet.vehicles[0].target_revision -DatabaseScope $script:scopeKey
         $result.ok | Should -BeFalse
         $result.error | Should -Match 'owned by another actor'
@@ -384,7 +384,7 @@ INSERT INTO dune.inventories (id, actor_id, inventory_type, vehicle_module_id) V
 '@
         $setup.ok | Should -BeTrue -Because $setup.error
         $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
-        $fleet.vehicles[0].deletion_blocked_reason | Should -Match 'ambiguous'
+        $fleet.vehicles[0].deletion_blocked_reason | Should -Match 'cannot prove'
         $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $fleet.vehicles[0].target_revision -DatabaseScope $script:scopeKey
         $result.ok | Should -BeFalse
         $result.error | Should -Match 'owned by another actor'
