@@ -143,7 +143,7 @@ function VehicleFleetWorkspace() {
       setDeleteTarget(vehicle)
     }}>
     <Icon name={busy === `delete:${vehicle.id}` ? 'Loader2' : 'Trash2'} size={14} className={busy === `delete:${vehicle.id}` ? 'animate-spin' : undefined} />
-    {busy === `delete:${vehicle.id}` ? 'Backing up & restarting… 1–5 min' : 'Delete vehicle'}
+    {busy === `delete:${vehicle.id}` ? 'Restarting BG & deleting… 1–5 min' : 'Delete vehicle'}
   </button>
 
   if (loading && unavailable) {
@@ -296,9 +296,9 @@ function VehicleFleetWorkspace() {
       </DetailPanel>}
       {deleteTarget && (
         <ConfirmationModal
-          title={`Delete ${vehicleLabel(deleteTarget)}?`}
-          description="DST will create a full database backup, disconnect players, stop the battlegroup, permanently delete this vehicle and its contents, verify the result, then restart the battlegroup. This usually takes 1–5 minutes."
-          confirmLabel="Delete vehicle"
+          title="Restart the entire battlegroup and delete this vehicle?"
+          description={`${vehicleLabel(deleteTarget)} will be permanently deleted. Every connected player will be disconnected while DST backs up the database, stops the entire battlegroup, deletes and verifies the vehicle, then restarts the battlegroup. This usually takes 1–5 minutes.`}
+          confirmLabel="Restart BG & delete vehicle"
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => { void removeVehicle() }}
         >

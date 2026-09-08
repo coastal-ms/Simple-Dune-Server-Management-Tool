@@ -115,10 +115,11 @@ describe('Record-focused gameplay workspaces', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete vehicle' }))
-    const confirmation = screen.getByRole('alertdialog', { name: 'Delete Scout?' })
-    expect(within(confirmation).getByText(/full database backup/)).toBeInTheDocument()
+    const confirmation = screen.getByRole('alertdialog', { name: 'Restart the entire battlegroup and delete this vehicle?' })
+    expect(within(confirmation).getByText(/backs up the database/)).toBeInTheDocument()
+    expect(within(confirmation).getByText(/Every connected player will be disconnected/)).toBeInTheDocument()
     expect(within(confirmation).getByText(/1–5 minutes/)).toBeInTheDocument()
-    fireEvent.click(within(confirmation).getByRole('button', { name: 'Delete vehicle' }))
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Restart BG & delete vehicle' }))
     await waitFor(() => expect(deleteVehicle).toHaveBeenCalledWith(7))
   })
   it('shows a direct deletion failure inside the open vehicle panel', async () => {
@@ -127,7 +128,7 @@ describe('Record-focused gameplay workspaces', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete vehicle' }))
-    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Delete Scout?' })).getByRole('button', { name: 'Delete vehicle' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Restart the entire battlegroup and delete this vehicle?' })).getByRole('button', { name: 'Restart BG & delete vehicle' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Vehicle changed; refresh and try again')
   })
     it('keeps fleet and cargo readable for remote viewers', async () => {
