@@ -101,7 +101,8 @@ function VehicleFleetWorkspace() {
     const vehicle = deleteTarget
     if (!vehicle) return
     setDeleteTarget(null)
-    setBusy(`delete:${vehicle.id}`); setError(''); setMessage('')
+    setBusy(`delete:${vehicle.id}`); setError('')
+    setMessage('Deleting vehicle. Backup and battlegroup restart usually take 1–5 minutes.')
     try {
       const result = await deleteVehicle(vehicle.id)
       setMessage(result.message)
@@ -142,7 +143,7 @@ function VehicleFleetWorkspace() {
       setDeleteTarget(vehicle)
     }}>
     <Icon name={busy === `delete:${vehicle.id}` ? 'Loader2' : 'Trash2'} size={14} className={busy === `delete:${vehicle.id}` ? 'animate-spin' : undefined} />
-    {busy === `delete:${vehicle.id}` ? 'Deleting...' : 'Delete vehicle'}
+    {busy === `delete:${vehicle.id}` ? 'Backing up & restarting… 1–5 min' : 'Delete vehicle'}
   </button>
 
   if (loading && unavailable) {
@@ -296,7 +297,7 @@ function VehicleFleetWorkspace() {
       {deleteTarget && (
         <ConfirmationModal
           title={`Delete ${vehicleLabel(deleteTarget)}?`}
-          description="DST will create a full database backup, disconnect players, stop the battlegroup, permanently delete this vehicle and its contents, verify the result, then restart the battlegroup."
+          description="DST will create a full database backup, disconnect players, stop the battlegroup, permanently delete this vehicle and its contents, verify the result, then restart the battlegroup. This usually takes 1–5 minutes."
           confirmLabel="Delete vehicle"
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => { void removeVehicle() }}

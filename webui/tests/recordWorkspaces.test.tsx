@@ -117,6 +117,7 @@ describe('Record-focused gameplay workspaces', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete vehicle' }))
     const confirmation = screen.getByRole('alertdialog', { name: 'Delete Scout?' })
     expect(within(confirmation).getByText(/full database backup/)).toBeInTheDocument()
+    expect(within(confirmation).getByText(/1–5 minutes/)).toBeInTheDocument()
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Delete vehicle' }))
     await waitFor(() => expect(deleteVehicle).toHaveBeenCalledWith(7))
   })

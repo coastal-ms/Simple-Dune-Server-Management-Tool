@@ -436,9 +436,10 @@ function Invoke-DuneVehicleDeletionWindow {
                 error = "Deleted $($completed.Count) vehicle(s); $($failed.Count) failed and remain queued when retryable."
             }
         }
+        $vehicleNoun = if ($completed.Count -eq 1) { 'vehicle' } else { 'vehicles' }
         return @{
             ok = $true; processed = $completed.Count; failed = 0
-            message = "Safety backup completed, $($completed.Count) vehicle(s) deleted and verified, and the battlegroup restarted."
+            message = "Safety backup completed, $($completed.Count) $vehicleNoun deleted and verified, and the battlegroup restarted."
         }
     } finally {
         if ($null -ne $state -and [bool]$state.processing.running) {
