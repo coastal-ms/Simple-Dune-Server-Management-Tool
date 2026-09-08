@@ -22,6 +22,8 @@ the running game may not have persisted its latest changes.
   canonical owner filters. It is read-only even for administrators. Vehicle
   queries bypass the player/storage cache, so an older cache cannot masquerade as
   an empty cargo hold. Existing player/storage browsing and refresh are unchanged.
+- Recovery-state records stay collapsed below the active fleet. Cargo opens from
+  the inspected vehicle and does not use player or storage-location filters.
 
 ## Guarded removal
 
@@ -33,6 +35,8 @@ snapshot binds the current host/namespace identity, actor, permission roster,
 installed modules, recovery ownership and complete actor-owned inventory contents.
 Processing requires `RESTART AND DELETE` plus the exact reviewed queue revision.
 Legacy entries without this binding must be cancelled and queued again.
+Both confirmations use in-app review dialogs so the target, consequences and
+required text remain visible in the desktop shell.
 
 Before disruption, every target is re-read. Travel, VehicleBackup, VehicleRecovery
 and ambiguous ownership/cargo are refused. Every inventory in the deletion closure,

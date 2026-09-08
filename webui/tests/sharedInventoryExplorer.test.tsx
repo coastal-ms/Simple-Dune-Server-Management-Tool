@@ -173,6 +173,8 @@ describe('Shared Inventory Explorer grouped catalog', () => {
     await user.click(await screen.findByRole('button', { name: /Copper, total quantity 30/ }))
     await screen.findByText('Vehicle cargo: Scout')
     expect(inventoryApi).toHaveBeenCalledWith(expect.objectContaining({ scopeType: 'vehicle', scopeId: 70001, types: ['vehicle'] }))
+    expect(screen.queryByRole('combobox', { name: 'Player' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Location' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete Copper from Scout' })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: 'Select Copper in Scout' })).not.toBeInTheDocument()
     expect(deleteInventoryItemApi).not.toHaveBeenCalled()

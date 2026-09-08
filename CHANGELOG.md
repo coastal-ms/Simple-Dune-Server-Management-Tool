@@ -30,6 +30,8 @@ here cover everything those tags shipped.
 - Routed Command Deck Map navigation to the static **DD Atlas**.
 - Hardened Vehicle Lifecycle removal to reject any deletion closure that includes
   an inventory owned by another actor.
+- Separated recovery-state records from the active fleet, made cargo explicitly
+  vehicle-selected, and replaced browser prompts with clear in-app removal reviews.
 
 ## [15.0.0] - 2026-09-07
 

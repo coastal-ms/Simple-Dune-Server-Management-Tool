@@ -74,8 +74,15 @@ describe('inventory workspace embedding', () => {
     expect(screen.getByRole('link', { name: 'Blueprints' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('embeds proven read-only vehicle cargo rather than fleet writes', () => {
+  it('requires a vehicle selection before opening read-only cargo', () => {
     window.history.replaceState(null, '', '/vehicles?view=cargo')
+    const view = render(<BrowserRouter><VehiclesWorkspace /></BrowserRouter>)
+    expect(screen.getByText('No vehicle selected')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Choose from fleet' })).toHaveAttribute('href', '/vehicles?view=fleet')
+    expect(screen.queryByText('Inventory fixture: vehicle')).not.toBeInTheDocument()
+
+    view.unmount()
+    window.history.replaceState(null, '', '/vehicles?view=cargo&scope_type=vehicle&scope_id=7')
     render(<BrowserRouter><VehiclesWorkspace /></BrowserRouter>)
     expect(screen.getByText('Inventory fixture: vehicle')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /queue removal/i })).not.toBeInTheDocument()
