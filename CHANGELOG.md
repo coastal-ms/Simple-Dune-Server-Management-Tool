@@ -3828,10 +3828,10 @@ cache on the VM.
 - **Website link in the menu bar** — a right-aligned "Website" link opens the
   project's marketing site in the browser.
 
+
+
 ### Changed
 
-- Added repo-local Copilot agent instructions (`.github/copilot-instructions.md`)
-  documenting build/test, encoding, versioning, and release conventions.
 
 ## [12.0.21] - 2026-06-14
 
