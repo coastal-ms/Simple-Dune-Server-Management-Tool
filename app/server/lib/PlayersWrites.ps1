@@ -769,10 +769,10 @@ SELECT count(*)::text AS repaired,
        ((SELECT count(*) FROM dune.vehicle_modules WHERE vehicle_id = $VehicleId::bigint) - count(*))::text AS skipped
 FROM updated;
 "@
-    $ur = Invoke-DuneSqlQuery -Ip $Ip -Sql $sql -ReadOnly $false -MaxRows 1 -TimeoutSec 30
+    $ur = Invoke-DuneSqlQuery -Ip $Ip -Sql $sql -ReadOnly $false -MaxRows 1 -TimeoutSec 30 -Bulk
     if (-not $ur.ok -and [string]$ur.error -match '(?i)connection .*closed by remote host') {
         Start-Sleep -Seconds 2
-        $ur = Invoke-DuneSqlQuery -Ip $Ip -Sql $sql -ReadOnly $false -MaxRows 1 -TimeoutSec 30
+        $ur = Invoke-DuneSqlQuery -Ip $Ip -Sql $sql -ReadOnly $false -MaxRows 1 -TimeoutSec 30 -Bulk
     }
     if (-not $ur.ok) { return @{ ok = $false; error = "repair vehicle modules: $($ur.error)" } }
     $updated = ConvertTo-DuneRowMaps -Result $ur

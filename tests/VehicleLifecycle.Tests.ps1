@@ -115,6 +115,7 @@ Describe 'Vehicle module repair' {
         $script:repairQueries[0] | Should -Match '"Engine":3000'
         $script:repairQueries[0] | Should -Match 'UPDATE dune\.vehicle_modules'
         $script:repairQueries[0] | Should -Match 'MaxDurability'
+        Should -Invoke Invoke-DuneSqlQuery -Times 1 -ParameterFilter { $Bulk }
     }
 
     It 'retries one idempotent repair after a transient SSH disconnect' {
