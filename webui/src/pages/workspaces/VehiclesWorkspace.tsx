@@ -17,6 +17,7 @@ import { getWorkspace } from '../../platform/workspaces'
 import { Link, useSearch } from '../../router'
 import { DetailPanel } from '../../components/platform/DetailPanel'
 import { ConfirmationModal } from '../../components/ConfirmationModal'
+import { ViewportNotice } from '../../components/ViewportNotice'
 import { SourceBadge } from '../gameplay/shared'
 import { isLocalViewer } from '../../util/viewer'
 
@@ -52,6 +53,7 @@ function VehicleFleetWorkspace() {
   const [unavailable, setUnavailable] = useState(false)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [integrityRefreshKey, setIntegrityRefreshKey] = useState(0)
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<number>>(new Set())
   const [deleteTargets, setDeleteTargets] = useState<VehicleFleetRow[]>([])
 
@@ -93,7 +95,9 @@ function VehicleFleetWorkspace() {
     try {
       const result = await repairVehicle(vehicle.id)
       setMessage(result.message)
+      await new Promise(resolve => window.setTimeout(resolve, 2000))
       await load()
+      setIntegrityRefreshKey(key => key + 1)
     } catch (repairError) {
       setError(errorMessage(repairError))
     } finally {
@@ -127,12 +131,8 @@ function VehicleFleetWorkspace() {
   const fleetCount = vehicles?.filter(vehicle => !isRecoveryRecord(vehicle)).length ?? 0
   const recoveryCount = (vehicles?.length ?? 0) - fleetCount
   const operationFeedback = <>
-    {error && <DataState state="error" title="Vehicle operation failed" message={error} />}
-    {message && (
-      <div className="mb-3 rounded-lg border border-success/35 bg-success/10 px-4 py-3 text-sm text-text" role="status">
-        {message}
-      </div>
-    )}
+    {error && <ViewportNotice kind="err" text={error} onDismiss={() => setError('')} />}
+    {message && <ViewportNotice kind="ok" text={message} onDismiss={() => setMessage('')} />}
   </>
   const repairButton = (vehicle: VehicleFleetRow) => <button className="btn-primary shrink-0"
     disabled={busy !== null || source !== 'live'}
@@ -312,7 +312,7 @@ function VehicleFleetWorkspace() {
         </li>)}</ul>
         {!selectedVehicle.permissions?.length && <p className="my-3 text-sm text-text-muted">No permission holders reported.</p>}
         <p className="mb-4 text-xs text-text-muted">Roster is read-only. Server custodian is not configured; DST does not infer game access from a local label.</p>
-        <VehicleModuleIntegrity vehicleId={selectedVehicle.id} />
+        <VehicleModuleIntegrity vehicleId={selectedVehicle.id} refreshKey={integrityRefreshKey} />
         {selectedVehicle.cargo_hold_count === 1 && <Link className="btn-secondary mb-4" to={`/vehicles?view=cargo&scope_type=vehicle&scope_id=${selectedVehicle.id}`}>Inspect cargo ({selectedVehicle.cargo_stack_count ?? '?'} stacks)</Link>}
         <p className="mb-4 text-xs text-text-muted">Repair restores every installed module to its catalog or recorded maximum durability.</p>
         {selectedVehicle.deletion_blocked_reason && (
@@ -340,7 +340,7 @@ function VehicleFleetWorkspace() {
   )
 }
 
-function VehicleModuleIntegrity({ vehicleId }: { vehicleId: number }) {
+function VehicleModuleIntegrity({ vehicleId, refreshKey }: { vehicleId: number; refreshKey: number }) {
   const [result, setResult] = useState<VehicleIntegrity | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {
@@ -349,7 +349,7 @@ function VehicleModuleIntegrity({ vehicleId }: { vehicleId: number }) {
     getVehicleIntegrity(vehicleId).then(value => { if (active) setResult(value) })
       .catch((reason: unknown) => { if (active) setError(errorMessage(reason)) })
     return () => { active = false }
-  }, [vehicleId])
+  }, [refreshKey, vehicleId])
   return <section className="mb-4" aria-label="Persisted module integrity">
     <h3 className="font-semibold">Persisted module integrity</h3>
     {error ? <DataState state="error" title="Module integrity unavailable" message={error} /> : !result ? <DataState state="loading" title="Loading modules" /> : <>

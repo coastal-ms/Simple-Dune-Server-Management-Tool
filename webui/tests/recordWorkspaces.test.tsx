@@ -108,8 +108,9 @@ describe('Record-focused gameplay workspaces', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Repair vehicle' }))
-    expect(await within(dialog).findByText('Repaired 4 vehicle modules.')).toBeInTheDocument()
+    expect(await screen.findByText('Repaired 4 vehicle modules.')).toBeInTheDocument()
     expect(repairVehicle).toHaveBeenCalledWith(7)
+    await waitFor(() => expect(getVehicleIntegrity).toHaveBeenCalledTimes(2), { timeout: 3000 })
   })
   it('deletes one vehicle through one confirmation and one API action', async () => {
     render(<VehiclesWorkspace />)
