@@ -1,6 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
 import PageHeader from "../components/PageHeader.astro";
+import Screenshot from "../components/Screenshot.astro";
+const base = import.meta.env.BASE_URL;
 ---
 
 <Base
@@ -12,6 +14,16 @@ import PageHeader from "../components/PageHeader.astro";
     title="Take the full DST portal with you"
     intro="DST stays local-only by default. When you choose remote access, the same responsive portal can run on a phone, tablet, or another PC through a stable HTTPS address. Optional host-managed accounts replace credential-bearing links with normal sign-in and enforce Owner/Admin boundaries in both navigation and APIs."
   />
+
+  <section class="site-width phone-tour pb-12">
+    <div>
+      <h2>Your control room, on a smaller screen.</h2>
+      <p>Open the same responsive Browser Portal in your device's browser. Account login uses host-created credentials, not a password hidden in the shared link.</p>
+      <p>New setups use Tailscale Funnel. Existing Cloudflare configuration remains available but its legacy portal is disabled by default. Keep it disabled unless you explicitly need it.</p>
+      <a class="text-link" href="#funnel">Start with Tailscale Funnel <span aria-hidden="true">↓</span></a>
+    </div>
+    <Screenshot src={`${base}screenshots/browser-portal.png`} alt="DST Browser Portal sign-in form on a phone-sized screen with empty account fields and a remember-me option" caption="Shipped v15 sign-in, captured offline. No credentials or connected remote session." width={390} height={844} />
+  </section>
 
   <section class="mx-auto max-w-3xl px-6 pb-16 space-y-12 text-dune-text">
     <nav class="rounded-xl border border-dune-border bg-dune-surface p-5">
@@ -48,7 +60,7 @@ import PageHeader from "../components/PageHeader.astro";
           <h3 class="font-semibold text-lg mb-2">Admin</h3>
           <p class="text-dune-muted text-sm leading-relaxed">
             Operational access to server health, pods, approved Commands,
-            Gameplay Admin, Broadcasts, DD Seed Maps, and Map Management.
+            Gameplay Admin, Broadcasts, DD Atlas, and Map Management.
             Game Config, Experimental, Database, Sietches, and Settings remain
             unavailable.
           </p>
@@ -64,7 +76,7 @@ import PageHeader from "../components/PageHeader.astro";
       <h2 class="text-2xl font-semibold mb-4">2 · How access is protected</h2>
       <ol class="list-decimal list-inside space-y-3 text-dune-muted leading-relaxed">
         <li>
-          A public HTTPS transport forwards to DST's loopback-only bridge on
+          A public HTTPS transport forwards to DST's loopback-only bridge on{" "}
           <span class="font-mono">127.0.0.1:47900</span>. No router
           port-forward or inbound Windows Firewall rule is required.
         </li>
@@ -97,7 +109,7 @@ import PageHeader from "../components/PageHeader.astro";
         <div class="rounded-xl border border-dune-border bg-dune-surface p-5">
           <h3 class="font-semibold text-lg mb-2">Install Tailscale on the DST PC</h3>
           <p class="text-dune-muted text-sm">
-            Download it from <a class="underline text-dune-text" href="https://tailscale.com/download" rel="noopener" target="_blank">tailscale.com/download</a>
+            Download it from <a class="underline text-dune-text" href="https://tailscale.com/download" rel="noopener" target="_blank">tailscale.com/download</a>{" "}
             and sign in. A personal account is enough for one host.
           </p>
         </div>
@@ -149,9 +161,9 @@ import PageHeader from "../components/PageHeader.astro";
       <div class="rounded-xl border border-dune-border bg-dune-surface p-5 mt-5">
         <h3 class="font-semibold mb-2">Save it like an app</h3>
         <p class="text-dune-muted text-sm leading-relaxed">
-          On iPhone or iPad, open the portal in Safari and choose
+          On iPhone or iPad, open the portal in Safari and choose{" "}
           <strong>Share → Add to Home Screen</strong>. On Android, open it in
-          Chrome and choose <strong>Add to Home screen</strong> or
+          Chrome and choose <strong>Add to Home screen</strong> or{" "}
           <strong>Install app</strong>. The icon opens the responsive Browser
           Portal; no separate DST mobile app is required.
         </p>

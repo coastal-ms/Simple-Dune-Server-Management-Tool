@@ -1,5 +1,5 @@
 # Shared Inventory Explorer read model. This file only projects proven player
-# inventories and inventory_type=4 storage placeables.
+# inventories, inventory_type=4 storage placeables, and proven vehicle cargo.
 
 $script:DuneInventoryDefaultLimit = 100
 $script:DuneInventoryMaxLimit = 500
@@ -23,7 +23,7 @@ function Get-DuneInventoryEntityTypes {
     $types = @($Value.Split(',') | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ } | Sort-Object -Unique)
     if ($types.Count -eq 0) { return @('player', 'storage') }
     foreach ($type in $types) {
-        if ($type -notin @('player', 'storage')) {
+        if ($type -notin @('player', 'storage', 'vehicle')) {
             throw "Unsupported inventory entity type '$type'."
         }
     }
@@ -49,7 +49,7 @@ function Resolve-DuneInventoryScope {
     }
 
     $scopeType = $ScopeTypeValue.Trim().ToLowerInvariant()
-    if ($scopeType -notin @('player', 'storage') -or $scopeType -notin $EntityTypes) {
+    if ($scopeType -notin @('player', 'storage', 'vehicle') -or $scopeType -notin $EntityTypes) {
         return @{ ok = $false; error = 'scope_type must be one of the requested supported types.' }
     }
     $scopeId = 0L
@@ -149,6 +149,7 @@ function Get-DuneInventorySearchSql {
         $where += "($($search -join ' OR '))"
     }
     $storageClassSql = Get-DuneInventoryStorageClassSql
+    $vehicleSql = if ('vehicle' -in $EntityTypes) { "UNION ALL`n$(Get-DuneVehicleCargoInventorySql)" } else { '' }
 
     return @"
 WITH inventory_rows AS (
@@ -215,6 +216,7 @@ WITH inventory_rows AS (
     WHERE p.is_hologram = false
       AND p.owner_entity_id IS NOT NULL
       AND p.owner_entity_id <> 0
+    $vehicleSql
 )
 SELECT item_id, template_id, stack_size, quality_level, durability, max_durability,
        water_amount, water_type, inventory_id, inventory_type, entity_type,
@@ -240,6 +242,8 @@ function ConvertTo-DuneInventoryItem {
     }
     $workspacePath = if ($entityType -eq 'player') {
         "/players?view=inventory&scope_type=player&scope_id=$entityId"
+    } elseif ($entityType -eq 'vehicle') {
+        "/vehicles?view=cargo&scope_type=vehicle&scope_id=$entityId"
     } else {
         "/bases?view=inventory&scope_type=storage&scope_id=$entityId"
     }
@@ -288,6 +292,10 @@ function Invoke-DuneInventorySearchLive {
         [long]$AfterItemId = 0,
         [int]$Limit = 101
     )
+    if ('vehicle' -in $EntityTypes) {
+        $scope = Test-DuneVehicleCargoReadScope -Ip $Ip -ScopeType $ScopeType -ScopeId $ScopeId
+        if (-not $scope.ok) { return $scope }
+    }
     $sql = Get-DuneInventorySearchSql -Query $Query -EntityTypes $EntityTypes `
         -ScopeType $ScopeType -ScopeId $ScopeId -AfterItemId $AfterItemId -Limit $Limit
     $result = Invoke-DuneSqlQuery -Ip $Ip -Sql $sql -ReadOnly $true -MaxRows $Limit -TimeoutSec 45 -Bulk
@@ -541,8 +549,69 @@ function Get-DuneInventoryMetadataMatchesJson {
     return (ConvertTo-Json -InputObject $ids -Compress)
 }
 
+function Test-DuneVehicleCargoReadScope {
+    param([string]$Ip, [string]$ScopeType, [long]$ScopeId)
+    [void](Get-DuneVehicleHostScope -Ip $Ip)
+    $filter = if ($ScopeType -eq 'vehicle') { "AND v.id = $ScopeId::bigint" } else { '' }
+    $sql = @"
+SELECT EXISTS (
+    SELECT v.id FROM dune.vehicles v
+    JOIN dune.inventories inv ON inv.actor_id = v.id AND inv.inventory_type = 0
+    WHERE true $filter
+    GROUP BY v.id
+    HAVING count(*) > 1 OR bool_or(inv.exchange_id IS NOT NULL OR inv.item_id IS NOT NULL OR inv.vehicle_module_id IS NOT NULL)
+)::text AS ambiguous;
+"@
+    $result = Invoke-DuneSqlQuery -Ip $Ip -Sql $sql -ReadOnly $true -MaxRows 1 -TimeoutSec 20
+    if (-not $result.ok) { return @{ ok = $false; error = "Vehicle cargo scope could not be proven: $($result.error)" } }
+    $rows = ConvertTo-DuneRowMaps -Result $result
+    if ($rows.Count -ne 1 -or [string]$rows[0]['ambiguous'] -notin @('f','false')) {
+        return @{ ok = $false; error = 'Vehicle cargo ownership is ambiguous. No cargo results are returned; resolve multiple or conflicting holds in-game.' }
+    }
+    return @{ ok = $true }
+}
+
+function Get-DuneVehicleCargoInventorySql {
+    param([switch]$IncludePlayer)
+    # Actor-owned type 0 is the cargo hold; NULL-type component holds and
+    # vehicle_module_id are not cargo. Never choose one of multiple holds.
+    $playerColumns = if ($IncludePlayer) {
+        "owner.player_pawn_id::bigint AS player_id, COALESCE(owner.character_name, '') AS player_name,"
+    } else { '' }
+    return @"
+    SELECT i.id::bigint AS item_id, i.template_id, i.stack_size,
+           COALESCE(i.quality_level, 0) AS quality_level,
+           COALESCE(i.stats->'FItemStackAndDurabilityStats'->1->>'CurrentDurability', 'N/A') AS durability,
+           COALESCE(i.stats->'FItemStackAndDurabilityStats'->1->>'MaxDurability', 'N/A') AS max_durability,
+           COALESCE(i.stats->'FFillableItemStats'->1->>'CurrentAmount', 'N/A') AS water_amount,
+           COALESCE(i.stats->'FFillableItemStats'->1->>'FillableType', '') AS water_type,
+           inv.id::bigint AS inventory_id, inv.inventory_type,
+           'vehicle'::text AS entity_type, v.id::bigint AS entity_id,
+           $playerColumns
+           COALESCE(NULLIF(pa.actor_name, ''), a.class, 'Vehicle') AS entity_label,
+           COALESCE(owner.character_name, '') AS owner_name,
+           COALESCE(a.map, '') AS map, COALESCE(a.class, '') AS entity_class
+    FROM dune.vehicles v
+    JOIN dune.actors a ON a.id = v.id
+    JOIN dune.inventories inv ON inv.actor_id = v.id AND inv.inventory_type = 0
+    JOIN dune.items i ON i.inventory_id = inv.id
+    LEFT JOIN dune.permission_actor pa ON pa.actor_id = v.id AND pa.actor_type = 2
+    LEFT JOIN LATERAL (
+        SELECT min(ps.player_pawn_id) AS player_pawn_id, min(ps.character_name) AS character_name
+        FROM dune.permission_actor_rank par
+        LEFT JOIN dune.player_state ps ON ps.player_controller_id = par.player_id
+        WHERE par.permission_actor_id = v.id AND par.rank = 1
+        HAVING count(*) = 1 AND count(ps.player_pawn_id) = 1
+    ) owner ON true
+    WHERE (SELECT count(*) FROM dune.inventories holds WHERE holds.actor_id = v.id AND holds.inventory_type = 0) = 1
+      AND inv.exchange_id IS NULL AND inv.item_id IS NULL AND inv.vehicle_module_id IS NULL
+"@
+}
+
 function Get-DuneInventoryFilteredCteSql {
+    param([switch]$IncludeVehicles)
     $storageClassSql = Get-DuneInventoryStorageClassSql
+    $vehicleSql = if ($IncludeVehicles) { "UNION ALL`n$(Get-DuneVehicleCargoInventorySql -IncludePlayer)" } else { '' }
     return @"
 /*__DST_PARAMETERS__*/,
 inventory_rows AS (
@@ -589,6 +658,7 @@ inventory_rows AS (
         ORDER BY par.rank ASC, ps.character_name ASC, ps.player_pawn_id ASC LIMIT 1
     ) owner ON true
     WHERE p.is_hologram = false AND p.owner_entity_id IS NOT NULL AND p.owner_entity_id <> 0
+    $vehicleSql
 ),
 visible_rows AS (
     SELECT r.*
@@ -834,10 +904,10 @@ function Assert-DuneInventoryDatabaseRow {
         }
     }
 
-    if ($Kind -eq 'item' -and [string]$Row['entity_type'] -notin @('player', 'storage')) {
+    if ($Kind -eq 'item' -and [string]$Row['entity_type'] -notin @('player', 'storage', 'vehicle')) {
         throw "Malformed inventory database item row: 'entity_type' is unsupported."
     }
-    if ($Kind -eq 'locationFacet' -and [string]$Row['entity_type'] -notin @('player', 'storage')) {
+    if ($Kind -eq 'locationFacet' -and [string]$Row['entity_type'] -notin @('player', 'storage', 'vehicle')) {
         throw "Malformed inventory database locationFacet row: 'entity_type' is unsupported."
     }
 }
@@ -1056,7 +1126,11 @@ function Invoke-DuneInventoryGroupedLive {
         -AfterSortName $AfterSortName -AfterTemplateId $AfterTemplateId -Limit $Limit
     $sortSpec = Resolve-DuneInventoryGroupSort -Value $Sort
     if (-not $sortSpec.ok) { return @{ ok = $false; error = $sortSpec.error } }
-    $cte = Get-DuneInventoryFilteredCteSql
+    if ('vehicle' -in $EntityTypes) {
+        $scope = Test-DuneVehicleCargoReadScope -Ip $Ip -ScopeType $ScopeType -ScopeId $ScopeId
+        if (-not $scope.ok) { return $scope }
+    }
+    $cte = Get-DuneInventoryFilteredCteSql -IncludeVehicles:('vehicle' -in $EntityTypes)
     $primary = [string]$sortSpec.primary
     if ($sortSpec.type -eq 'text') {
         $comparison = if ($sortSpec.direction -eq 'asc') { '>' } else { '<' }
@@ -1238,7 +1312,10 @@ function Invoke-DuneInventoryGroupedPage {
             -ObservedAt ((Get-Date).ToUniversalTime().ToString('o'))
         return $result
     }
-    if ($CursorSource -ne 'live' -and
+    if ('vehicle' -in $EntityTypes -and $CursorSource -eq 'cache') {
+        return @{ ok = $false; status = 409; error = 'Vehicle cargo uses current database reads. Refresh to discard the cache cursor.' }
+    }
+    if ('vehicle' -notin $EntityTypes -and $CursorSource -ne 'live' -and
         (Get-Command Invoke-DuneInventoryGroupedCachePage -ErrorAction SilentlyContinue)) {
         $cached = Invoke-DuneInventoryGroupedCachePage `
             -Query $Query `
@@ -1340,7 +1417,11 @@ function Invoke-DuneInventoryOccurrencesLive {
     } else {
         $pageWhere = "(p.after_item_id = 0 OR $primary IS NULL OR $primary $comparison p.after_sort_value::double precision OR ($primary = p.after_sort_value::double precision AND r.item_id > p.after_item_id))"
     }
-    $cte = Get-DuneInventoryFilteredCteSql
+    if ('vehicle' -in $EntityTypes) {
+        $scope = Test-DuneVehicleCargoReadScope -Ip $Ip -ScopeType $ScopeType -ScopeId $ScopeId
+        if (-not $scope.ok) { return $scope }
+    }
+    $cte = Get-DuneInventoryFilteredCteSql -IncludeVehicles:('vehicle' -in $EntityTypes)
     $sql = @"
 WITH $cte
 SELECT r.item_id, r.template_id, r.stack_size, r.quality_level, r.durability, r.max_durability,
@@ -1499,7 +1580,10 @@ function Invoke-DuneInventoryOccurrencesPage {
             -ObservedAt ((Get-Date).ToUniversalTime().ToString('o'))
         return $result
     }
-    if ($CursorSource -ne 'live' -and
+    if ('vehicle' -in $EntityTypes -and $CursorSource -eq 'cache') {
+        return @{ ok = $false; status = 409; error = 'Vehicle cargo uses current database reads. Refresh to discard the cache cursor.' }
+    }
+    if ('vehicle' -notin $EntityTypes -and $CursorSource -ne 'live' -and
         (Get-Command Invoke-DuneInventoryOccurrenceCachePage -ErrorAction SilentlyContinue)) {
         $cached = Invoke-DuneInventoryOccurrenceCachePage `
             -TemplateId $TemplateId `

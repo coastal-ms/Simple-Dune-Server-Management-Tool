@@ -1,23 +1,14 @@
 BeforeAll {
     . (Join-Path $PSScriptRoot '_TestHelpers.ps1')
     Import-DstLib 'VehicleDeletion.ps1'
+    Import-DstLib 'VehicleLifecycle.ps1'
+    Import-DstLib 'Gameplay.ps1'
     $script:DuneVehicleDeletionStateFile = Join-Path $TestDrive 'vehicle-deletions.json'
     function Invoke-DuneSqlQuery { throw 'Invoke-DuneSqlQuery must be mocked in this test.' }
-    function ConvertTo-DuneRowMaps {
-        param($Result)
-        $rows = @()
-        foreach ($values in @($Result.Rows)) {
-            $row = @{}
-            for ($i = 0; $i -lt @($Result.Columns).Count; $i++) { $row[$Result.Columns[$i]] = $values[$i] }
-            $rows += $row
-        }
-        return $rows
-    }
-    function ConvertTo-DuneInt {
-        param($Value)
-        return [int64]$Value
-    }
     function Invoke-DuneBackupShell {}
+    function Get-DuneVehicleKitCatalog { return @{ vehicles = @() } }
+    $script:testScope = 'a' * 64
+    $script:testRevision = 'b' * 32
 }
 
 Describe 'Vehicle deletion queue' {
@@ -104,6 +95,7 @@ Describe 'Vehicle deletion queue' {
 }
 
 Describe 'Vehicle deletion SQL' {
+    BeforeEach { Mock Test-DuneVehicleWindowStopped { @{ ok = $true } } }
     It 'uses permission cleanup before actor deletion and verifies absence' {
         $script:queries = @()
         Mock Invoke-DuneSqlQuery {
@@ -114,22 +106,37 @@ Describe 'Vehicle deletion SQL' {
             }
             return @{ ok = $true; Columns = @(); Rows = @() }
         }
-        $result = Invoke-DuneVehicleDeleteTransaction -Ip '192.0.2.1' -VehicleId 42
+        $result = Invoke-DuneVehicleDeleteTransaction -Ip '192.0.2.1' -VehicleId 42 -TargetRevision $script:testRevision -DatabaseScope $script:testScope
         $result.ok | Should -BeTrue
         $script:queries[0] | Should -Match 'FOR UPDATE'
         $script:queries[0].IndexOf('permission_actor_destroy') | Should -BeLessThan $script:queries[0].IndexOf('delete_actors')
         $script:queries[1] | Should -Match 'EXISTS'
+        $script:queries[0] | Should -Match 'pg_stat_activity'
+        $script:queries[0] | Should -Match "state::text = 'Travel'"
+        $script:queries[0] | Should -Match 'actual_revision IS DISTINCT FROM'
+        $script:queries[0] | Should -Match 'search_path TO dune, public'
+        $script:queries[0] | Should -Match 'Vehicle dependent-record postflight failed'
+        $script:queries[0] | Should -Match 'Vehicle cargo hold has conflicting ownership references'
+        $script:queries[0] | Should -Match 'inv\.inventory_type = 0'
+        $script:queries[0] | Should -Match 'inv\.exchange_id IS NOT NULL OR inv\.item_id IS NOT NULL OR inv\.vehicle_module_id IS NOT NULL'
+        $script:queries[0] | Should -Match 'Vehicle deletion closure includes inventory owned by another actor'
+        $script:queries[0] | Should -Match 'inv\.vehicle_module_id IN \(SELECT id FROM dune\.vehicle_modules WHERE vehicle_id = 42::bigint\)'
+        $script:queries[0] | Should -Match 'inv\.actor_id IS NOT NULL'
+        $script:queries[0] | Should -Match 'inv\.actor_id <> 42::bigint'
+        $script:queries[0] | Should -Match 'vm\.id = inv\.vehicle_module_id AND vm\.vehicle_id = 42::bigint'
     }
 
     It 'aggregates duplicate actor-state rows into one vehicle row' {
+        Mock Get-DuneVehicleHostScope { @{ key = $script:testScope } }
         Mock Invoke-DuneSqlQuery {
             param($Ip, $Sql, $ReadOnly, $MaxRows, $TimeoutSec)
             $script:fleetSql = $Sql
             return @{
                 ok = $true
-                Columns = @('vehicle_id','class','map','vehicle_name','actor_state','owners')
-                Rows = @(, @('42','BP_Sandbike_C','Hagga','Scout','ready, stored','Coastal'))
+                Columns = @('vehicle_id','class','map','vehicle_name','actor_state','permissions','target_revision')
+                Rows = @(, @('42','BP_Sandbike_C','Hagga','Scout','ready, stored','[]',$script:testRevision))
             }
+
         }
 
         $result = Get-DuneVehicleFleetLive -Ip '192.0.2.1'
@@ -139,6 +146,22 @@ Describe 'Vehicle deletion SQL' {
         $script:fleetSql | Should -Match "string_agg\(DISTINCT s\.state::text"
         $script:fleetSql | Should -Not -Match 'pa\.actor_name, s\.state'
     }
+
+    It 'rejects unreadable postflight rather than treating it as absence' -TestCases @(@{ Value = '' }, @{ Value = 'unknown' }, @{ Value = 'true' }) {
+        param($Value)
+        Mock Invoke-DuneSqlQuery {
+            param($ReadOnly)
+            if ($ReadOnly) { return @{ ok = $true; Columns = @('remains'); Rows = @(, @($Value)) } }
+            return @{ ok = $true }
+        }
+        (Invoke-DuneVehicleDeleteTransaction -Ip '192.0.2.1' -VehicleId 42 -TargetRevision $script:testRevision -DatabaseScope $script:testScope).ok | Should -BeFalse
+    }
+
+    It 'rejects unbound legacy target snapshots without issuing SQL' {
+        Mock Invoke-DuneSqlQuery { throw 'must not run' }
+        (Invoke-DuneVehicleDeleteTransaction -Ip '192.0.2.1' -VehicleId 42).ok | Should -BeFalse
+        Should -Invoke Invoke-DuneSqlQuery -Times 0
+    }
 }
 
 Describe 'Vehicle deletion safety window' {
@@ -146,19 +169,23 @@ Describe 'Vehicle deletion safety window' {
         if (Test-Path -LiteralPath $script:DuneVehicleDeletionStateFile) {
             Remove-Item -LiteralPath $script:DuneVehicleDeletionStateFile -Force
         }
+        Mock Get-DuneVehicleFleetLive {
+            @{ ok = $true; database_scope = $script:testScope; vehicles = @(@{ id = 42; target_revision = $script:testRevision; deletion_blocked_reason = $null }) }
+        }
+        Mock Invoke-DuneVehicleSafetyBackup { @{ ok = $true; path = '/fixture/safety.backup'; database_scope = $script:testScope } }
     }
 
     It 'persists completion details and clears running state when restart fails' {
-        Add-DuneVehicleDeletion -VehicleId 42 -VehicleClass 'Sandbike' | Out-Null
+        Add-DuneVehicleDeletion -VehicleId 42 -VehicleClass 'Sandbike' -TargetRevision $script:testRevision -DatabaseScope $script:testScope | Out-Null
         $script:shellCalls = 0
         Mock Invoke-DuneBackupShell {
             $script:shellCalls++
-            if ($script:shellCalls -eq 3) { return @{ rc = 1; out = 'start failed' } }
+            if ($script:shellCalls -eq 2) { return @{ rc = 1; out = 'start failed' } }
             return @{ rc = 0; out = 'ok' }
         }
         Mock Invoke-DuneVehicleDeleteTransaction { @{ ok = $true } }
 
-        $result = Invoke-DuneVehicleDeletionWindow -Ip '192.0.2.1'
+        $result = Invoke-DuneVehicleDeletionWindow -Ip '192.0.2.1' -QueueRevision (Get-DuneVehicleDeletionQueue).revision
 
         $result.ok | Should -BeFalse
         $result.processed | Should -Be 1
@@ -166,5 +193,33 @@ Describe 'Vehicle deletion safety window' {
         $result.error | Should -Match 'did not start cleanly'
         (Get-DuneVehicleDeletionQueue).running | Should -BeFalse
         (Get-DuneVehicleDeletionQueue).history[0].status | Should -Be 'deleted'
+        (Get-DuneVehicleDeletionQueue).history.Count | Should -Be 1
+        (Get-DuneVehicleDeletionQueue).history[0].safety_backup | Should -Be '/fixture/safety.backup'
+    }
+
+    It 'rejects a changed queue before taking a backup or stopping' {
+        Add-DuneVehicleDeletion -VehicleId 42 -VehicleClass 'Sandbike' -TargetRevision $script:testRevision -DatabaseScope $script:testScope | Out-Null
+        $revision = (Get-DuneVehicleDeletionQueue).revision
+        Add-DuneVehicleDeletion -VehicleId 43 -VehicleClass 'Buggy' -TargetRevision $script:testRevision -DatabaseScope $script:testScope | Out-Null
+        (Invoke-DuneVehicleDeletionWindow -Ip '192.0.2.1' -QueueRevision $revision).error | Should -Match 'queue changed'
+        Should -Invoke Invoke-DuneVehicleSafetyBackup -Times 0
+    }
+
+    It 'rejects changed or protected targets before taking a backup' {
+        Add-DuneVehicleDeletion -VehicleId 42 -VehicleClass 'Sandbike' -TargetRevision $script:testRevision -DatabaseScope $script:testScope | Out-Null
+        Mock Get-DuneVehicleFleetLive { @{ ok = $true; database_scope = $script:testScope; vehicles = @(@{ target_revision = $script:testRevision; deletion_blocked_reason = 'Travel' }) } }
+        (Invoke-DuneVehicleDeletionWindow -Ip '192.0.2.1' -QueueRevision (Get-DuneVehicleDeletionQueue).revision).ok | Should -BeFalse
+        Should -Invoke Invoke-DuneVehicleSafetyBackup -Times 0
+    }
+
+    It 'does not stop or mutate when backup proof fails' {
+        Add-DuneVehicleDeletion -VehicleId 42 -VehicleClass 'Sandbike' -TargetRevision $script:testRevision -DatabaseScope $script:testScope | Out-Null
+        Mock Invoke-DuneVehicleSafetyBackup { @{ ok = $false; error = 'No verified backup' } }
+        Mock Invoke-DuneBackupShell { throw 'must not run' }
+        Mock Invoke-DuneVehicleDeleteTransaction { throw 'must not run' }
+        (Invoke-DuneVehicleDeletionWindow -Ip '192.0.2.1' -QueueRevision (Get-DuneVehicleDeletionQueue).revision).ok | Should -BeFalse
+        Should -Invoke Invoke-DuneBackupShell -Times 0
+        Should -Invoke Invoke-DuneVehicleDeleteTransaction -Times 0
+        (Get-DuneVehicleDeletionQueue).running | Should -BeFalse
     }
 }

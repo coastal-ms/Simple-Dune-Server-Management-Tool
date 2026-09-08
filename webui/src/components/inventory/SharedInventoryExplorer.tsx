@@ -61,7 +61,7 @@ function errorMessage(error: unknown) {
 }
 
 function entityTypeLabel(type: InventoryEntityType) {
-  return type === 'player' ? 'Backpack' : 'Storage box'
+  return type === 'player' ? 'Backpack' : type === 'vehicle' ? 'Vehicle cargo' : 'Storage box'
 }
 
 function valueOrNotReported(value: string) {
@@ -161,7 +161,7 @@ export function SharedInventoryExplorer({
   const parsedScopeId = parsePositiveId(requestedScopeId)
   const hasScopeType = params.has('scope_type')
   const hasScopeId = params.has('scope_id')
-  const validScopeType = requestedScopeType === 'player' || requestedScopeType === 'storage'
+  const validScopeType = requestedScopeType === 'player' || requestedScopeType === 'storage' || requestedScopeType === 'vehicle'
   const scopeError = hasScopeType !== hasScopeId
     ? 'Both scope_type and scope_id are required for a scoped inventory link.'
     : hasScopeType && (!validScopeType || !entityTypes.includes(requestedScopeType as InventoryEntityType))
@@ -169,17 +169,20 @@ export function SharedInventoryExplorer({
       : hasScopeId && !parsedScopeId ? 'The requested inventory scope ID must be a positive integer.' : ''
   const scopeType = !scopeError && validScopeType ? requestedScopeType as InventoryEntityType : undefined
   const scopeId = !scopeError ? parsedScopeId : undefined
+  const fixedVehicleScope = scopeType === 'vehicle' && Boolean(scopeId)
   const requestedPlayerId = params.get('player_id')
-  const playerId = parsePositiveId(requestedPlayerId)
-  const playerError = params.has('player_id') && !playerId
+  const playerId = fixedVehicleScope ? undefined : parsePositiveId(requestedPlayerId)
+  const playerError = !fixedVehicleScope && params.has('player_id') && !playerId
     ? 'The requested player ID must be a positive integer.'
     : ''
   const requestedLocationType = params.get('location_type')
-  const locationType = requestedLocationType === 'player' || requestedLocationType === 'storage'
+  const locationType = !fixedVehicleScope && (requestedLocationType === 'player' || requestedLocationType === 'storage' || requestedLocationType === 'vehicle')
     ? requestedLocationType : undefined
-  const locationId = parsePositiveId(params.get('location_id'))
-  const locationError = params.has('location_type') !== params.has('location_id')
+  const locationId = fixedVehicleScope ? undefined : parsePositiveId(params.get('location_id'))
+  const locationError = !fixedVehicleScope && (
+    params.has('location_type') !== params.has('location_id')
     || (params.has('location_type') && (!locationType || !locationId))
+  )
   const query = params.get('q') ?? ''
   const sort = catalogSorts.some(option => option.value === params.get('sort'))
     ? params.get('sort') as SharedInventorySort : 'name-asc'
@@ -287,7 +290,7 @@ export function SharedInventoryExplorer({
     setLoading(true)
     setError('')
     try {
-      await refreshSharedInventory()
+      if (!entityTypes.includes('vehicle')) await refreshSharedInventory()
       await load(undefined, false, true)
     } catch (reason) {
       setError(errorMessage(reason))
@@ -343,13 +346,17 @@ export function SharedInventoryExplorer({
     <WorkspaceSection id="shared-inventory" title={title} description={description}>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="pill border-info/40 text-info">Inventory catalog</span>
-        {entityTypes.map(type => <span key={type} className="pill border-border text-text-muted">{type === 'player' ? 'Player backpacks' : 'Storage boxes'}</span>)}
+        {entityTypes.map(type => <span key={type} className="pill border-border text-text-muted">{type === 'player' ? 'Player backpacks' : type === 'vehicle' ? 'Vehicle cargo (read-only)' : 'Storage boxes'}</span>)}
         {canManageBases && entityTypes.includes('storage') && <span className="pill border-accent/40 text-accent-bright">Box names editable</span>}
         {current && <FreshnessBadge state={current.freshness.state} observedAt={current.freshness.observedAt} label={current.data.mode === 'demo' ? 'Demo inventory' : 'Live database'} />}
       </div>
       {scopeType && scopeId && <div className="mb-3 rounded-lg border border-info/35 bg-info/10 px-4 py-3 text-sm text-text" role="status">Scoped to {entityTypeLabel(scopeType).toLowerCase()} actor {scopeId}.</div>}
       <form
-        className="card mb-4 grid min-w-0 grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(10rem,.55fr)_minmax(10rem,.55fr)_minmax(12rem,.7fr)_auto_auto] xl:items-end"
+        className={`card mb-4 grid min-w-0 grid-cols-1 gap-3 p-4 sm:grid-cols-2 ${
+          fixedVehicleScope
+            ? 'xl:grid-cols-[minmax(15rem,1fr)_minmax(12rem,.7fr)_auto_auto]'
+            : 'xl:grid-cols-[minmax(15rem,1fr)_minmax(10rem,.55fr)_minmax(10rem,.55fr)_minmax(12rem,.7fr)_auto_auto]'
+        } xl:items-end`}
         role="search"
         onSubmit={event => {
           event.preventDefault()
@@ -359,9 +366,9 @@ export function SharedInventoryExplorer({
       >
         <label className="min-w-0 text-sm font-medium text-text">
           Search inventory
-          <input className="input mt-1 min-h-11 w-full" value={draftQuery} maxLength={200} placeholder="Item, owner, or location" onChange={event => setDraftQuery(event.target.value)} />
+          <input className="input mt-1 min-h-11 w-full" value={draftQuery} maxLength={200} placeholder={fixedVehicleScope ? 'Item name or template' : 'Item, owner, or location'} onChange={event => setDraftQuery(event.target.value)} />
         </label>
-        <label className="min-w-0 text-sm font-medium text-text">
+        {!fixedVehicleScope && <label className="min-w-0 text-sm font-medium text-text">
           Player
           <select
             aria-label="Player"
@@ -375,8 +382,8 @@ export function SharedInventoryExplorer({
               return <option key={player.id} value={player.id}>{player.name || 'Unnamed player'}{ordinal ? ` (${ordinal})` : ''}</option>
             })}
           </select>
-        </label>
-        <label className="min-w-0 text-sm font-medium text-text">
+        </label>}
+        {!fixedVehicleScope && <label className="min-w-0 text-sm font-medium text-text">
           Location
           <select
             aria-label="Location"
@@ -398,7 +405,7 @@ export function SharedInventoryExplorer({
               </option>
             ))}
           </select>
-        </label>
+        </label>}
         <label className="min-w-0 text-sm font-medium text-text">
           Sort by
           <select aria-label="Sort by" className="input mt-1 min-h-11 w-full" value={sort} onChange={event => setUrlFilters({ sort: event.target.value === 'name-asc' ? undefined : event.target.value })}>
@@ -483,7 +490,13 @@ export function SharedInventoryExplorer({
       {current?.data.mode === 'demo' && <DataState state="fresh" title="Showing bundled demo inventory" message="Demo mode was explicitly requested; these grouped items are examples and not live server contents." />}
       {error && <div className="mb-4"><DataState state="error" title="Inventory search failed" message={error} action={<button className="btn-secondary min-h-11" onClick={() => { void load() }}>Retry</button>} /></div>}
       {loading && currentGroups.length === 0 && !error && <DataState state="loading" title="Loading inventory catalog" />}
-      {!loading && !error && current && currentGroups.length === 0 && <DataState state="empty" title="No matching inventory items" message="Try another item, player, location, or source filter." />}
+      {!loading && !error && current && currentGroups.length === 0 && <DataState
+        state="empty"
+        title={scopeType === 'vehicle' ? 'No persisted cargo items' : 'No matching inventory items'}
+        message={scopeType === 'vehicle'
+          ? 'This vehicle has no items in its persisted actor-owned cargo hold.'
+          : 'Try another item, player, location, or source filter.'}
+      />}
       {currentGroups.length > 0 && (
         <>
           <ul className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(6.5rem,100%),1fr))] gap-2.5" aria-label="Inventory results">
@@ -563,7 +576,7 @@ function OccurrencePanel({
     filteredLocations, location => location.label, location => `${location.type}:${location.id}`,
   ), [filteredLocations])
   const canDelete = (item: SharedInventoryItem) => !demo && (
-    item.entity.type === 'player' ? canDeletePlayerItems : canDeleteStorageItems
+    item.entity.type === 'player' ? canDeletePlayerItems : item.entity.type === 'storage' && canDeleteStorageItems
   )
   const deletableItems = items.filter(canDelete)
   const selectedItems = deletableItems.filter(item => selectedItemKeys.has(inventoryItemKey(item)))
@@ -859,7 +872,7 @@ function OccurrencePanel({
                     <div><dt className="text-text-dim">Item</dt><dd>{item.id}</dd></div>
                     <div><dt className="text-text-dim">Inventory</dt><dd>{item.entity.inventoryType}</dd></div>
                   </dl>
-                  <Link className="mt-2 inline-flex text-xs font-semibold text-info hover:text-ibad" to={item.entity.workspacePath}>Open {item.entity.type === 'player' ? 'player' : 'container'}</Link>
+                  <Link className="mt-2 inline-flex text-xs font-semibold text-info hover:text-ibad" to={item.entity.workspacePath}>Open {item.entity.type === 'player' ? 'player' : item.entity.type === 'vehicle' ? 'vehicle cargo' : 'container'}</Link>
                 </li>
               ))}
               </ul>

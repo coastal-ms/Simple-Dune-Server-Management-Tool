@@ -6,17 +6,20 @@ import { MarketTab } from '../src/pages/gameplay/MarketTab'
 import VehiclesWorkspace from '../src/pages/workspaces/VehiclesWorkspace'
 import {
   getBases, getMarketItems, getMarketStats, getMarketCategories, getMarketListings, getMarketSales,
-  getVehicleFleet, getVehicleDeletionQueue, queueVehicleDeletion, destroyClaim,
+  getVehicleFleet, getVehicleIntegrity, repairVehicle, deleteVehicles, destroyClaim,
 } from '../src/api/gameplay'
 import { COMMAND_DECK_KEY } from '../src/hooks/useCommandDeck'
+import { isLocalViewer } from '../src/util/viewer'
+vi.mock('../src/util/viewer', () => ({ isLocalViewer: vi.fn(() => true) }))
 
 vi.mock('../src/hooks/useStatus', () => ({ useStatus: () => ({ status: { bg: { state: 'running' } } }) }))
 vi.mock('../src/api/gameplay', async importOriginal => ({
   ...await importOriginal<typeof import('../src/api/gameplay')>(),
   getBases: vi.fn(), getMarketItems: vi.fn(), getMarketStats: vi.fn(), getMarketCategories: vi.fn(), getMarketListings: vi.fn(), getMarketSales: vi.fn(),
-  getVehicleFleet: vi.fn(), getVehicleDeletionQueue: vi.fn(), queueVehicleDeletion: vi.fn(), destroyClaim: vi.fn(),
+  getVehicleFleet: vi.fn(), getVehicleIntegrity: vi.fn(), repairVehicle: vi.fn(), deleteVehicles: vi.fn(), destroyClaim: vi.fn(),
 }))
 beforeEach(() => {
+  vi.mocked(isLocalViewer).mockReturnValue(true)
   localStorage.setItem(COMMAND_DECK_KEY, '1')
   vi.mocked(getBases).mockResolvedValue({ source: 'live', bases: [{ id: 1, name: 'North base', owner: 'Aster', pieces: 40, placeables: 12, totemId: 11 }] })
   vi.mocked(getMarketItems).mockResolvedValue({ source: 'live', total: 1, page: 0, limit: 50, items: [{
@@ -26,8 +29,10 @@ beforeEach(() => {
   vi.mocked(getMarketCategories).mockResolvedValue({ categories: ['items/resources'] })
   vi.mocked(getMarketListings).mockResolvedValue({ source: 'live', listings: [] })
   vi.mocked(getMarketSales).mockResolvedValue({ source: 'live', sales: [] })
-  vi.mocked(getVehicleFleet).mockResolvedValue({ source: 'live', total: 1, vehicles: [{ id: 7, class: 'Buggy', vehicle_name: 'Scout', owners: 'Aster', map: 'Survival_1', actor_state: 'Active' }] })
-  vi.mocked(getVehicleDeletionQueue).mockResolvedValue({ entries: [], history: [], running: false })
+  vi.mocked(getVehicleFleet).mockResolvedValue({ source: 'live', total: 1, observed_at: new Date().toISOString(), stale_after_seconds: 20, vehicles: [{ id: 7, class: 'Buggy', subtype: 'Buggy', vehicle_name: 'Scout', owners: 'Aster', map: 'Survival_1', actor_state: 'Active', target_revision: 'b'.repeat(32), cargo_hold_count: 1, cargo_stack_count: 2, module_count: 4, permissions: [{ player_id: '11', rank: 1, character_name: 'Aster' }, { player_id: '12', rank: 2, character_name: 'Chani' }] }] })
+  vi.mocked(getVehicleIntegrity).mockResolvedValue({ source: 'live', observed_at: new Date().toISOString(), modules: [{ id: '8', template_id: 'Chassis', current_durability: null, max_durability: 100, decayed_max_durability: 80, repair_max_durability: 100 }] })
+  vi.mocked(repairVehicle).mockResolvedValue({ ok: true, message: 'Repaired 4 vehicle modules.' })
+  vi.mocked(deleteVehicles).mockResolvedValue({ ok: true, message: 'Vehicle deleted.', processed: 1, failed: 0 })
 })
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); vi.restoreAllMocks(); window.history.replaceState({}, '', '/') })
 
@@ -59,59 +64,110 @@ describe('Record-focused gameplay workspaces', () => {
     await user.keyboard('{Escape}')
     expect(inspect).toHaveFocus()
   })
-  it('filters and inspects vehicles before reaching the existing typed removal confirmation', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue(null)
+  it('filters and inspects vehicles with direct repair and delete actions', async () => {
     render(<VehiclesWorkspace />)
+    expect(await screen.findByText(/Give each vehicle a distinct in-game name/)).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
     expect(within(dialog).getByText('Buggy')).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Queue removal' }))
-    expect(window.prompt).toHaveBeenCalledOnce()
-    expect(queueVehicleDeletion).not.toHaveBeenCalled()
+    expect(within(dialog).getByRole('button', { name: 'Repair vehicle' })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Delete vehicle' })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select Scout for deletion' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close detail panel' }))
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search vehicle fleet' }), { target: { value: 'absent' } })
     expect(screen.queryByRole('button', { name: 'Inspect Scout' })).not.toBeInTheDocument()
     expect(screen.queryByText('Demo Data')).not.toBeInTheDocument()
   })
+  it('separates recovery records from the active fleet', async () => {
+    vi.mocked(getVehicleFleet).mockResolvedValue({
+      source: 'live',
+      total: 2,
+      observed_at: new Date().toISOString(),
+      stale_after_seconds: 20,
+      vehicles: [
+        { id: 7, class: 'Buggy', subtype: 'Buggy', vehicle_name: 'Scout', owners: 'Aster', map: 'Survival_1', actor_state: 'Active', target_revision: 'b'.repeat(32), cargo_hold_count: 1, cargo_stack_count: 2, module_count: 4 },
+        { id: 8, class: 'Buggy', subtype: 'Buggy', vehicle_name: 'Recovery buggy', owners: 'Aster', map: 'Survival_1', actor_state: 'VehicleRecovery', target_revision: 'c'.repeat(32), cargo_hold_count: 0, cargo_stack_count: 0, module_count: 0, deletion_blocked_reason: 'Vehicle is in VehicleRecovery.' },
+      ],
+    })
+    render(<VehiclesWorkspace />)
+    expect(await screen.findByText('1 fleet vehicle · 1 recovery record')).toBeInTheDocument()
+    const recovery = screen.getByText('Recovery records (1)').closest('details')
+    expect(recovery).not.toBeNull()
+    expect(within(recovery as HTMLElement).getByText('Recovery buggy')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inspect Scout' })).toBeInTheDocument()
+  })
   it('labels demo vehicles honestly and prevents their deletion', async () => {
     vi.mocked(getVehicleFleet).mockResolvedValue({ source: 'demo', total: 1, vehicles: [{ id: 7, class: 'Buggy', vehicle_name: 'Scout' }] })
     render(<VehiclesWorkspace />)
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
-    expect(screen.getByRole('button', { name: 'Queue removal' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete selected (0)' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Repair vehicle' })).toBeDisabled()
     await waitFor(() => expect(screen.queryByText('1 live vehicle')).not.toBeInTheDocument())
   })
-  it('shows a removal failure inside the open vehicle panel and retains it after closing', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('DELETE 7')
-    vi.mocked(queueVehicleDeletion).mockRejectedValueOnce(new Error('Removal queue unavailable'))
+  it('refreshes fleet and module data before showing repair success', async () => {
     render(<VehiclesWorkspace />)
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Queue removal' }))
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Removal queue unavailable')
-    expect(queueVehicleDeletion).toHaveBeenCalledWith(7, 'DELETE 7')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Close detail panel' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('Removal queue unavailable')
-  })
-  it('shows a mismatched removal confirmation inside the open vehicle panel', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('wrong')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Repair vehicle' }))
+    expect(within(dialog).getByRole('button', { name: 'Repairing...' })).toBeDisabled()
+    expect(await screen.findByText('Repaired 4 vehicle modules.', {}, { timeout: 3000 })).toBeInTheDocument()
+    expect(repairVehicle).toHaveBeenCalledWith(7)
+    await waitFor(() => expect(getVehicleIntegrity).toHaveBeenCalledTimes(2), { timeout: 3000 })
+    expect(within(dialog).getByRole('button', { name: 'Repair vehicle' })).toBeEnabled()
+  }, 8000)
+  it('deletes one vehicle through one confirmation and one API action', async () => {
     render(<VehiclesWorkspace />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
-    const dialog = screen.getByRole('dialog', { name: 'Scout' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Queue removal' }))
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('confirmation did not match DELETE 7')
-    expect(queueVehicleDeletion).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Scout for deletion' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete selected (1)' }))
+    const confirmation = screen.getByRole('alertdialog', { name: 'Restart the entire battlegroup and delete 1 vehicle?' })
+    expect(within(confirmation).getByText(/backs up the database/)).toBeInTheDocument()
+    expect(within(confirmation).getByText(/Every connected player will be disconnected/)).toBeInTheDocument()
+    expect(within(confirmation).getByText(/1–5 minutes/)).toBeInTheDocument()
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Restart BG & delete 1' }))
+    await waitFor(() => expect(deleteVehicles).toHaveBeenCalledWith([7]))
   })
-  it('shows successful removal queuing inside the open vehicle panel', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('DELETE 7')
-    vi.mocked(queueVehicleDeletion).mockResolvedValueOnce({
-      ok: true,
-      message: 'Removal queued',
-      entry: { id: 'queue-7', vehicle_id: 7, status: 'queued', attempts: 0, created_at: '2026-09-05T23:00:00Z' },
+  it('deletes multiple selected vehicles with one battlegroup restart action', async () => {
+    vi.mocked(getVehicleFleet).mockResolvedValue({
+      source: 'live',
+      total: 2,
+      observed_at: new Date().toISOString(),
+      stale_after_seconds: 20,
+      vehicles: [
+        { id: 7, class: 'Buggy', subtype: 'Buggy', vehicle_name: 'Scout', owners: 'Aster', map: 'Survival_1', actor_state: 'Active', target_revision: 'b'.repeat(32), cargo_hold_count: 1, cargo_stack_count: 2, module_count: 4 },
+        { id: 9, class: 'Sandbike', subtype: 'Sandbike', vehicle_name: 'Runner', owners: 'Aster', map: 'Survival_1', actor_state: 'Active', target_revision: 'c'.repeat(32), cargo_hold_count: 0, cargo_stack_count: 0, module_count: 3 },
+      ],
     })
     render(<VehiclesWorkspace />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
-    const dialog = screen.getByRole('dialog', { name: 'Scout' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Queue removal' }))
-    expect(await within(dialog).findByRole('status')).toHaveTextContent('Removal queued')
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Scout for deletion' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Runner for deletion' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete selected (2)' }))
+    const confirmation = screen.getByRole('alertdialog', { name: 'Restart the entire battlegroup and delete 2 vehicles?' })
+    expect(within(confirmation).getByText(/stops the entire battlegroup once/)).toBeInTheDocument()
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Restart BG & delete 2' }))
+    await waitFor(() => expect(deleteVehicles).toHaveBeenCalledWith([7, 9]))
   })
+  it('shows a direct deletion failure on the fleet screen', async () => {
+    vi.mocked(deleteVehicles).mockRejectedValueOnce(new Error('Vehicle changed; refresh and try again'))
+    render(<VehiclesWorkspace />)
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Scout for deletion' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete selected (1)' }))
+    fireEvent.click(within(screen.getByRole('alertdialog', { name: 'Restart the entire battlegroup and delete 1 vehicle?' })).getByRole('button', { name: 'Restart BG & delete 1' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Vehicle changed; refresh and try again')
+  })
+    it('keeps fleet and cargo readable for remote viewers', async () => {
+      vi.mocked(isLocalViewer).mockReturnValue(false)
+      render(<VehiclesWorkspace />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
+      expect(screen.getByRole('link', { name: 'Inspect cargo (2 stacks)' })).toHaveAttribute('href', '/vehicles?view=cargo&scope_type=vehicle&scope_id=7')
+      expect(await screen.findByText(/Current not reported/)).toBeInTheDocument()
+      expect(screen.getByText(/Chani - Co-Owner/)).toBeInTheDocument()
+    })
+    it('disables stale retained snapshots after a failed refresh', async () => {
+      render(<VehiclesWorkspace />)
+      await screen.findByRole('button', { name: 'Inspect Scout' })
+      vi.mocked(getVehicleFleet).mockRejectedValueOnce(new Error('Database unavailable'))
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+      await screen.findByText('Database unavailable')
+      expect(screen.getByRole('checkbox', { name: 'Select Scout for deletion' })).toBeEnabled()
+    })
 })

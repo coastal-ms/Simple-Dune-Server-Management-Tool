@@ -44,7 +44,8 @@ export function getDeckDestinations(access: Parameters<typeof getVisibleNavItems
       to: item.path, label: item.label, icon: item.icon,
       ownerOnly: item.visibility === 'owner',
     }))
-  return [...visible, ...workspaces, ...STATIC_DECK_DESTINATIONS].map(item => ({
+  const staticDestinations = STATIC_DECK_DESTINATIONS.filter(item => !seen.has(item.to))
+  return [...visible, ...workspaces, ...staticDestinations].map(item => ({
     ...item,
     description: TASK_COPY[item.to]?.description ?? `Open ${item.label}.`,
     keywords: TASK_COPY[item.to]?.keywords ?? '',

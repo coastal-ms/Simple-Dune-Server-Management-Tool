@@ -187,8 +187,8 @@ Register-DuneRoute -Method GET -Path '/api/v1/inventory/items' -Handler {
                 location = if ($locationType) { [ordered]@{ type = $locationType; id = $locationId } } else { $null }
                 selectedPlayerValid = [bool]$groupResult.selectedPlayerValid
                 selectedLocationValid = [bool]$groupResult.selectedLocationValid
-                supportedEntityTypes = @('player', 'storage')
-                unavailableEntityTypes = @('base', 'vehicle')
+                supportedEntityTypes = @('player', 'storage', 'vehicle')
+                unavailableEntityTypes = @('base')
                 groups = $pageGroups
                 players = @($groupResult.players)
                 locations = @($groupResult.locations)
@@ -228,8 +228,8 @@ Register-DuneRoute -Method GET -Path '/api/v1/inventory/items' -Handler {
         $data = [ordered]@{
             mode = [string]$requestedMode.mode
             query = $query
-            supportedEntityTypes = @('player', 'storage')
-            unavailableEntityTypes = @('base', 'vehicle')
+            supportedEntityTypes = @('player', 'storage', 'vehicle')
+            unavailableEntityTypes = @('base')
             items = $pageItems
         }
         $envelope = New-DuneApiV1Envelope `

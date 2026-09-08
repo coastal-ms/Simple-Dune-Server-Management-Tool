@@ -5,6 +5,7 @@
 import { readdir, mkdir, copyFile, stat, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import sharp from "sharp";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SRC = join(__dirname, "..", "..", "docs", "img");
@@ -30,6 +31,11 @@ async function main() {
     if (!e.isFile()) continue;
     if (!/\.(png|jpe?g|webp|gif|svg)$/i.test(e.name)) continue;
     await copyFile(join(SRC, e.name), join(DEST, e.name));
+    if (/\.png$/i.test(e.name)) {
+      const stem = e.name.replace(/\.png$/i, "");
+      await sharp(join(SRC, e.name)).webp({ quality: 88 }).toFile(join(DEST, `${stem}.webp`));
+      await sharp(join(SRC, e.name)).resize({ width: 800, withoutEnlargement: true }).webp({ quality: 86 }).toFile(join(DEST, `${stem}-800.webp`));
+    }
     copied++;
   }
   console.log(`[sync-images] copied ${copied} file(s) → ${DEST}`);

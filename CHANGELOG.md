@@ -13,6 +13,26 @@ here cover everything those tags shipped.
 
 ## [Unreleased]
 
+## [15.0.1] - 2026-09-07
+
+### Added
+
+- Added **Vehicle Lifecycle** to the Vehicles workspace for fleet inspection,
+  module repair, vehicle-selected cargo visibility, and guarded direct deletion.
+
+### Changed
+
+- Refreshed the public site, documentation, and screenshots for the v15
+  experience.
+
+### Fixed
+
+- Routed Command Deck Map navigation to the static **DD Atlas**.
+- Hardened Vehicle Lifecycle removal to reject any deletion closure that includes
+  an inventory owned by another actor.
+- Separated recovery-state records from the active fleet, made cargo explicitly
+  vehicle-selected, and reduced repair and deletion to direct vehicle actions.
+
 ## [15.0.0] - 2026-09-07
 
 ### Added

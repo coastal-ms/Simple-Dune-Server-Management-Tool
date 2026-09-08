@@ -1,5 +1,6 @@
 BeforeAll {
     . (Join-Path $PSScriptRoot '_TestHelpers.ps1')
+    . (Join-Path $PSScriptRoot '_PostgresFixture.ps1')
     Import-DstLib 'Database.ps1'
     Import-DstLib 'ApiContract.ps1'
     Import-DstLib 'Gameplay.ps1'
@@ -314,7 +315,8 @@ Describe 'Shared Inventory Explorer read model' -Tag 'Pure' {
 
     It 'validates entity types and supports exact demo scopes' {
         { Get-DuneInventoryEntityTypes -Value 'player,storage' } | Should -Not -Throw
-        { Get-DuneInventoryEntityTypes -Value 'vehicle' } | Should -Throw '*Unsupported inventory entity type*'
+        @(Get-DuneInventoryEntityTypes -Value 'vehicle') | Should -Be @('vehicle')
+        { Get-DuneInventoryEntityTypes -Value 'base' } | Should -Throw '*Unsupported inventory entity type*'
 
         $all = @(Get-DuneInventoryDemoItems)
         $playerItems = @(Select-DuneInventoryDemoItems -Items $all -EntityTypes @('player') -ScopeType player -ScopeId 20001 -Limit 100)
@@ -658,26 +660,21 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
         $sql = $fixture + "`n" + (($queries | ForEach-Object { "$_;"} ) -join "`n") + "`nROLLBACK;"
         Set-Content -LiteralPath $scriptPath -Value $sql -Encoding utf8
 
-        & $env:DST_TEST_POSTGRES_PSQL -X -q -d $env:DST_TEST_POSTGRES_DATABASE -f $scriptPath 2>&1 |
-            Out-String | Write-Verbose
-
-        $LASTEXITCODE | Should -Be 0
+        $execution = Invoke-TestPostgresFile -SqlPath $scriptPath
+        $execution.ExitCode | Should -Be 0 -Because $execution.Error
     }
 
     It 'returns seeded PostgreSQL groups and occurrences through production conversion semantics' `
         -Skip:(-not $env:DST_TEST_POSTGRES_PSQL -or -not $env:DST_TEST_POSTGRES_DATABASE) {
-        if ($env:DST_TEST_POSTGRES_DATABASE -notmatch '^dst_inventory(?:_[A-Za-z0-9_-]+)?$') {
-            throw 'DST_TEST_POSTGRES_DATABASE must name an explicit disposable dst_inventory database.'
-        }
-        $databaseName = (& $env:DST_TEST_POSTGRES_PSQL -X -q -A -t `
-            -d $env:DST_TEST_POSTGRES_DATABASE -c 'SELECT current_database();' 2>&1 | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0 -or $databaseName -ne $env:DST_TEST_POSTGRES_DATABASE) {
+        $probePath = Join-Path $TestDrive 'inventory-fixture-probe.sql'
+        Set-Content -LiteralPath $probePath -Value "SELECT current_database() WHERE to_regnamespace('dune') IS NULL;" -Encoding utf8
+        $probe = Invoke-TestPostgresFile -SqlPath $probePath -TuplesOnly
+        if ($probe.ExitCode -ne 0 -or $probe.Output.Trim() -ne $env:DST_TEST_POSTGRES_DATABASE) {
             throw 'The configured disposable PostgreSQL database could not be verified.'
         }
         $setupPath = Join-Path $TestDrive 'inventory-semantic-setup.sql'
         $setup = @"
 \set ON_ERROR_STOP on
-DROP SCHEMA IF EXISTS dune CASCADE;
 CREATE SCHEMA dune;
 CREATE TABLE dune.items (
     id bigint, template_id text, stack_size integer, quality_level integer,
@@ -722,9 +719,8 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
     (7, 'HarkSandbike_MeshCustomization', 2, 0, '{}'::jsonb, 60002);
 "@
         Set-Content -LiteralPath $setupPath -Value $setup -Encoding utf8
-        & $env:DST_TEST_POSTGRES_PSQL -X -q -d $env:DST_TEST_POSTGRES_DATABASE -f $setupPath 2>&1 |
-            Out-String | Write-Verbose
-        $LASTEXITCODE | Should -Be 0
+        $setupResult = Invoke-TestPostgresFile -SqlPath $setupPath
+        $setupResult.ExitCode | Should -Be 0 -Because $setupResult.Error
 
         $existing = Get-Command Invoke-DuneSqlQuery -ErrorAction SilentlyContinue
         $originalNames = $script:DuneGameplayItemNames
@@ -736,10 +732,10 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
             $queryPath = Join-Path $TestDrive "inventory-semantic-$($script:InventorySemanticQueryIndex).sql"
             $effective = if ($ReadOnly) { Wrap-DuneReadOnlySql -Sql $Sql } else { $Sql }
             Set-Content -LiteralPath $queryPath -Value $effective -Encoding utf8
-            $raw = (& $env:DST_TEST_POSTGRES_PSQL -X --csv -v ON_ERROR_STOP=1 `
-                -d $env:DST_TEST_POSTGRES_DATABASE -f $queryPath 2>&1) -join "`n"
-            if ($LASTEXITCODE -ne 0 -or (Test-DunePsqlError -Output $raw)) {
-                return @{ ok = $false; error = (Get-DunePsqlErrorMessage -Output $raw) }
+            $execution = Invoke-TestPostgresFile -SqlPath $queryPath
+            $raw = $execution.Output
+            if ($execution.ExitCode -ne 0 -or (Test-DunePsqlError -Output $raw)) {
+                return @{ ok = $false; error = (Get-DunePsqlErrorMessage -Output ($raw + $execution.Error)) }
             }
             $parsed = ConvertFrom-DunePsqlCsv -Output $raw -MaxRows $MaxRows
             if (-not $parsed.ok) {
@@ -853,8 +849,10 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
             } else {
                 Remove-Item Function:\global:Invoke-DuneSqlQuery -ErrorAction SilentlyContinue
             }
-            & $env:DST_TEST_POSTGRES_PSQL -X -q -d $env:DST_TEST_POSTGRES_DATABASE `
-                -c 'DROP SCHEMA IF EXISTS dune CASCADE;' 2>&1 | Out-Null
+            $cleanupPath = Join-Path $TestDrive 'inventory-semantic-cleanup.sql'
+            Set-Content -LiteralPath $cleanupPath -Value 'DROP SCHEMA IF EXISTS dune CASCADE;' -Encoding utf8
+            $cleanup = Invoke-TestPostgresFile -SqlPath $cleanupPath
+            $cleanup.ExitCode | Should -Be 0 -Because $cleanup.Error
         }
     }
 

@@ -241,12 +241,25 @@ shared tokens to forms, tables, dialogs, and navigation; it does not require an
 AI service, new renderer, animation loop, or extra polling. Existing themes and
 custom color overrides remain supported.
 
-## Seven core surfaces
+## Inside v15
+
+Screenshots show the shipped interface using isolated offline states, static
+atlas data, or DST's built-in fictional demo roster. No personal server, live
+account, or private save is shown. Classic remains the default.
 
 <details open>
+<summary><strong>Command Deck (opt-in)</strong></summary>
+
+![Command Deck World view with illustrative Arrakis globe, unavailable server status, and DD Atlas dock shortcut](docs/img/command-deck.png)
+
+Optional World/dashboard navigation and focused workspaces. The globe organizes
+reported status; it is not live game geography.
+</details>
+
+<details>
 <summary><strong>Server Health</strong></summary>
 
-![Server Health](docs/img/server-health.png)
+![Classic Server Health with the v15 sidebar and no server connected](docs/img/server-health.png)
 
 VM and battlegroup state, database and gateway health, game pods, ports, active
 spice, scheduled restarts, memory warnings, interfaces, and log exports.
@@ -255,7 +268,7 @@ spice, scheduled restarts, memory warnings, interfaces, and log exports.
 <details>
 <summary><strong>Game Config</strong></summary>
 
-![Game Config](docs/img/game-config.png)
+![Game Config safety guidance with no live INI values loaded](docs/img/game-config.png)
 
 Typed `UserGame.ini` and `UserEngine.ini` controls, Funcom defaults, backups,
 DST-managed blocks, local-client mirroring, and isolated Experimental features.
@@ -264,34 +277,55 @@ DST-managed blocks, local-client mirroring, and isolated Experimental features.
 <details>
 <summary><strong>Gameplay Admin</strong></summary>
 
-![Gameplay Admin](docs/img/gameplay-admin.png)
+![Command Deck Players workspace with DST's built-in fictional sample roster](docs/img/gameplay-admin.png)
 
 Players, Market, Market Bot, Bases, Storage, Blueprints, Landsraad Houses,
 packages, vehicle kits, cosmetics, progression, teleports, and guarded writes.
+Teleport tracing is diagnostic; it does not fix game-side teleport execution.
+</details>
+
+<details>
+<summary><strong>Bases → Blueprints</strong></summary>
+
+![Bases workspace showing an empty Blueprints demo catalogue and unavailable import](docs/img/blueprints.png)
+
+A dedicated Blueprints tab beside base management and storage inventory.
+The capture contains no player buildings or imported designs.
 </details>
 
 <details>
 <summary><strong>Solo Mode</strong></summary>
 
-![Solo Mode](docs/img/solo-mode.png)
+![Solo Mode first-use and save safety guidance before connecting a save](docs/img/solo-mode.png)
 
 Validated local-save settings, backups, character and inventory tools,
 currencies, fillables, cosmetics, packages, augments, and progression.
+The current adapter targets the supported PTC save format, not every retail save.
 </details>
 
 <details>
-<summary><strong>DD Seed Maps</strong></summary>
+<summary><strong>DD Atlas (static)</strong></summary>
 
-![DD Seed Maps](docs/img/dd-seed-maps.png)
+![Shipped static DD Atlas seed-zero layout and POI filters with current server seed unavailable](docs/img/dd-seed-maps.png)
 
-Interactive POI maps for all 12 Coriolis seeds with legend filters, confidence
-notes, farm-seed selection, and running-map seed detection.
+Static POI reference maps for all 12 Coriolis seeds with legend filters,
+confidence notes, farm-seed selection, and running-map seed detection when
+server data is available. This is not a live map.
+</details>
+
+<details>
+<summary><strong>Commands</strong></summary>
+
+![Command Deck Commands categories with unavailable server operations in an offline preview](docs/img/commands.png)
+
+Battlegroup, VM & Power, Configuration, Network & Access, Database, Logs &
+Files, and Terminals & Tools. Requirements remain visible before an action.
 </details>
 
 <details>
 <summary><strong>Database</strong></summary>
 
-![Database](docs/img/database.png)
+![Offline Database workspace with restore safety guidance and unavailable server actions](docs/img/database.png)
 
 Backup, restore, import, local mirror, scheduling, SQL, migration tools, and
 guarded World Restart testing.
@@ -300,11 +334,22 @@ guarded World Restart testing.
 <details>
 <summary><strong>Settings</strong></summary>
 
-![Settings](docs/img/settings.png)
+![Unconfigured v15 Settings including the disabled Legacy Cloudflare section](docs/img/settings.png)
 
 Updates, installation, themes, warnings, Remote Device Access, Browser Portal
 accounts, Hyper-V over LAN, Public IP/DDNS, browser ping, and host-local
 preferences.
+</details>
+
+<details>
+<summary><strong>Browser Portal</strong></summary>
+
+![Browser Portal sign-in on a phone-sized screen with empty account fields](docs/img/browser-portal.png)
+
+Responsive remote access with host-created accounts. Tailscale Funnel is the
+forward path; retained legacy Cloudflare configuration stays disabled by
+default until explicitly re-enabled in local Settings. The screenshot is the
+offline sign-in screen, not a connected remote session.
 </details>
 
 ## Safety model

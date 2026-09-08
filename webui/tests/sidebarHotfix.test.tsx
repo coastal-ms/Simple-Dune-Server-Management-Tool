@@ -54,12 +54,14 @@ describe('sidebar hotfix links', () => {
     expect(screen.getByTitle('Sponsors & Credits')).toHaveAttribute('href', '/sponsors')
   })
 
-  it('shows one active Gameplay Admin gateway for direct gameplay workspace URLs', () => {
+  it('shows one active DD Atlas link for the static atlas URL', () => {
     window.history.replaceState(null, '', '/map?view=atlas')
     renderSidebar(false)
 
     expect(screen.queryByRole('link', { name: 'Map' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Gameplay Admin' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'DD Atlas' })).toHaveAttribute('href', '/map?view=atlas')
+    expect(screen.getByRole('link', { name: 'DD Atlas' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Gameplay Admin' })).not.toHaveAttribute('aria-current')
     expect(screen.getAllByRole('link').filter(link => link.hasAttribute('aria-current'))).toHaveLength(1)
   })
 
