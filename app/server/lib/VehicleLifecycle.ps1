@@ -75,6 +75,21 @@ function Get-DuneVehicleModuleDefaultDurability {
     return [double]$rule.max_durability
 }
 
+function Get-DuneVehicleModuleRepairDefaults {
+    $combined = @{}
+    foreach ($entry in (Get-DuneVehicleModuleDurabilityDefaults).GetEnumerator()) {
+        $combined[[string]$entry.Key] = [double]$entry.Value
+    }
+    Initialize-DuneGameplayItemData
+    foreach ($templateId in $script:DuneGameplayItemRules.Keys) {
+        $rule = $script:DuneGameplayItemRules[$templateId]
+        if ([string]$rule.category -like 'items/vehicles/*' -and [double]$rule.max_durability -gt 0) {
+            $combined[[string]$templateId] = [double]$rule.max_durability
+        }
+    }
+    return $combined
+}
+
 function ConvertTo-DuneVehicleNumber {
     param($Value)
     $number = 0.0
@@ -154,7 +169,7 @@ ORDER BY COALESCE(NULLIF(pa.actor_name, ''), a.class), a.id;
         $cargoHolds = [int](ConvertTo-DuneInt $row['cargo_hold_count'])
         $cargoConflicts = [int](ConvertTo-DuneInt $row['cargo_conflict_count'])
         $closureOwnerConflicts = [int](ConvertTo-DuneInt $row['closure_owner_conflict_count'])
-        $blockedState = @(([string]$row['actor_state'] -split ', ') | Where-Object { $_ -in @('Travel','VehicleBackup','VehicleRecovery') })
+        $blockedState = @(([string]$row['actor_state'] -split ', ') | Where-Object { $_ -eq 'Travel' })
         $revision = [string]$row['target_revision']
         if ($revision -notmatch '^[a-f0-9]{32}$') { throw 'Vehicle target revision is unavailable.' }
         $vehicles += @{
@@ -180,10 +195,9 @@ ORDER BY COALESCE(NULLIF(pa.actor_name, ''), a.class), a.id;
             cargo_max_item_volume = ConvertTo-DuneVehicleNumber $row['cargo_max_item_volume']
             target_revision = $revision
             deletion_blocked_reason = if ($blockedState.Count -gt 0) {
-                "Vehicle is in $($blockedState -join ', '). Finish travel or recovery in-game before queuing removal."
-            } elseif ($ownership -eq 'ambiguous' -or $invalidRoster -or $recoveryCount -gt 1 -or
-                $cargoHolds -gt 1 -or $cargoConflicts -gt 0 -or $closureOwnerConflicts -gt 0) {
-                'Ownership, recovery, or cargo scope is ambiguous. Resolve it in-game before queuing removal.'
+                'This vehicle is currently travelling. Finish the trip before deleting it.'
+            } elseif ($cargoHolds -gt 1 -or $cargoConflicts -gt 0 -or $closureOwnerConflicts -gt 0) {
+                'Delete is unavailable because DST cannot prove which cargo and module records belong only to this vehicle.'
             } else { $null }
         }
     }

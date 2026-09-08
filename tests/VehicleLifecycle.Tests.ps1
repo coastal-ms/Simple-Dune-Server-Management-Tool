@@ -92,39 +92,27 @@ Describe 'Vehicle module repair' {
         Get-DuneVehicleModuleDefaultDurability 'SandbikeEngine_6' | Should -Be 1000
     }
 
-    It 'uses one catalog-backed batch update for every repairable module' {
+    It 'uses one catalog-backed database statement for every repairable module' {
         $script:repairQueries = @()
-        Mock Get-DuneVehicleModuleDefaultDurability {
-            param($TemplateId)
-            if ($TemplateId -eq 'Hull') { return 4500 }
-            return 3000
+        Mock Get-DuneVehicleModuleRepairDefaults {
+            @{ Hull = 4500; Engine = 3000 }
         }
         Mock Invoke-DuneSqlQuery {
             param($Ip, $Sql, $ReadOnly, $MaxRows, $TimeoutSec)
             $script:repairQueries += $Sql
-            if ($ReadOnly) {
-                return @{
-                    ok = $true
-                    columns = @('module_id', 'template', 'stat_current', 'stat_max', 'stat_decayed')
-                    rows = @(
-                        @('10', 'Hull', '4000', '', '4400'),
-                        @('11', 'Engine', '2500', '', '2900')
-                    )
-                }
-            }
-            return @{ ok = $true; columns = @('repaired'); rows = @(,@('2')) }
+            return @{ ok = $true; columns = @('repaired', 'skipped'); rows = @(,@('2', '0')) }
         }
 
         $result = Invoke-DuneVehicleRepair -Ip fixture -VehicleId 42
 
         $result.ok | Should -BeTrue
         $result.repaired | Should -Be 2
-        $script:repairQueries.Count | Should -Be 2
-        $script:repairQueries[1] | Should -Match 'WITH repair'
-        $script:repairQueries[1] | Should -Match '\(10::bigint, 4500::float8\)'
-        $script:repairQueries[1] | Should -Match '\(11::bigint, 3000::float8\)'
-        $script:repairQueries[1] | Should -Match 'UPDATE dune\.vehicle_modules'
-        $script:repairQueries[1] | Should -Match 'MaxDurability'
+        $script:repairQueries.Count | Should -Be 1
+        $script:repairQueries[0] | Should -Match 'jsonb_each_text'
+        $script:repairQueries[0] | Should -Match '"Hull":4500'
+        $script:repairQueries[0] | Should -Match '"Engine":3000'
+        $script:repairQueries[0] | Should -Match 'UPDATE dune\.vehicle_modules'
+        $script:repairQueries[0] | Should -Match 'MaxDurability'
     }
 }
 
@@ -407,14 +395,22 @@ INSERT INTO dune.inventories (id, actor_id, inventory_type, vehicle_module_id) V
         $survivors.rows[0][0] | Should -Be '2'
     }
 
-    It 'blocks travel, recovery and backup states inside the transaction' -TestCases @(@{ State = 'Travel' }, @{ State = 'VehicleRecovery' }, @{ State = 'VehicleBackup' }) {
-        param($State)
+    It 'blocks travel inside the transaction' {
         $revision = (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].target_revision
-        [void](Invoke-TestVehicleSql -Sql "INSERT INTO dune.actor_state VALUES (42, '$State');")
+        [void](Invoke-TestVehicleSql -Sql "INSERT INTO dune.actor_state VALUES (42, 'Travel');")
         $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $revision -DatabaseScope $script:scopeKey
         $result.ok | Should -BeFalse
-        $result.error | Should -Match 'still pending'
+        $result.error | Should -Match 'travel is still pending'
         (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).total | Should -Be 1
+    }
+
+    It 'allows backup and recovery state records to be explicitly deleted' -TestCases @(@{ State = 'VehicleRecovery' }, @{ State = 'VehicleBackup' }) {
+        param($State)
+        [void](Invoke-TestVehicleSql -Sql "INSERT INTO dune.actor_state VALUES (42, '$State');")
+        $fleet = Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42
+        $fleet.vehicles[0].deletion_blocked_reason | Should -BeNullOrEmpty
+        $result = Invoke-DuneVehicleDeleteTransaction -Ip fixture -VehicleId 42 -TargetRevision $fleet.vehicles[0].target_revision -DatabaseScope $script:scopeKey
+        $result.ok | Should -BeTrue -Because $result.error
     }
 
     It 'rejects an actual connected game session inside the deletion transaction' {

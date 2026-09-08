@@ -40,10 +40,6 @@ Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/{id}/delete' -Loca
         if (-not [bool](Get-DuneBodyValue -Body $body -Name 'confirmed')) {
             Write-DuneError -Response $res -Status 400 -Message 'Confirmation is required before deleting a vehicle.'; return
         }
-        $revision = [string](Get-DuneBodyValue -Body $body -Name 'target_revision')
-        if ($revision -cnotmatch '^[a-f0-9]{32}$') {
-            Write-DuneError -Response $res -Status 400 -Message 'Refresh the fleet and review the current vehicle before deleting it.'; return
-        }
         if (-not (Test-DuneDisruptiveActionGuard -Req $req -Res $res -Action 'deleting a vehicle with a protected backup and battlegroup restart')) { return }
 
         $ctx = Get-DuneDbContext
@@ -53,9 +49,10 @@ Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/{id}/delete' -Loca
         $vehicle = @($fleet.vehicles | Where-Object { [int64]$_.id -eq $vehicleId } | Select-Object -First 1)
         if ($vehicle.Count -eq 0) { Write-DuneError -Response $res -Status 404 -Message "Vehicle $vehicleId was not found."; return }
         $v = $vehicle[0]
-        if ($v.target_revision -cne $revision -or $v.deletion_blocked_reason) {
-            Write-DuneError -Response $res -Status 409 -Message "Vehicle changed or cannot be removed. Refresh and review it. $($v.deletion_blocked_reason)"; return
+        if ($v.deletion_blocked_reason) {
+            Write-DuneError -Response $res -Status 409 -Message ([string]$v.deletion_blocked_reason); return
         }
+        $revision = [string]$v.target_revision
 
         $result = Invoke-WithDuneLock -Name 'vehicle-deletion' -TimeoutSec 5 -Script {
             $existing = Get-DuneVehicleDeletionQueue

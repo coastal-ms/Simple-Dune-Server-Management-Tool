@@ -112,7 +112,7 @@ Describe 'Vehicle deletion SQL' {
         $script:queries[0].IndexOf('permission_actor_destroy') | Should -BeLessThan $script:queries[0].IndexOf('delete_actors')
         $script:queries[1] | Should -Match 'EXISTS'
         $script:queries[0] | Should -Match 'pg_stat_activity'
-        $script:queries[0] | Should -Match "state::text IN \('Travel', 'VehicleBackup', 'VehicleRecovery'\)"
+        $script:queries[0] | Should -Match "state::text = 'Travel'"
         $script:queries[0] | Should -Match 'actual_revision IS DISTINCT FROM'
         $script:queries[0] | Should -Match 'search_path TO dune, public'
         $script:queries[0] | Should -Match 'Vehicle dependent-record postflight failed'

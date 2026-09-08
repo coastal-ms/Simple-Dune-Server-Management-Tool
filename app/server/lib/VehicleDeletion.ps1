@@ -263,8 +263,8 @@ BEGIN
         RAISE EXCEPTION 'A live game database session remains; refusing vehicle deletion.';
     END IF;
     IF EXISTS (SELECT 1 FROM dune.actor_state WHERE actor_id = __VEHICLE_ID__::bigint
-               AND state::text IN ('Travel', 'VehicleBackup', 'VehicleRecovery')) THEN
-        RAISE EXCEPTION 'Vehicle travel, backup or recovery is still pending; refusing deletion.';
+               AND state::text = 'Travel') THEN
+        RAISE EXCEPTION 'Vehicle travel is still pending; refusing deletion.';
     END IF;
     PERFORM 1 FROM dune.vehicle_modules WHERE vehicle_id = __VEHICLE_ID__::bigint FOR UPDATE;
     PERFORM 1 FROM dune.inventories inv

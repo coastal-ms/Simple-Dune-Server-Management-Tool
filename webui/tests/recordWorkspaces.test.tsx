@@ -118,7 +118,7 @@ describe('Record-focused gameplay workspaces', () => {
     const confirmation = screen.getByRole('alertdialog', { name: 'Delete Scout?' })
     expect(within(confirmation).getByText(/full database backup/)).toBeInTheDocument()
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Delete vehicle' }))
-    await waitFor(() => expect(deleteVehicle).toHaveBeenCalledWith(7, 'b'.repeat(32)))
+    await waitFor(() => expect(deleteVehicle).toHaveBeenCalledWith(7))
   })
   it('shows a direct deletion failure inside the open vehicle panel', async () => {
     vi.mocked(deleteVehicle).mockRejectedValueOnce(new Error('Vehicle changed; refresh and try again'))
@@ -144,6 +144,6 @@ describe('Record-focused gameplay workspaces', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
       await screen.findByText('Database unavailable')
       fireEvent.click(screen.getByRole('button', { name: 'Inspect Scout' }))
-      expect(screen.getByRole('button', { name: 'Delete vehicle' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Delete vehicle' })).toBeEnabled()
     })
 })

@@ -99,11 +99,11 @@ function VehicleFleetWorkspace() {
   }, [load])
   const removeVehicle = useCallback(async () => {
     const vehicle = deleteTarget
-    if (!vehicle || !fresh || !vehicle.target_revision || vehicle.deletion_blocked_reason) return
+    if (!vehicle) return
     setDeleteTarget(null)
     setBusy(`delete:${vehicle.id}`); setError(''); setMessage('')
     try {
-      const result = await deleteVehicle(vehicle.id, vehicle.target_revision)
+      const result = await deleteVehicle(vehicle.id)
       setMessage(result.message)
       setSelectedId(null)
       await load()
@@ -112,7 +112,7 @@ function VehicleFleetWorkspace() {
     } finally {
       setBusy(null)
     }
-  }, [deleteTarget, fresh, load])
+  }, [deleteTarget, load])
 
   const loading = vehicles === null
   const selectedVehicle = vehicles?.find(vehicle => vehicle.id === selectedId)
@@ -136,7 +136,7 @@ function VehicleFleetWorkspace() {
     {busy === `repair:${vehicle.id}` ? 'Repairing...' : 'Repair vehicle'}
   </button>
   const deleteButton = (vehicle: VehicleFleetRow) => <button className="btn-danger shrink-0"
-    disabled={!fresh || busy !== null || source !== 'live' || !vehicle.target_revision || Boolean(vehicle.deletion_blocked_reason)}
+    disabled={busy !== null || source !== 'live' || Boolean(vehicle.deletion_blocked_reason)}
     onClick={() => {
       setError('')
       setDeleteTarget(vehicle)
@@ -200,7 +200,7 @@ function VehicleFleetWorkspace() {
                 Refresh
               </button>
             </div>
-            {!fresh && <p className="mb-3 text-xs text-warning">Refresh the persisted snapshot before queuing a removal.</p>}
+            {!fresh && <p className="mb-3 text-xs text-text-muted">Displayed values may be older than the game. Repair and delete recheck current database state when run.</p>}
             <label className="operations-search"><Icon name="Search" size={17} /><input type="search" aria-label="Search vehicle fleet" placeholder="Vehicle, subtype, permission holder, map or ID" value={search} onChange={event => setSearch(event.target.value)} /></label>
             {visibleVehicles.length === 0 ? (
               <DataState state="empty" title={search.trim() ? 'No active vehicles match this search' : 'No active vehicles found'} />
@@ -285,6 +285,9 @@ function VehicleFleetWorkspace() {
         <VehicleModuleIntegrity vehicleId={selectedVehicle.id} />
         {selectedVehicle.cargo_hold_count === 1 && <Link className="btn-secondary mb-4" to={`/vehicles?view=cargo&scope_type=vehicle&scope_id=${selectedVehicle.id}`}>Inspect cargo ({selectedVehicle.cargo_stack_count ?? '?'} stacks)</Link>}
         <p className="mb-4 text-xs text-text-muted">Repair restores every installed module to its catalog or recorded maximum durability.</p>
+        {selectedVehicle.deletion_blocked_reason && (
+          <p className="mb-3 text-sm text-warning" role="status">{selectedVehicle.deletion_blocked_reason}</p>
+        )}
         <div className="flex flex-wrap gap-2">
           {repairButton(selectedVehicle)}
           {deleteButton(selectedVehicle)}
