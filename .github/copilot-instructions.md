@@ -18,21 +18,15 @@ Landsraad, market bot). The repo `coastal-ms/DST-DuneServerTool` is public and
 forkable. Day-to-day work is: reproduce a reported bug, fix it across the
 PS backend + webui, build the installer, ship a release.
 
-## Work orchestration — do the work in-session
+## DST operating contract
 
-Apply this in **every session**, unless the maintainer explicitly asks otherwise:
+Read and follow [`.github/DST-OPERATING-CONTRACT.md`](DST-OPERATING-CONTRACT.md)
+before acting. It is the canonical source for sync triggers, parent and child
+routing, model selection, Discord ownership, and release authority. Do not
+redefine those rules here.
 
-- **Do the work in the session you are in.** Decompose the goal into the session
-  `todos` table (and `todo_deps` for ordering) when that helps you keep track,
-  but write the implementation yourself. There is no planner/builder split and
-  no separate "executor" role — do not narrate one.
-- **Child sessions and sub-agents are allowed for bounded independent work or
-  separate context.** The parent session remains the sole
-  user-facing coordinator and owns approval gates. Every child reports results,
-  progress, blockers, and questions to the parent instead of asking the
-  maintainer directly. Automatically started children follow the same rule.
-  Children inherit the parent session's active model; never select a different
-  model. Do not recreate a planner/builder split.
+- Use the session `todos` table (and `todo_deps` when ordering matters) when it
+  helps keep multi-step work explicit.
 - **Discord monitoring belongs to the active parent, never a child responder.**
   Attach the parent to the persistent local gateway ears-only, batch/deduplicate
   startup catch-up, and get one maintainer decision before live autonomy.
