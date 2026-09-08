@@ -66,6 +66,7 @@ describe('Record-focused gameplay workspaces', () => {
   })
   it('filters and inspects vehicles with direct repair and delete actions', async () => {
     render(<VehiclesWorkspace />)
+    expect(await screen.findByText(/Give each vehicle a distinct in-game name/)).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect Scout' }))
     const dialog = screen.getByRole('dialog', { name: 'Scout' })
     expect(within(dialog).getByText('Buggy')).toBeInTheDocument()

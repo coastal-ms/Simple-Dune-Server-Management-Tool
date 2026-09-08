@@ -182,6 +182,9 @@ function VehicleFleetWorkspace() {
         {!selectedVehicle && operationFeedback}
         {!loading && vehicles && (
           <>
+            <p className="mb-3 rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm text-text">
+              <strong>Recommendation:</strong> Give each vehicle a distinct in-game name. Named vehicles are easier to identify, repair, and select safely.
+            </p>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 {source === 'live' ? <FreshnessBadge
