@@ -43,6 +43,38 @@ md5(jsonb_build_array('__DATABASE_SCOPE__', a.id::text, a.class, a.map, pa.actor
 '@.Replace('__DATABASE_SCOPE__', $DatabaseScope)
 }
 
+$script:DuneVehicleModuleDurabilityDefaults = $null
+
+function Get-DuneVehicleModuleDurabilityDefaults {
+    if ($null -ne $script:DuneVehicleModuleDurabilityDefaults) {
+        return $script:DuneVehicleModuleDurabilityDefaults
+    }
+    $defaults = @{}
+    foreach ($candidate in @(
+        (Join-Path $PSScriptRoot '..\..\data\vehicle-module-durability.json'),
+        (Join-Path (Split-Path -Parent $PSScriptRoot) '..\data\vehicle-module-durability.json')
+    )) {
+        try {
+            $path = (Resolve-Path -LiteralPath $candidate -ErrorAction Stop).Path
+            $json = [IO.File]::ReadAllText($path, [Text.Encoding]::UTF8) | ConvertFrom-Json
+            foreach ($property in $json.defaults.PSObject.Properties) {
+                $defaults[$property.Name] = [double]$property.Value
+            }
+            break
+        } catch {}
+    }
+    $script:DuneVehicleModuleDurabilityDefaults = $defaults
+    return $defaults
+}
+
+function Get-DuneVehicleModuleDefaultDurability {
+    param([string]$TemplateId)
+    $defaults = Get-DuneVehicleModuleDurabilityDefaults
+    if ($defaults.ContainsKey($TemplateId)) { return [double]$defaults[$TemplateId] }
+    $rule = Get-DuneGameplayItemRule -TemplateId $TemplateId
+    return [double]$rule.max_durability
+}
+
 function ConvertTo-DuneVehicleNumber {
     param($Value)
     $number = 0.0
@@ -189,6 +221,7 @@ LIMIT 501;
             current_durability = ConvertTo-DuneVehicleNumber $_['current_durability']
             max_durability = ConvertTo-DuneVehicleNumber $_['max_durability']
             decayed_max_durability = ConvertTo-DuneVehicleNumber $_['decayed_max_durability']
+            repair_max_durability = ConvertTo-DuneVehicleNumber (Get-DuneVehicleModuleDefaultDurability -TemplateId ([string]$_['template_id']))
         }
     })
     return @{ ok = $true; modules = $modules; source = 'live'; observed_at = [datetimeoffset]::UtcNow.ToString('o') }

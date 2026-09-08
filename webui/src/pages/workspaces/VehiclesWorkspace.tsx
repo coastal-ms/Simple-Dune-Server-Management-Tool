@@ -324,11 +324,11 @@ function VehicleModuleIntegrity({ vehicleId }: { vehicleId: number }) {
   return <section className="mb-4" aria-label="Persisted module integrity">
     <h3 className="font-semibold">Persisted module integrity</h3>
     {error ? <DataState state="error" title="Module integrity unavailable" message={error} /> : !result ? <DataState state="loading" title="Loading modules" /> : <>
-      <p className="my-2 text-xs text-text-muted">Database observed {new Date(result.observed_at).toLocaleString()}; not live game memory. Missing values are not full health.</p>
+      <p className="my-2 text-xs text-text-muted">Database observed {new Date(result.observed_at).toLocaleString()}; not live game memory.</p>
       {!result.modules.length && <p className="text-sm text-text-muted">No installed modules reported.</p>}
       <ul className="space-y-3">{result.modules.map(module => <li key={module.id} className="break-words text-sm">
         <p>{module.template_id} <span className="text-text-muted">({module.id})</span></p>
-        <p>Current {module.current_durability ?? 'not reported'} / maximum {module.max_durability ?? 'not reported'} / decayed maximum {module.decayed_max_durability ?? 'not reported'}</p>
+        <p>Current {module.current_durability ?? 'not reported'} / repair target {module.repair_max_durability ?? module.max_durability ?? module.decayed_max_durability ?? 'not available'}</p>
       </li>)}</ul>
     </>}
   </section>

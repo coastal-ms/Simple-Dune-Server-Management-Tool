@@ -2042,7 +2042,7 @@ export interface VehicleFleetRow {
 }
 
 export interface VehicleIntegrity {
-  modules: Array<{ id: string; template_id: string; current_durability: number | null; max_durability: number | null; decayed_max_durability: number | null }>
+  modules: Array<{ id: string; template_id: string; current_durability: number | null; max_durability: number | null; decayed_max_durability: number | null; repair_max_durability: number | null }>
   source: 'live'
   observed_at: string
 }

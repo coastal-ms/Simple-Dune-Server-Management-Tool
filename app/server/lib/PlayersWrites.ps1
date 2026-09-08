@@ -740,7 +740,9 @@ function Invoke-DuneVehicleRepair {
     $sql = @"
 SELECT vm.id::text AS module_id,
        vm.template_id AS template,
-       COALESCE((vm.stats->'FVehicleModuleDurabilityStats'->1->>'MaxDurability')::float8, 0)::text AS stat_max
+       COALESCE((vm.stats->'FVehicleModuleDurabilityStats'->1->>'CurrentDurability')::float8, 0)::text AS stat_current,
+       COALESCE((vm.stats->'FVehicleModuleDurabilityStats'->1->>'MaxDurability')::float8, 0)::text AS stat_max,
+       COALESCE((vm.stats->'FVehicleModuleDurabilityStats'->1->>'DecayedMaxDurability')::float8, 0)::text AS stat_decayed
 FROM dune.vehicle_modules vm
 WHERE vm.vehicle_id = $VehicleId::bigint;
 "@
@@ -756,17 +758,19 @@ WHERE vm.vehicle_id = $VehicleId::bigint;
     foreach ($row in $mods) {
         $modId = [int64](ConvertTo-DuneInt $row['module_id'])
         $tmpl = [string]$row['template']
-        $rule = Get-DuneGameplayItemRule -TemplateId $tmpl
-        $max = [double]$rule.max_durability
+        $max = Get-DuneVehicleModuleDefaultDurability -TemplateId $tmpl
         if ($max -le 0) {
-            $statMax = 0.0
-            [double]::TryParse(
-                [string]$row['stat_max'],
-                [Globalization.NumberStyles]::Float,
-                [Globalization.CultureInfo]::InvariantCulture,
-                [ref]$statMax
-            ) | Out-Null
-            if ($statMax -gt 0) { $max = $statMax } else { $skipped++; continue }
+            foreach ($field in @('stat_current', 'stat_max', 'stat_decayed')) {
+                $value = 0.0
+                [double]::TryParse(
+                    [string]$row[$field],
+                    [Globalization.NumberStyles]::Float,
+                    [Globalization.CultureInfo]::InvariantCulture,
+                    [ref]$value
+                ) | Out-Null
+                if ($value -gt $max) { $max = $value }
+            }
+            if ($max -le 0) { $skipped++; continue }
         }
         $maxSql = $max.ToString('R', [Globalization.CultureInfo]::InvariantCulture)
         $repairRows += "($modId::bigint, $maxSql::float8)"
@@ -787,8 +791,11 @@ WITH repair(module_id, target_durability) AS (
 updated AS (
 UPDATE dune.vehicle_modules
 SET stats = jsonb_set(
-    jsonb_set(stats,
-        '{FVehicleModuleDurabilityStats,1,CurrentDurability}',
+    jsonb_set(
+        jsonb_set(stats,
+            '{FVehicleModuleDurabilityStats,1,CurrentDurability}',
+            to_jsonb(repair.target_durability)),
+        '{FVehicleModuleDurabilityStats,1,MaxDurability}',
         to_jsonb(repair.target_durability)),
     '{FVehicleModuleDurabilityStats,1,DecayedMaxDurability}',
     to_jsonb(repair.target_durability))

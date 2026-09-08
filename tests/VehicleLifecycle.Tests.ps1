@@ -85,11 +85,19 @@ Describe 'Vehicle lifecycle host safety' {
 }
 
 Describe 'Vehicle module repair' {
+    It 'maps installed positional module templates to recorded default durability' {
+        $script:DuneVehicleModuleDurabilityDefaults = $null
+        Get-DuneVehicleModuleDefaultDurability 'OrnithopterTransportHullFrontRight_6' | Should -Be 4500
+        Get-DuneVehicleModuleDefaultDurability 'OrnithopterTransportLocomotionCenterLeft1_Unique_Speed_6' | Should -Be 3000
+        Get-DuneVehicleModuleDefaultDurability 'SandbikeEngine_6' | Should -Be 1000
+    }
+
     It 'uses one catalog-backed batch update for every repairable module' {
         $script:repairQueries = @()
-        Mock Get-DuneGameplayItemRule {
+        Mock Get-DuneVehicleModuleDefaultDurability {
             param($TemplateId)
-            @{ max_durability = if ($TemplateId -eq 'Hull') { 4500 } else { 3000 } }
+            if ($TemplateId -eq 'Hull') { return 4500 }
+            return 3000
         }
         Mock Invoke-DuneSqlQuery {
             param($Ip, $Sql, $ReadOnly, $MaxRows, $TimeoutSec)
@@ -97,10 +105,10 @@ Describe 'Vehicle module repair' {
             if ($ReadOnly) {
                 return @{
                     ok = $true
-                    columns = @('module_id', 'template', 'stat_max')
+                    columns = @('module_id', 'template', 'stat_current', 'stat_max', 'stat_decayed')
                     rows = @(
-                        @('10', 'Hull', '4000'),
-                        @('11', 'Engine', '2500')
+                        @('10', 'Hull', '4000', '', '4400'),
+                        @('11', 'Engine', '2500', '', '2900')
                     )
                 }
             }
@@ -116,6 +124,7 @@ Describe 'Vehicle module repair' {
         $script:repairQueries[1] | Should -Match '\(10::bigint, 4500::float8\)'
         $script:repairQueries[1] | Should -Match '\(11::bigint, 3000::float8\)'
         $script:repairQueries[1] | Should -Match 'UPDATE dune\.vehicle_modules'
+        $script:repairQueries[1] | Should -Match 'MaxDurability'
     }
 }
 
