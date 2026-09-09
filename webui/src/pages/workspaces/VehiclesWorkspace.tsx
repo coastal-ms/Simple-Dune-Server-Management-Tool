@@ -83,6 +83,7 @@ function VehicleFleetWorkspace() {
       setStaleAfterSeconds(fleet.stale_after_seconds ?? 20)
       setDatabaseScope(fleet.database_scope ?? '')
       setReadFailed(false)
+      return fleet
     } catch (loadError: unknown) {
       setReadFailed(true)
       const missingRoute = loadError instanceof ApiError
@@ -92,9 +93,11 @@ function VehicleFleetWorkspace() {
       } else {
         setError(errorMessage(loadError))
       }
+      return null
+    } finally {
+      setNow(Date.now())
+      setRefreshing(false)
     }
-    setNow(Date.now())
-    setRefreshing(false)
   }, [])
 
   useEffect(() => { void load() }, [load])
@@ -168,7 +171,7 @@ function VehicleFleetWorkspace() {
     return draft !== undefined && draft.trim() !== (vehicle.vehicle_name ?? '') && Boolean(vehicleNameError(draft))
   })
   const showRenameWarning = editingNames || busy === 'rename' || renameWarningUntil > now
-  const toggleNameEditing = () => {
+  const toggleNameEditing = async () => {
     if (editingNames) {
       setEditingNames(false)
       setNameDrafts({})
@@ -176,8 +179,16 @@ function VehicleFleetWorkspace() {
     }
     setError('')
     setMessage('')
-    setNameDrafts(Object.fromEntries(activeVehicles.map(vehicle => [vehicle.id, vehicle.vehicle_name ?? ''])))
-    setEditingNames(true)
+    setBusy('rename-read')
+    try {
+      const fleet = await load()
+      if (!fleet) return
+      const currentActive = (fleet.vehicles ?? []).filter(vehicle => !isRecoveryRecord(vehicle))
+      setNameDrafts(Object.fromEntries(currentActive.map(vehicle => [vehicle.id, vehicle.vehicle_name ?? ''])))
+      setEditingNames(true)
+    } finally {
+      setBusy(null)
+    }
   }
   const saveNames = async () => {
     if (!databaseScope || renameChanges.length === 0 || invalidRename) return
@@ -271,9 +282,9 @@ function VehicleFleetWorkspace() {
                 <SourceBadge source={source ?? undefined} />
               </div>
               <div className="flex flex-wrap gap-2">
-                <button className="btn-secondary" disabled={busy !== null || source !== 'live' || !databaseScope} onClick={toggleNameEditing}>
-                  <Icon name="Pencil" size={14} />
-                  Edit Vehicle Names
+                <button className="btn-secondary" disabled={busy !== null || source !== 'live' || !databaseScope} onClick={() => { void toggleNameEditing() }}>
+                  <Icon name={busy === 'rename-read' ? 'Loader2' : 'Pencil'} size={14} className={busy === 'rename-read' ? 'animate-spin' : undefined} />
+                  {busy === 'rename-read' ? 'Loading Vehicle Names...' : 'Edit Vehicle Names'}
                 </button>
                 <button className="btn-primary" disabled={busy !== null || !editingNames || renameChanges.length === 0 || invalidRename} onClick={() => { void saveNames() }}>
                   <Icon name={busy === 'rename' ? 'Loader2' : 'Save'} size={14} className={busy === 'rename' ? 'animate-spin' : undefined} />

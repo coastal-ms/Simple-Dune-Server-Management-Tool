@@ -24,8 +24,9 @@ here cover everything those tags shipped.
 - Added active-fleet vehicle name editing with offline-owner and recovery-state
   validation, exact batched database writes, committed readback, and one immediate
   battlegroup restart.
-- Added Solo Bank Storage to Current Inventory and Item Delivery by discovering the
-  selected pawn's type-30 inventory instead of relying on save-specific inventory IDs.
+- Added Bank Storage to Self-Hosted player inventory browsing and Solo Current
+  Inventory and Item Delivery by discovering each pawn's type-30 inventory instead
+  of relying on save-specific inventory IDs.
 
 ### Changed
 

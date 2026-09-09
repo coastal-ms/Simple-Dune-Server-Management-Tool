@@ -124,6 +124,33 @@ Describe 'Vehicle lifecycle host safety' {
         Should -Invoke Invoke-DuneBattlegroupRestart -Times 1
     }
 
+    It 'flattens rank-1 controller ownership and treats distinct Offline owners as eligible' {
+        Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; world = 'sh-test' } }
+        Mock Invoke-DuneSqlQuery {
+            return @{
+                ok = $true
+                columns = @(
+                    'vehicle_id','class','map','vehicle_name','actor_state','permissions',
+                    'module_count','recovery_count','recovery_durability','backup_count',
+                    'cargo_hold_count','cargo_conflict_count','closure_owner_conflict_count',
+                    'cargo_stack_count','cargo_max_item_count','cargo_max_item_volume','target_revision'
+                )
+                rows = @(, @(
+                    '42','BP_Buggy_C','Hagga','Scout','Default',
+                    '[{"player_id":"101","rank":1,"character_name":"Coastal","online_status":"Offline","player_state_count":1},{"player_id":"111","rank":1,"character_name":"Hawk","online_status":"Offline","player_state_count":1}]',
+                    '1','0',$null,'0','1','0','0','0','10','100',('b' * 32)
+                ))
+            }
+        }
+
+        $fleet = Get-DuneVehicleFleetLive -Ip fixture
+
+        $fleet.ok | Should -BeTrue -Because $fleet.error
+        $fleet.vehicles[0].permissions.Count | Should -Be 2
+        $fleet.vehicles[0].permissions[0].player_id | Should -Be '101'
+        $fleet.vehicles[0].rename_blocked_reason | Should -BeNullOrEmpty
+    }
+
     It 'reports a committed batch truthfully when restart launch fails' {
         Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; world = 'sh-test' } }
         Mock Invoke-DuneSqlQuery {

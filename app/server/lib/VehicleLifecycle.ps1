@@ -160,7 +160,15 @@ ORDER BY COALESCE(NULLIF(pa.actor_name, ''), a.class), a.id;
         $id = [int64](ConvertTo-DuneInt $row['vehicle_id'])
         if ($id -le 0 -or $id -gt 9007199254740991 -or $seen.ContainsKey($id)) { throw 'Vehicle fleet returned an invalid or ambiguous actor identity.' }
         $seen[$id] = $true
-        $permissions = @(([string]$row['permissions']) | ConvertFrom-Json -ErrorAction Stop)
+        $parsedPermissions = ([string]$row['permissions']) | ConvertFrom-Json -ErrorAction Stop
+        $permissions = [Collections.Generic.List[object]]::new()
+        foreach ($permission in $parsedPermissions) {
+            if ($permission -is [Array]) {
+                foreach ($nestedPermission in $permission) { $permissions.Add($nestedPermission) }
+            } else {
+                $permissions.Add($permission)
+            }
+        }
         $owners = @($permissions | Where-Object { $null -ne $_.rank -and $_.rank -eq 1 })
         $ownership = if ($permissions.Count -eq 0) { 'unowned' } elseif ($owners.Count -ne 1 -or -not $owners[0].character_name) { 'ambiguous' } else { 'owned' }
         $duplicateOwners = @($owners | Group-Object player_id | Where-Object Count -gt 1)
@@ -192,7 +200,7 @@ ORDER BY COALESCE(NULLIF(pa.actor_name, ''), a.class), a.id;
                 if ($_.character_name) { [string]$_.character_name } else { "Unresolved controller $($_.player_id)" }
             }) -join ', ')
             ownership_status = $ownership
-            permissions = @($permissions)
+            permissions = $permissions.ToArray()
             module_count = [int](ConvertTo-DuneInt $row['module_count'])
             recovery_count = $recoveryCount
             recovery_durability = ConvertTo-DuneVehicleNumber $row['recovery_durability']
