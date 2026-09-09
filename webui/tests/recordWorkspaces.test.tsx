@@ -93,6 +93,10 @@ describe('Record-focused gameplay workspaces', () => {
     expect(screen.getByText('Remove the leading ## and enter a custom name.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save Vehicle Names' })).toBeDisabled()
     await user.clear(name)
+    await user.type(name, 'none')
+    expect(screen.getByText('This name is reserved by the game.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save Vehicle Names' })).toBeDisabled()
+    await user.clear(name)
     await user.type(name, 'Desert Runner')
     await user.click(screen.getByRole('button', { name: 'Save Vehicle Names' }))
     await waitFor(() => expect(saveVehicleNames).toHaveBeenCalledWith([
@@ -101,6 +105,31 @@ describe('Record-focused gameplay workspaces', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(await screen.findByText('Saved 1 vehicle name change and launched the battlegroup restart.')).toBeInTheDocument()
     expect(screen.getByText('Battlegroup restart required:')).toBeInTheDocument()
+  })
+  it('cancels stale name drafts when the fleet is refreshed', async () => {
+    const user = userEvent.setup()
+    render(<VehiclesWorkspace />)
+    await screen.findByRole('button', { name: 'Inspect Scout' })
+    await user.click(screen.getByRole('button', { name: 'Edit Vehicle Names' }))
+    await waitFor(() => expect(getVehicleFleet).toHaveBeenCalledTimes(2))
+    const name = screen.getByRole('textbox', { name: 'New vehicle name' })
+    await user.clear(name)
+    await user.type(name, 'Desert Runner')
+
+    vi.mocked(getVehicleFleet).mockResolvedValue({
+      source: 'live',
+      total: 1,
+      observed_at: new Date().toISOString(),
+      stale_after_seconds: 20,
+      database_scope: 'a'.repeat(64),
+      vehicles: [{ id: 7, class: 'Buggy', subtype: 'Buggy', vehicle_name: 'Ranger', owners: 'Aster', map: 'Survival_1', actor_state: 'Active', target_revision: 'b'.repeat(32), cargo_hold_count: 1, cargo_stack_count: 2, module_count: 4 }],
+    })
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    await waitFor(() => expect(getVehicleFleet).toHaveBeenCalledTimes(3))
+    expect(screen.queryByRole('textbox', { name: 'New vehicle name' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inspect Ranger' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save Vehicle Names' })).toBeDisabled()
   })
   it('refuses editing for online or unresolved vehicle owners and shows the reason', async () => {
     vi.mocked(getVehicleFleet).mockResolvedValue({

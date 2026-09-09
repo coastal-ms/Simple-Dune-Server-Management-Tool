@@ -32,7 +32,7 @@
 .spatial-location-nav { min-width:0; border-right:1px solid var(--space-line); background:var(--color-base); }
 .spatial-world { position:relative; min-width:0; background:var(--color-base); }
 .spatial-world-title { position:absolute; z-index:1; top:34px; left:32px; pointer-events:none; }
-.spatial-world-title h1 { color:var(--space-ink); font-size:clamp(28px,3.1vw,48px); line-height:1.08; letter-spacing:-.035em; font-weight:450; }
+.spatial-world-title h1 { color:var(--space-ink); font-size:clamp(calc(28px * var(--dst-font-scale, 1)),calc(3.1vw * var(--dst-font-scale, 1)),calc(48px * var(--dst-font-scale, 1))); line-height:1.08; letter-spacing:-.035em; font-weight:450; }
 .spatial-world-title h1 em { font-style:normal; color:var(--color-accent-bright); }
 .spatial-world-title p { font-size:calc(12px * var(--dst-font-scale, 1)); line-height:1.65; color:var(--space-muted); margin-top:15px; }
 .spatial-stage { height:clamp(600px,calc(100dvh - 180px),940px); position:relative; overflow:hidden; }

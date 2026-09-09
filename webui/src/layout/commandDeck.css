@@ -38,7 +38,7 @@
 .deck-nav-foot { border-top: 1px solid var(--color-border); padding-top: 12px; margin-top: 10px; font-size:calc(11px * var(--dst-font-scale, 1)); line-height: 1.6; color: var(--color-text-muted); }
 .deck-home { min-width: 0; }
 .deck-home-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin: 4px 0 30px; }
-.deck-home-heading h1 { font-size: clamp(28px, 3vw, 38px); line-height: 1.12; font-weight: 600; letter-spacing: -.035em; }
+.deck-home-heading h1 { font-size: clamp(calc(28px * var(--dst-font-scale, 1)), calc(3vw * var(--dst-font-scale, 1)), calc(38px * var(--dst-font-scale, 1))); line-height: 1.12; font-weight: 600; letter-spacing: -.035em; }
 .deck-home-heading h1 span { color: var(--color-text-muted); }
 .deck-home-heading p { margin-top: 14px; color: var(--color-text-muted); font-size:calc(14px * var(--dst-font-scale, 1)); }
 .deck-system { border: 1px solid var(--color-border-bright); border-radius: 10px; background: var(--color-surface); overflow: hidden; }

@@ -47,7 +47,7 @@ function vehicleNameError(name: string) {
   if (trimmed.length > 64) return 'Use 64 characters or fewer.'
   if (/[\x00-\x1F\x7F]/.test(trimmed)) return 'Control characters are not allowed.'
   if (trimmed.startsWith('##')) return 'Remove the leading ## and enter a custom name.'
-  if (trimmed === 'None') return 'This name is reserved by the game.'
+  if (/^none$/i.test(trimmed)) return 'This name is reserved by the game.'
   return ''
 }
 
@@ -85,6 +85,8 @@ function VehicleFleetWorkspace() {
       setObservedAt(fleet.observed_at)
       setStaleAfterSeconds(fleet.stale_after_seconds ?? 20)
       setDatabaseScope(fleet.database_scope ?? '')
+      setEditingNames(false)
+      setNameDrafts({})
       setReadFailed(false)
       return fleet
     } catch (loadError: unknown) {

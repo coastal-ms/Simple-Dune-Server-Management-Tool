@@ -107,25 +107,34 @@ export function AppearanceCard() {
             <p className="text-sm text-text-dim mb-3">
               Increase interface text in both Classic and Command Deck. Icons and workspace dimensions stay fixed.
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="radiogroup" aria-label="Interface text size">
-              {FONT_SCALE_OPTIONS.map(option => (
-                <button
-                  key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={fontScale === option}
-                  onClick={() => setFontScale(option)}
-                  className={[
-                    'min-h-11 rounded-lg border px-3 py-2 text-left transition-colors',
-                    fontScale === option
-                      ? 'border-accent bg-accent/10 text-text ring-2 ring-accent/30'
-                      : 'border-border bg-surface-2/30 text-text-muted hover:border-border-bright hover:text-text',
-                  ].join(' ')}
-                >
-                  <span className="block font-medium">{fontScaleLabel(option)}</span>
-                  <span className="block text-xs text-text-dim mt-1">{fontScalePercent(option)}</span>
-                </button>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {FONT_SCALE_OPTIONS.map(option => {
+                const id = `interface-text-size-${option}`
+                return (
+                  <div key={option}>
+                    <input
+                      id={id}
+                      type="radio"
+                      name="interface-text-size"
+                      checked={fontScale === option}
+                      onChange={() => setFontScale(option)}
+                      className="peer sr-only"
+                    />
+                    <label
+                      htmlFor={id}
+                      className={[
+                        'block min-h-11 cursor-pointer rounded-lg border px-3 py-2 text-left transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ibad',
+                        fontScale === option
+                          ? 'border-accent bg-accent/10 text-text ring-2 ring-accent/30'
+                          : 'border-border bg-surface-2/30 text-text-muted hover:border-border-bright hover:text-text',
+                      ].join(' ')}
+                    >
+                      <span className="block font-medium">{fontScaleLabel(option)}</span>
+                      <span className="block text-xs text-text-dim mt-1">{fontScalePercent(option)}</span>
+                    </label>
+                  </div>
+                )
+              })}
             </div>
           </fieldset>
 
