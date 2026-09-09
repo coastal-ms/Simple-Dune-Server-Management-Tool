@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import {
   FONT_SCALE_KEY,
   setFontScale,
@@ -47,6 +49,14 @@ describe('font scale preference', () => {
     })
     expect(screen.getAllByText('large')).toHaveLength(2)
     expect(document.documentElement).toHaveAttribute('data-dst-font-scale', 'large')
+  })
+
+  it('applies the selected percentage once at the document root', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+    const scaleBlock = css.match(/\[data-dst-font-scale\]\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? ''
+    expect(scaleBlock).toContain('--text-sm: calc(0.875rem * var(--dst-font-scale))')
+    expect(scaleBlock).not.toMatch(/\bfont-size\s*:/)
+    expect(css).toMatch(/body\s*\{[\s\S]*font-size:\s*var\(--text-base\)/)
   })
 
   it('rejects malformed stored values and still switches when storage is blocked', () => {

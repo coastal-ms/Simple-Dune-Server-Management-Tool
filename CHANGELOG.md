@@ -36,6 +36,8 @@ here cover everything those tags shipped.
 - Server Health now reports the observation time of cached battlegroup snapshots
   and prevents overlapping polls so faster refresh choices do not imply fresher
   backend data than DST actually observed.
+- Updated mobile and documentation-site dependency locks to fixed js-yaml, Astro,
+  sharp, and SVGO releases for newly disclosed security advisories.
 
 ## [15.0.1] - 2026-09-07
 

@@ -34,7 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (immersive) {
     return (
-      <div data-dst-font-scale={fontScale} className={`h-full w-full max-w-full flex flex-col overflow-hidden ${commandDeck ? 'command-deck' : ''}`}>
+      <div className={`h-full w-full max-w-full flex flex-col overflow-hidden ${commandDeck ? 'command-deck' : ''}`}>
         <DecoupleNoticeModal />
         <OnlinePlayerGuardModal />
         <MenuBar sidebarCollapsed={collapsed} onToggleSidebar={toggle} sidebarAvailable={!commandDeck} />
@@ -46,7 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div data-dst-font-scale={fontScale} className={`h-full w-full max-w-full flex flex-col overflow-hidden ${commandDeck ? 'command-deck' : ''}`}>
+    <div className={`h-full w-full max-w-full flex flex-col overflow-hidden ${commandDeck ? 'command-deck' : ''}`}>
       <DecoupleNoticeModal />
       <OnlinePlayerGuardModal />
       <MenuBar sidebarCollapsed={collapsed} onToggleSidebar={toggle} sidebarAvailable={!commandDeck} />
