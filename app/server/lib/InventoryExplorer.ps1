@@ -1362,7 +1362,10 @@ function Invoke-DuneInventoryGroupedPage {
     if ('vehicle' -in $EntityTypes -and $CursorSource -eq 'cache') {
         return @{ ok = $false; status = 409; error = 'Vehicle cargo uses current database reads. Refresh to discard the cache cursor.' }
     }
-    if ('vehicle' -notin $EntityTypes -and $CursorSource -ne 'live' -and
+    # The derived item cache cannot represent empty player inventories. Player
+    # facets must come from the live inventory table so an empty type-30 bank
+    # remains discoverable; storage-only grouped views may still use the cache.
+    if ('vehicle' -notin $EntityTypes -and 'player' -notin $EntityTypes -and $CursorSource -ne 'live' -and
         (Get-Command Invoke-DuneInventoryGroupedCachePage -ErrorAction SilentlyContinue)) {
         $cached = Invoke-DuneInventoryGroupedCachePage `
             -Query $Query `

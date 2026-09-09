@@ -190,7 +190,7 @@ if (`$maps.Count -ne 2 -or [string]`$maps[1]['b'] -ne '4') { throw 'PS5.1 row-ma
         Should -Invoke Invoke-DuneInventoryCacheRefresh -Times 1
     }
 
-    It 'serves cached grouped pages with generation-bound cursors without hitting PostgreSQL' {
+    It 'serves cached storage-only grouped pages with generation-bound cursors without hitting PostgreSQL' {
         $script:CacheOffsets = [Collections.Generic.List[int]]::new()
         $script:CacheLimits = [Collections.Generic.List[int]]::new()
         Mock Get-DuneDbContext { throw 'PostgreSQL should not be queried for a cached page.' }
@@ -222,10 +222,10 @@ if (`$maps.Count -ne 2 -or [string]`$maps[1]['b'] -ne '4') { throw 'PS5.1 row-ma
         }
 
         $first = Invoke-InventoryRouteRequest -Path '/api/v1/inventory/items' -Query @{
-            grouped = '1'; types = 'player,storage'; sort = 'name-asc'; limit = '1'
+            grouped = '1'; types = 'storage'; sort = 'name-asc'; limit = '1'
         }
         $second = Invoke-InventoryRouteRequest -Path '/api/v1/inventory/items' -Query @{
-            grouped = '1'; types = 'player,storage'; sort = 'name-asc'; limit = '1'
+            grouped = '1'; types = 'storage'; sort = 'name-asc'; limit = '1'
             cursor = [string]$first.body.page.nextCursor
         }
 
@@ -238,6 +238,41 @@ if (`$maps.Count -ne 2 -or [string]`$maps[1]['b'] -ne '4') { throw 'PS5.1 row-ma
         $script:CacheOffsets | Should -Be @(0, 1)
         $script:CacheLimits | Should -Be @(1, 1)
         Should -Invoke Get-DuneDbContext -Times 0
+    }
+
+    It 'returns an empty type-30 bank from the live endpoint for the selected player' {
+        Mock Invoke-DuneInventoryGroupedCachePage { throw 'Player facets must not come from the item cache.' }
+        Mock Get-DuneDbContext { @{ ok = $true; ip = 'fixture' } }
+        Mock Invoke-DuneInventoryGroupedLive {
+            param($PlayerId, $EntityTypes)
+            $PlayerId | Should -Be 544
+            $EntityTypes | Should -Contain 'player'
+            return @{
+                ok = $true
+                groups = @()
+                players = @(@{ id = 544; name = 'Coastal'; occurrenceCount = 40 })
+                locations = @(
+                    @{ type = 'player'; id = 545; label = 'Backpack'; owner = 'Coastal'; playerId = 544; playerName = 'Coastal'; occurrenceCount = 40 }
+                    @{ type = 'player'; id = 383; label = 'Bank Storage'; owner = 'Coastal'; playerId = 544; playerName = 'Coastal'; occurrenceCount = 0 }
+                )
+                selectedPlayerValid = $true
+                selectedLocationValid = $true
+            }
+        }
+
+        $result = Invoke-InventoryRouteRequest -Path '/api/v1/inventory/items' -Query @{
+            grouped = '1'; types = 'player,storage'; player_id = '544'; sort = 'name-asc'
+        }
+
+        $result.response.StatusCode | Should -Be 200 -Because ([string]$result.body.error)
+        $result.body.source | Should -Be 'live'
+        $result.body.data.selectedPlayerValid | Should -BeTrue
+        $bank = @($result.body.data.locations | Where-Object { $_.type -eq 'player' -and $_.id -eq 383 })
+        $bank.Count | Should -Be 1
+        $bank[0].label | Should -Be 'Bank Storage'
+        $bank[0].occurrenceCount | Should -Be 0
+        Should -Invoke Invoke-DuneInventoryGroupedCachePage -Times 0
+        Should -Invoke Invoke-DuneInventoryGroupedLive -Times 1
     }
 
     It 'keeps maximum route limits within the cache helper contract' {
@@ -262,7 +297,7 @@ if (`$maps.Count -ne 2 -or [string]`$maps[1]['b'] -ne '4') { throw 'PS5.1 row-ma
         }
 
         $groups = Invoke-InventoryRouteRequest -Path '/api/v1/inventory/items' -Query @{
-            grouped = '1'; types = 'player,storage'; sort = 'name-asc'; limit = '500'
+            grouped = '1'; types = 'storage'; sort = 'name-asc'; limit = '500'
         }
         $occurrences = Invoke-InventoryRouteRequest -Path '/api/v1/inventory/items/occurrences' -Query @{
             template_id = 'Copper'; types = 'player,storage'; sort = 'player-asc'; limit = '100'
