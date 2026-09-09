@@ -2,28 +2,22 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const CHANGELOG_PATH = join(process.cwd(), "..", "CHANGELOG.md");
-const DETAILED_RELEASE_MAJOR = 13;
+const RELEASE_LIMIT = 4;
 const NUMERIC_RELEASE_HEADING = /^## \[(\d+)\.[^\]]+\][^\r\n]*$/gm;
-const LEGACY_SUMMARY = `## Legacy releases (v1-v12)
+const EARLIER_RELEASES = `## Earlier releases
 
-Earlier releases established DST's core server-management experience and expanded it through successive administration and reliability improvements.
-
-- **v12** — Major expansion of gameplay administration and supporting server workflows.
-- **v9-v11** — Iterative additions and refinements across configuration, diagnostics, and operator workflows.
-- **v1-v8** — Foundation releases for setup, updates, the desktop app, and core server management.
-
-[View the complete changelog on GitHub](https://github.com/coastal-ms/DST-DuneServerTool/blob/main/CHANGELOG.md) for every legacy release and patch.`;
+[View the complete changelog on GitHub](https://github.com/coastal-ms/DST-DuneServerTool/blob/main/CHANGELOG.md) for all earlier releases.`;
 
 export function trimChangelogForSite(source: string): string {
-  const firstLegacyRelease = [...source.matchAll(NUMERIC_RELEASE_HEADING)].find(
-    (match) => Number(match[1]) < DETAILED_RELEASE_MAJOR,
-  );
+  const firstHiddenRelease = [
+    ...source.matchAll(NUMERIC_RELEASE_HEADING),
+  ][RELEASE_LIMIT];
 
-  if (firstLegacyRelease?.index === undefined) {
+  if (firstHiddenRelease?.index === undefined) {
     return source;
   }
 
-  return `${source.slice(0, firstLegacyRelease.index).trimEnd()}\n\n${LEGACY_SUMMARY}\n`;
+  return `${source.slice(0, firstHiddenRelease.index).trimEnd()}\n\n${EARLIER_RELEASES}\n`;
 }
 
 export async function getChangelog(): Promise<string> {
