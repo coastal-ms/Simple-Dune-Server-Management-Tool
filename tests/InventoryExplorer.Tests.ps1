@@ -826,10 +826,10 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
                 $occurrences = Invoke-DuneInventoryOccurrencesLive -Ip fixture -TemplateId Copper `
                     -EntityTypes @('player', 'storage') -Sort $sort -Limit 20
                 $occurrences.ok | Should -BeTrue -Because ([string]$occurrences.error)
-                @($occurrences.items).Count | Should -Be 4
+                @($occurrences.items).Count | Should -Be 5
                 @($occurrences.items | Where-Object { -not $_.templateId -or -not $_.player.name }).Count | Should -Be 0
                 (($occurrences.items | ForEach-Object { [long]$_['quantity'] } |
-                    Measure-Object -Sum).Sum) | Should -Be 36
+                    Measure-Object -Sum).Sum) | Should -Be 53
 
                 $firstOccurrencePage = Invoke-DuneInventoryOccurrencesLive -Ip fixture -TemplateId Copper `
                     -EntityTypes @('player', 'storage') -Sort $sort -Limit 1
