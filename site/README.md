@@ -9,7 +9,7 @@ This site lives inside the main `DST-DuneServerTool` repo so that:
 
 ## Local dev
 
-Requires **Node 20.19+, 22.13+, or 23.5+**.
+Requires **Node 22.19+**.
 
 ```powershell
 cd site
