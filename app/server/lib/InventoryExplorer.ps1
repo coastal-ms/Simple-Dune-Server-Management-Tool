@@ -578,6 +578,13 @@ function Get-DuneVehicleCargoInventorySql {
     $playerColumns = if ($IncludePlayer) {
         "owner.player_pawn_id::bigint AS player_id, COALESCE(owner.character_name, '') AS player_name,"
     } else { '' }
+    $locationColumns = if ($IncludePlayer) {
+        @"
+,
+            'vehicle'::text AS location_type, v.id::bigint AS location_id,
+            COALESCE(NULLIF(pa.actor_name, ''), a.class, 'Vehicle') AS location_label
+"@
+    } else { '' }
     return @"
     SELECT i.id::bigint AS item_id, i.template_id, i.stack_size,
            COALESCE(i.quality_level, 0) AS quality_level,
@@ -590,9 +597,7 @@ function Get-DuneVehicleCargoInventorySql {
            $playerColumns
            COALESCE(NULLIF(pa.actor_name, ''), a.class, 'Vehicle') AS entity_label,
            COALESCE(owner.character_name, '') AS owner_name,
-           COALESCE(a.map, '') AS map, COALESCE(a.class, '') AS entity_class,
-           'vehicle'::text AS location_type, v.id::bigint AS location_id,
-           COALESCE(NULLIF(pa.actor_name, ''), a.class, 'Vehicle') AS location_label
+           COALESCE(a.map, '') AS map, COALESCE(a.class, '') AS entity_class$locationColumns
     FROM dune.vehicles v
     JOIN dune.actors a ON a.id = v.id
     JOIN dune.inventories inv ON inv.actor_id = v.id AND inv.inventory_type = 0

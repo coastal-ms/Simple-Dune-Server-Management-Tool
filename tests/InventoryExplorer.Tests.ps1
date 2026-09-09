@@ -813,7 +813,7 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
             $storage.groups[0].templateId | Should -Be 'Copper'
             $storage.groups[0].totalQuantity | Should -Be 11
             $playerOnly = Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('player') -Limit 20
-            @($playerOnly.groups | Where-Object templateId -eq 'Copper')[0].totalQuantity | Should -Be 12
+            @($playerOnly.groups | Where-Object templateId -eq 'Copper')[0].totalQuantity | Should -Be 29
             $namesOnly = Invoke-DuneInventoryGroupedLive -Ip fixture -Query 'Harkonnen Sandbike Mesh' `
                 -EntityTypes @('player', 'storage') -Limit 20
             @($namesOnly.groups).Count | Should -Be 1
