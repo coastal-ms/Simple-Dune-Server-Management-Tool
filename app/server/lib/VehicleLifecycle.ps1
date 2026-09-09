@@ -365,7 +365,7 @@ BEGIN
         SELECT 1
         FROM dst_vehicle_rename_targets t
         JOIN dune.permission_actor pa ON pa.actor_id = t.vehicle_id AND pa.actor_type = 2
-        WHERE pa.actor_name IS DISTINCT FROM t.expected_current_name
+        WHERE COALESCE(pa.actor_name, '') IS DISTINCT FROM t.expected_current_name
     ) THEN
         RAISE EXCEPTION 'A vehicle name changed; refresh and retry against the current fleet.';
     END IF;

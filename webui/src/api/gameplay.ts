@@ -2094,12 +2094,14 @@ export interface VehicleNameChange {
 }
 
 export function saveVehicleNames(changes: VehicleNameChange[], databaseScope: string) {
-  return api<{ ok: true; renamed: number; restart_started: true; message: string }>(
-    '/api/gameplay/vehicles/names',
-    {
-      method: 'POST',
-      body: JSON.stringify({ changes, database_scope: databaseScope }),
-    },
+  return withOnlinePlayerGuard(force =>
+    api<{ ok: true; renamed: number; restart_started: true; message: string }>(
+      `/api/gameplay/vehicles/names${force ? '?force=true' : ''}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ changes, database_scope: databaseScope }),
+      },
+    ),
   )
 }
 

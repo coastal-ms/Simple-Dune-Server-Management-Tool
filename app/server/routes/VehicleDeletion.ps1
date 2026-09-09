@@ -49,7 +49,7 @@ Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/names' -Handler {
 
         $ctx = Get-DuneDbContext
         if (-not $ctx.ok) { Write-DuneError -Response $res -Status 503 -Message $ctx.message; return }
-        $result = Invoke-WithDuneLock -Name 'vehicle-rename' -TimeoutSec 5 -Script {
+        $result = Invoke-WithDuneLock -Name 'vehicle-lifecycle' -TimeoutSec 5 -Script {
             Invoke-DuneVehicleRenameBatch -Ip $ctx.ip -Changes $changes -DatabaseScope $databaseScope
         }
         if (-not $result.ok) {
@@ -93,7 +93,7 @@ Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/delete' -LocalOnly
         $blocked = @($selected | Where-Object deletion_blocked_reason | Select-Object -First 1)
         if ($blocked.Count) { Write-DuneError -Response $res -Status 409 -Message ([string]$blocked[0].deletion_blocked_reason); return }
 
-        $result = Invoke-WithDuneLock -Name 'vehicle-deletion' -TimeoutSec 5 -Script {
+        $result = Invoke-WithDuneLock -Name 'vehicle-lifecycle' -TimeoutSec 5 -Script {
             $existing = Get-DuneVehicleDeletionQueue
             if ($existing.running) { return @{ ok = $false; error = 'A vehicle deletion is already running.' } }
             foreach ($entry in @($existing.entries)) {
@@ -148,7 +148,7 @@ Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/deletions' -LocalO
         if ($v.target_revision -cne $revision -or $v.deletion_blocked_reason) {
             Write-DuneError -Response $res -Status 409 -Message "Vehicle changed or cannot be removed. Refresh and review it. $($v.deletion_blocked_reason)"; return
         }
-        $result = Invoke-WithDuneLock -Name 'vehicle-deletion' -TimeoutSec 5 -Script {
+        $result = Invoke-WithDuneLock -Name 'vehicle-lifecycle' -TimeoutSec 5 -Script {
             Add-DuneVehicleDeletion -VehicleId $vehicleId -VehicleClass $v.class -VehicleName $v.vehicle_name -Map $v.map -Owners $v.owners -ActorState $v.actor_state -TargetRevision $revision -ModuleCount $v.module_count -CargoStackCount $v.cargo_stack_count -DatabaseScope $fleet.database_scope
         }
         if (-not $result.ok) { Write-DuneError -Response $res -Status 500 -Message $result.error; return }
@@ -162,7 +162,7 @@ Register-DuneRoute -Method DELETE -Path '/api/gameplay/vehicles/deletions/{id}' 
     param($req, $res, $routeParams, $body)
     try {
         $entryId = [string]$routeParams.id
-        $result = Invoke-WithDuneLock -Name 'vehicle-deletion' -TimeoutSec 5 -Script {
+        $result = Invoke-WithDuneLock -Name 'vehicle-lifecycle' -TimeoutSec 5 -Script {
             Remove-DuneVehicleDeletion -EntryId $entryId
         }
         if (-not $result.ok) { Write-DuneError -Response $res -Status 404 -Message $result.error; return }
@@ -187,7 +187,7 @@ Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/deletions/process'
         if (-not (Test-DuneDisruptiveActionGuard -Req $req -Res $res -Action 'opening the vehicle deletion restart window')) { return }
         $ctx = Get-DuneDbContext
         if (-not $ctx.ok) { Write-DuneError -Response $res -Status 503 -Message $ctx.message; return }
-        $result = Invoke-WithDuneLock -Name 'vehicle-deletion' -TimeoutSec 5 -Script {
+        $result = Invoke-WithDuneLock -Name 'vehicle-lifecycle' -TimeoutSec 5 -Script {
             Invoke-DuneVehicleDeletionWindow -Ip $ctx.ip -QueueRevision $queueRevision
         }
         if (-not $result.ok) { Write-DuneJson -Response $res -Status 503 -Body $result; return }

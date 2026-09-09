@@ -118,6 +118,7 @@ Describe 'Vehicle lifecycle host safety' {
         $script:renameQueries[0].sql | Should -Match "online_status IS DISTINCT FROM 'Offline'"
         $script:renameQueries[0].sql | Should -Match 'recovered_vehicles'
         $script:renameQueries[0].sql | Should -Match 'backup_vehicles'
+        $script:renameQueries[0].sql | Should -Match "COALESCE\(pa\.actor_name, ''\) IS DISTINCT FROM t\.expected_current_name"
         $script:renameQueries[0].sql | Should -Match "'Scout'::text, 'Desert Runner'::text"
         $script:renameQueries[0].sql | Should -Match "'Hauler'::text, 'Sand Runner'::text"
         Should -Invoke Invoke-DuneBattlegroupRestart -Times 1
@@ -415,6 +416,21 @@ INSERT INTO dune.overmap_players VALUES (42);
         )
         $stale.ok | Should -BeFalse
         $stale.error | Should -Match 'changed'
+        Should -Invoke Invoke-DuneBattlegroupRestart -Times 1
+    }
+
+    It 'renames an unnamed vehicle using the empty fleet representation' {
+        [void](Invoke-TestVehicleSql -Sql @'
+DELETE FROM dune.recovered_vehicles WHERE vehicle_id = 42;
+DELETE FROM dune.backup_vehicles WHERE vehicle_id = 42;
+UPDATE dune.permission_actor SET actor_name = NULL WHERE actor_id = 42;
+'@)
+        $renamed = Invoke-DuneVehicleRenameBatch -Ip fixture -DatabaseScope $script:scopeKey -Changes @(
+            @{ vehicle_id = 42; expected_current_name = ''; name = 'Desert Runner' }
+        )
+
+        $renamed.ok | Should -BeTrue -Because $renamed.error
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].vehicle_name | Should -Be 'Desert Runner'
         Should -Invoke Invoke-DuneBattlegroupRestart -Times 1
     }
 
