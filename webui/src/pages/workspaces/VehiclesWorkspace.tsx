@@ -27,6 +27,8 @@ const TABS: readonly WorkspaceTab[] = [
   { id: 'cargo', label: 'Cargo', to: '/vehicles?view=cargo', icon: 'PackageSearch' },
 ]
 
+const VEHICLE_NAME_INPUT_CLASS = 'mt-1 min-h-11 w-full rounded-lg border-2 border-accent/70 bg-surface px-3 py-2 text-sm text-text shadow-inner outline-none transition focus:border-accent-bright focus:ring-2 focus:ring-accent/30'
+
 function vehicleLabel(vehicle: VehicleFleetRow) {
   return vehicle.vehicle_name?.trim() || vehicle.class || `Vehicle ${vehicle.id}`
 }
@@ -339,9 +341,9 @@ function VehicleFleetWorkspace() {
                           <div className="flex flex-wrap items-center gap-2">
                             {editingNames && !vehicle.rename_blocked_reason ? (
                               <label className="block min-w-0 flex-1 text-xs text-text-muted">
-                                Vehicle name
+                                New vehicle name
                                 <input
-                                  className="input mt-1 w-full"
+                                  className={VEHICLE_NAME_INPUT_CLASS}
                                   value={nameDrafts[vehicle.id] ?? vehicle.vehicle_name ?? ''}
                                   maxLength={64}
                                   aria-invalid={Boolean(vehicleNameError(nameDrafts[vehicle.id] ?? vehicle.vehicle_name ?? ''))}
@@ -408,22 +410,23 @@ function VehicleFleetWorkspace() {
         {operationFeedback}
         <SourceBadge source={source ?? undefined} />
         {renameWarningBanner}
-        {editingNames && !isRecoveryRecord(selectedVehicle) && (
+        {editingNames && !isRecoveryRecord(selectedVehicle) && !selectedVehicle.rename_blocked_reason && (
           <label className="mt-4 block text-sm font-medium text-text">
-            Vehicle name
+            New vehicle name
             <input
-              className="input mt-1 w-full"
+              className={VEHICLE_NAME_INPUT_CLASS}
               value={nameDrafts[selectedVehicle.id] ?? selectedVehicle.vehicle_name ?? ''}
               maxLength={64}
-              disabled={Boolean(selectedVehicle.rename_blocked_reason)}
               aria-invalid={Boolean(vehicleNameError(nameDrafts[selectedVehicle.id] ?? selectedVehicle.vehicle_name ?? ''))}
               onChange={event => setNameDrafts(current => ({ ...current, [selectedVehicle.id]: event.target.value }))}
             />
-            {selectedVehicle.rename_blocked_reason && <span className="mt-1 block text-xs text-warning">{selectedVehicle.rename_blocked_reason}</span>}
-            {!selectedVehicle.rename_blocked_reason && vehicleNameError(nameDrafts[selectedVehicle.id] ?? selectedVehicle.vehicle_name ?? '') && (
+            {vehicleNameError(nameDrafts[selectedVehicle.id] ?? selectedVehicle.vehicle_name ?? '') && (
               <span className="mt-1 block text-xs text-warning">{vehicleNameError(nameDrafts[selectedVehicle.id] ?? selectedVehicle.vehicle_name ?? '')}</span>
             )}
           </label>
+        )}
+        {editingNames && !isRecoveryRecord(selectedVehicle) && selectedVehicle.rename_blocked_reason && (
+          <p className="mt-4 text-sm text-warning">{selectedVehicle.rename_blocked_reason}</p>
         )}
         <dl className="my-5 space-y-4 text-sm">
           <div><dt className="text-text-muted">Actor</dt><dd>{selectedVehicle.id}</dd></div>
