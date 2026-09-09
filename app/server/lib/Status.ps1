@@ -223,7 +223,13 @@ function Get-DuneBattlegroupSnapshot {
 function Get-DuneBattlegroupSnapshotFresh {
     param($VmStatus)
     $vm = if ($null -ne $VmStatus) { $VmStatus } else { Get-DuneVmStatus }
-    $result = @{ available = $false; vm = $vm; output = ''; reason = '' }
+    $result = @{
+        available  = $false
+        vm         = $vm
+        output     = ''
+        reason     = ''
+        observedAt = [datetime]::UtcNow.ToString('o')
+    }
 
     if (-not $vm.exists)  { $result.reason = "VM '$script:DuneVmName' does not exist."; return $result }
     if (-not $vm.running) { $result.reason = "VM '$script:DuneVmName' is not running (state: $($vm.state))."; return $result }

@@ -623,16 +623,21 @@ INSERT INTO dune.actors (id, map, owner_account_id) VALUES
     (20001, 'Hagga Basin', 30001),
     (20002, 'Hagga Basin', 30002),
     (20003, 'Deep Desert', 30003),
+    (20004, 'Hagga Basin', 30004),
     (50001, 'Hagga Basin', NULL),
     (50002, 'Deep Desert', NULL);
 INSERT INTO dune.player_state (player_pawn_id, character_name, account_id) VALUES
     (20001, 'Coastal', 30001),
     (20002, 'Chani', 30002),
-    (20003, 'Stilgar', 30003);
+    (20003, 'Stilgar', 30003),
+    (20004, 'Empty Bank', 30004);
 INSERT INTO dune.inventories (id, inventory_type, actor_id) VALUES
     (60001, 0, 20001),
     (60002, 0, 20002),
     (60003, 0, 20003),
+    (60011, 30, 20001),
+    (60012, 30, 20002),
+    (60014, 30, 20004),
     (61001, 4, 50001),
     (61002, 4, 50002);
 INSERT INTO dune.placeables (id, building_type, is_hologram, owner_entity_id) VALUES
@@ -654,7 +659,8 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
     (4, 'Copper', 13, 3, '{}'::jsonb, 61002),
     (5, 'Iron', 4, 1, '{}'::jsonb, 60003),
     (6, 'D_TestEmote', 1, 0, '{}'::jsonb, 60001),
-    (7, 'HarkSandbike_MeshCustomization', 2, 0, '{}'::jsonb, 60002);
+    (7, 'HarkSandbike_MeshCustomization', 2, 0, '{}'::jsonb, 60002),
+    (8, 'Copper', 17, 0, '{}'::jsonb, 60011);
 "@
         $scriptPath = Join-Path $TestDrive 'inventory-explorer-postgres.sql'
         $sql = $fixture + "`n" + (($queries | ForEach-Object { "$_;"} ) -join "`n") + "`nROLLBACK;"
@@ -693,12 +699,16 @@ CREATE TABLE dune.permission_actor_rank (
 );
 INSERT INTO dune.actors (id, map, owner_account_id) VALUES
     (20001, 'Hagga Basin', 30001), (20002, 'Hagga Basin', 30002),
-    (20003, 'Deep Desert', 30003), (50001, 'Hagga Basin', NULL),
+    (20003, 'Deep Desert', 30003), (20004, 'Hagga Basin', 30004),
+    (50001, 'Hagga Basin', NULL),
     (50002, 'Deep Desert', NULL);
 INSERT INTO dune.player_state (player_pawn_id, character_name, account_id) VALUES
-    (20001, 'Coastal', 30001), (20002, 'Chani', 30002), (20003, 'Stilgar', 30003);
+    (20001, 'Coastal', 30001), (20002, 'Chani', 30002), (20003, 'Stilgar', 30003),
+    (20004, 'Empty Bank', 30004);
 INSERT INTO dune.inventories (id, inventory_type, actor_id) VALUES
     (60001, 0, 20001), (60002, 0, 20002), (60003, 0, 20003),
+    (60011, 30, 20001), (60012, 30, 20002),
+    (60014, 30, 20004),
     (61001, 4, 50001), (61002, 4, 50002);
 INSERT INTO dune.placeables (id, building_type, is_hologram, owner_entity_id) VALUES
     (50001, 'BP_GenericContainer_C', false, 90001),
@@ -716,7 +726,8 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
     (4, 'Copper', 13, 3, '{}'::jsonb, 61002),
     (5, 'Iron', 4, 1, '{}'::jsonb, 60003),
     (6, 'D_TestEmote', 1, 0, '{}'::jsonb, 60001),
-    (7, 'HarkSandbike_MeshCustomization', 2, 0, '{}'::jsonb, 60002);
+    (7, 'HarkSandbike_MeshCustomization', 2, 0, '{}'::jsonb, 60002),
+    (8, 'Copper', 17, 0, '{}'::jsonb, 60011);
 "@
         Set-Content -LiteralPath $setupPath -Value $setup -Encoding utf8
         $setupResult = Invoke-TestPostgresFile -SqlPath $setupPath
@@ -767,16 +778,17 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
                 @($grouped.groups | Where-Object { -not $_.templateId -or -not $_.displayName }).Count | Should -Be 0
                 $copper = @($grouped.groups | Where-Object templateId -eq 'Copper')[0]
                 $copper.displayName | Should -Be 'Copper'
-                $copper.totalQuantity | Should -Be 36
-                $copper.occurrenceCount | Should -Be 4
-                $copper.locationCount | Should -Be 4
+                $copper.totalQuantity | Should -Be 53
+                $copper.occurrenceCount | Should -Be 5
+                $copper.locationCount | Should -Be 5
                 $copper.quality.min | Should -Be 0
                 $copper.quality.max | Should -Be 3
                 $copper.quality.mixed | Should -BeTrue
                 @($grouped.groups | Where-Object templateId -eq 'D_TestEmote').Count | Should -Be 0
                 @($grouped.groups | Where-Object templateId -eq 'HarkSandbike_MeshCustomization').Count | Should -Be 1
-                @($grouped.players).Count | Should -Be 3
+                @($grouped.players).Count | Should -Be 4
                 @($grouped.locations | Where-Object label -eq 'Copper Vault').Count | Should -Be 1
+                @($grouped.locations | Where-Object label -eq 'Bank Storage').Count | Should -Be 3
 
                 $firstPage = Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('player', 'storage') `
                     -Sort $sort -Limit 1
@@ -788,13 +800,20 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
                 $nextPage.ok | Should -BeTrue -Because ([string]$nextPage.error)
                 $nextPage.groups[0].templateId | Should -Not -Be $first.templateId
             }
+            $emptyBank = Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('player') `
+                -PlayerId 20002 -LocationType player -LocationId 60012 -Limit 20
+            $emptyBank.ok | Should -BeTrue -Because ([string]$emptyBank.error)
+            $emptyBank.selectedPlayerValid | Should -BeTrue
+            $emptyBank.selectedLocationValid | Should -BeTrue
+            @($emptyBank.groups).Count | Should -Be 0
+            @($emptyBank.locations | Where-Object { $_.id -eq 60012 -and $_.label -eq 'Bank Storage' }).Count | Should -Be 1
 
             $storage = Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('player', 'storage') `
                 -PlayerId 20003 -LocationType storage -LocationId 50001 -Limit 20
             $storage.groups[0].templateId | Should -Be 'Copper'
             $storage.groups[0].totalQuantity | Should -Be 11
             $playerOnly = Invoke-DuneInventoryGroupedLive -Ip fixture -EntityTypes @('player') -Limit 20
-            @($playerOnly.groups | Where-Object templateId -eq 'Copper')[0].totalQuantity | Should -Be 12
+            @($playerOnly.groups | Where-Object templateId -eq 'Copper')[0].totalQuantity | Should -Be 29
             $namesOnly = Invoke-DuneInventoryGroupedLive -Ip fixture -Query 'Harkonnen Sandbike Mesh' `
                 -EntityTypes @('player', 'storage') -Limit 20
             @($namesOnly.groups).Count | Should -Be 1
@@ -807,10 +826,10 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
                 $occurrences = Invoke-DuneInventoryOccurrencesLive -Ip fixture -TemplateId Copper `
                     -EntityTypes @('player', 'storage') -Sort $sort -Limit 20
                 $occurrences.ok | Should -BeTrue -Because ([string]$occurrences.error)
-                @($occurrences.items).Count | Should -Be 4
+                @($occurrences.items).Count | Should -Be 5
                 @($occurrences.items | Where-Object { -not $_.templateId -or -not $_.player.name }).Count | Should -Be 0
                 (($occurrences.items | ForEach-Object { [long]$_['quantity'] } |
-                    Measure-Object -Sum).Sum) | Should -Be 36
+                    Measure-Object -Sum).Sum) | Should -Be 53
 
                 $firstOccurrencePage = Invoke-DuneInventoryOccurrencesLive -Ip fixture -TemplateId Copper `
                     -EntityTypes @('player', 'storage') -Sort $sort -Limit 1
@@ -890,6 +909,7 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
         $cte = Get-DuneInventoryFilteredCteSql
         $cte | Should -Match "template_id IN \(SELECT jsonb_array_elements_text\(p\.catalog_ids::jsonb\)\)"
         $cte | Should -Match "r\.template_id !~\* 'Emote\|Gesture'"
+        $cte | Should -Match "CASE inv\.inventory_type WHEN 30 THEN 'Bank Storage' ELSE 'Backpack' END"
     }
 
     It 'keeps backpack and storage locations separate under the same player filter' {
@@ -932,7 +952,7 @@ INSERT INTO dune.items (id, template_id, stack_size, quality_level, stats, inven
         $source = Get-Content (Join-Path (Get-DstRepoRoot) 'app\server\lib\InventoryExplorer.ps1') -Raw
         $source | Should -Not -Match 'OFFSET \(SELECT row_offset'
         $source | Should -Match 'SELECT 1 FROM visible_rows r WHERE r\.player_id = p\.player_id'
-        $source | Should -Match 'r\.entity_type = p\.location_type AND r\.entity_id = p\.location_id'
+        $source | Should -Match 'r\.location_type = p\.location_type AND r\.location_id = p\.location_id'
     }
 
     It 'builds grouped SQL with authoritative aggregation, null-last metadata sorting, and stable ties' {

@@ -5,6 +5,7 @@ import {
   registerOnlinePlayerConfirmationHandler,
   withOnlinePlayerGuard,
 } from '../../src/api/client'
+import { saveVehicleNames } from '../../src/api/gameplay'
 
 let unregisterConfirmation: (() => void) | null = null
 
@@ -94,5 +95,35 @@ describe('online player guard', () => {
       'Player safety confirmation is unavailable. The action was not started.',
     )
     expect(operation).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries vehicle-name saves only after the online-player confirmation', async () => {
+    const confirm = confirmWith(true)
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: false,
+        conflict: 'players_online',
+        playersOnline: 1,
+        playerNames: ['Vospers'],
+        players: [],
+        message: 'Saving names will restart the battlegroup.',
+      }), { status: 409, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        renamed: 1,
+        restart_started: true,
+        message: 'Saved and restarted.',
+      }), { status: 202, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(saveVehicleNames([
+      { vehicle_id: 42, expected_current_name: 'Scout', name: 'Desert Runner' },
+    ], 'a'.repeat(64))).resolves.toMatchObject({ renamed: 1, restart_started: true })
+
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/gameplay/vehicles/names',
+      '/api/gameplay/vehicles/names?force=true',
+    ])
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ playerNames: ['Vospers'] }))
   })
 })

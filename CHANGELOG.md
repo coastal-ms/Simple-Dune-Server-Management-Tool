@@ -13,6 +13,30 @@ here cover everything those tags shipped.
 
 ## [Unreleased]
 
+## [15.0.2] - 2026-09-09
+
+### Added
+
+- Added browser-local Default, Medium, and Large text scaling across Classic and
+  Command Deck.
+- Added browser-local Server Health refresh presets while preserving the existing
+  10-second status and 30-second selected-map roster defaults.
+- Added active-fleet vehicle name editing with offline-owner and recovery-state
+  validation, exact batched database writes, committed readback, and one immediate
+  battlegroup restart.
+- Added Bank Storage to Self-Hosted player inventory browsing and Solo Current
+  Inventory and Item Delivery by discovering each pawn's type-30 inventory instead
+  of relying on save-specific inventory IDs.
+
+### Changed
+
+- Added an opt-in setting that skips a small allowlist of redundant routine
+  confirmations and success notices without weakening destructive, disruptive,
+  backup, typed-confirmation, permission, or error safeguards.
+- Server Health now reports the observation time of cached battlegroup snapshots
+  and prevents overlapping polls so faster refresh choices do not imply fresher
+  backend data than DST actually observed.
+
 ## [15.0.1] - 2026-09-07
 
 ### Added

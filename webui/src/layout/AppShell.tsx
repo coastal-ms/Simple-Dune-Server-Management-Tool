@@ -9,6 +9,7 @@ import { usePortalAccess } from '../auth/portalAccess'
 import { SectionJumpNav } from '../components/SectionJumpNav'
 import { OnlinePlayerGuardModal } from '../components/OnlinePlayerGuardModal'
 import { useCommandDeck } from '../hooks/useCommandDeck'
+import { useDocumentFontScale, useFontScale } from '../hooks/useFontScale'
 
 const Sidebar = lazy(() => import('./Sidebar').then(module => ({ default: module.Sidebar })))
 const SpatialFrame = lazy(() => import('./SpatialFrame'))
@@ -26,6 +27,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const immersive = IMMERSIVE_ROUTES.has(pathname)
   const commandDeck = useCommandDeck()
+  const fontScale = useFontScale()
+  useDocumentFontScale(fontScale)
   const spatialHome = commandDeck && pathname === '/'
   const { collapsed, setCollapsed, toggle } = commandDeck ? deckSidebar : classicSidebar
 

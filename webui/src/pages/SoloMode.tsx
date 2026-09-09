@@ -1810,7 +1810,11 @@ export function SoloMode() {
       )}
       {tab === 'inventory' && (
         <div className="space-y-4">
-          <SoloInventoryExplorer items={inspection?.inventoryItems ?? []} connected={connected} />
+          <SoloInventoryExplorer
+            items={inspection?.inventoryItems ?? []}
+            inventories={inspection?.inventories ?? []}
+            connected={connected}
+          />
           <SoloWeaponAmmoEditor
             weapons={inspection?.rangedWeapons ?? []}
             disabled={!canMutateActiveProfile || gameRunning || busy !== null}
@@ -1825,7 +1829,7 @@ export function SoloMode() {
                   <Icon name="PackageOpen" size={16} /> Item delivery
                 </h2>
                 <p className="text-sm text-text-muted mt-1">
-                  Field-confirmed PTC path. The game must be fully closed before every grant.
+                  Deliver to the Backpack, Bank Storage, or supported built storage. The game must be fully closed before every grant.
                 </p>
               </div>
               <StatusPill ok={!gameRunning}>

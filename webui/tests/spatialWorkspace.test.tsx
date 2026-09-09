@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render as renderUI, screen, waitFor, within } 
 import type { ReactNode } from 'react'
 import '@testing-library/jest-dom/vitest'
 import type { StatusSnapshot } from '../src/api/types'
+import type { PlayersResponse } from '../src/api/gameplay'
 import SpatialHome from '../src/pages/workspaces/SpatialHome'
 import SpatialStage from '../src/pages/workspaces/SpatialStage'
 import { spatialGlobeNodes, spatialNodes, spatialConnections, spatialSceneLayout, spatialLayers, MAX_SPATIAL_LOCATIONS, locationScale, spatialLocationKind, LOCATION_VISUALS } from '../src/pages/workspaces/spatialModel'
@@ -13,6 +14,7 @@ import { GLOBE_LAYOUT_STORAGE_KEY, globePositionsForNodes } from '../src/pages/w
 import { GLOBE_ZOOM_KEY } from '../src/pages/workspaces/globeZoom'
 import { GLOBE_AUTO_ROTATE_KEY } from '../src/hooks/useGlobeAutoRotate'
 import { GLOBE_ORIENTATION_KEY } from '../src/hooks/useGlobeOrientation'
+import { HEALTH_REFRESH_KEY } from '../src/hooks/useHealthRefresh'
 
 function render(ui: ReactNode) {
   return renderUI(<ThemeProvider>{ui}</ThemeProvider>)
@@ -27,12 +29,17 @@ const state = vi.hoisted(() => ({
   dispose: vi.fn(), select: vi.fn(), reset: vi.fn(),
   palette: vi.fn(), motion: vi.fn(), spin: vi.fn(), updateStatus: vi.fn(),
   create: vi.fn(), layout: vi.fn(), moveMaps: vi.fn(), nudge: vi.fn(), drawer: vi.fn(), flights: vi.fn(), localSun: vi.fn(), zoom: vi.fn(), fit: vi.fn(),
-  roster: { data: null, loading: false, error: null, refresh: vi.fn() },
+  roster: { data: null as PlayersResponse | null, loading: false, error: null, refresh: vi.fn() },
   rosterReads: vi.fn(),
 }))
 vi.mock('../src/hooks/useStatus', () => ({ useStatus: () => state }))
 vi.mock('../src/hooks/useUpdateCheck', () => ({ useUpdateCheck: () => ({ data: { currentVersion: '15.0.0-finalphase-1.2' } }) }))
-vi.mock('../src/hooks/useApi', () => ({ useApi: () => { state.rosterReads(); return state.roster } }))
+vi.mock('../src/hooks/useApi', () => ({
+  useApi: (_path: string, options?: { enabled?: boolean; intervalMs?: number }) => {
+    if (options?.enabled) state.rosterReads(options.intervalMs)
+    return state.roster
+  },
+}))
 vi.mock('../src/auth/portalAccess', () => ({ usePortalAccess: () => ({ canAccessOwnerSurfaces: state.owner }) }))
 vi.mock('../src/util/viewer', () => ({ isLocalViewer: () => false, isWindowsViewer: () => true }))
 vi.mock('../src/pages/workspaces/spatialRenderer', () => ({
@@ -51,6 +58,7 @@ beforeEach(() => {
     }
   }
   state.owner = false
+  state.roster.data = null
   state.status = {
     vm: { exists: true, running: true, state: 'Running', name: 'Example', ip: null, uptime: 1 },
     ports: null, ts: '2026-09-05T12:00:00Z',
@@ -202,16 +210,37 @@ describe('Spatial object workspace', () => {
     expect(screen.getByText(/Zoom changed for this view only/)).toBeInTheDocument()
     expect(state.zoom).toHaveBeenLastCalledWith(1.1)
   })
-  it.each(['0', '50', '1000'])('keeps the map panel count-only for %s reported players without a roster request', count => {
+  it.each(['0', '50', '1000'])('keeps reported count %s while loading selected-map names on the standard interval', count => {
     state.status!.bg!.gameServers![0].players = count
+    state.roster.data = {
+      players: [{
+        id: 1,
+        account_id: 1,
+        controller_id: 1,
+        name: 'Example player',
+        class: 'Player',
+        map: 'One',
+        faction_id: 0,
+        faction_name: '',
+        online_status: 'Online',
+      }],
+      total: 1,
+      source: 'live',
+    }
     render(<SpatialHome onDetails={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: /^Select One:/ }))
     const panel = screen.getByRole('complementary', { name: 'Selected map details' })
     expect(within(panel).getByText('Reported players').nextElementSibling).toHaveTextContent(count)
-    expect(state.rosterReads).not.toHaveBeenCalled()
+    expect(state.rosterReads).toHaveBeenLastCalledWith(30_000)
     expect(screen.getByRole('complementary', { name: 'Map status roster' })).toHaveTextContent(`One - Ready - ${count}`)
-    expect(within(panel).queryByRole('list')).not.toBeInTheDocument()
+    expect(within(panel).getByText('Example player')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Server status summary' })).toHaveTextContent('Running')
+  })
+  it('applies the focused selected-map roster interval', () => {
+    localStorage.setItem(HEALTH_REFRESH_KEY, 'focused')
+    render(<SpatialHome onDetails={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Select One:/ }))
+    expect(state.rosterReads).toHaveBeenLastCalledWith(10_000)
   })
   it('maps missing values honestly and identifies unknown map models', () => {
     const nodes = spatialNodes(state.status!.bg!.gameServers!, value => value)

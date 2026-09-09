@@ -62,7 +62,8 @@ const players = [
   { id: 20002, name: 'Coastal', occurrenceCount: 2 },
 ]
 const locations = [
-  { type: 'player', id: 20001, label: 'Backpack', owner: 'Coastal', playerId: 20001, playerName: 'Coastal', occurrenceCount: 2 },
+  { type: 'player', id: 60001, label: 'Backpack', owner: 'Coastal', playerId: 20001, playerName: 'Coastal', occurrenceCount: 2 },
+  { type: 'player', id: 60011, label: 'Bank Storage', owner: 'Coastal', playerId: 20001, playerName: 'Coastal', occurrenceCount: 0 },
   { type: 'storage', id: 50001, label: 'Copper box', owner: 'Coastal', playerId: 20001, playerName: 'Coastal', occurrenceCount: 3 },
   { type: 'storage', id: 50002, label: 'Copper box', owner: 'Coastal', playerId: 20002, playerName: 'Coastal', occurrenceCount: 2 },
 ] as const
@@ -187,6 +188,7 @@ describe('Shared Inventory Explorer grouped catalog', () => {
     expect(screen.getByRole('combobox', { name: 'Player' })).toHaveValue('')
     expect(screen.getByRole('combobox', { name: 'Location' })).toHaveValue('')
     expect(screen.getByText('3 loc')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Bank Storage - Coastal' })).toBeInTheDocument()
     expect(inventoryApi).toHaveBeenCalledWith(expect.objectContaining({ playerId: undefined, locationId: undefined, sort: 'name-asc' }))
   })
 
@@ -243,7 +245,7 @@ describe('Shared Inventory Explorer grouped catalog', () => {
         ...fixture,
         data: {
           ...fixture.data,
-          locations: [{ ...locations[1], label: 'Ore Vault' }],
+          locations: [{ ...locations[2], label: 'Ore Vault' }],
         },
       })
 
@@ -277,7 +279,7 @@ describe('Shared Inventory Explorer grouped catalog', () => {
         location: { type: 'storage', id: 50001 },
         groups: [],
         players: [players[0]],
-        locations: [locations[1]],
+        locations: [locations[2]],
         selectedPlayerValid: true,
         selectedLocationValid: true,
       },

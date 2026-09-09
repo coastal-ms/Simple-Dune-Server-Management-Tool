@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SharedInventoryGroup } from '../../api/gameplay'
-import type { SoloInventoryItemGroup, SoloRangedWeapon } from '../../api/solo'
+import type {
+  SoloInventoryDestination,
+  SoloInventoryItemGroup,
+  SoloRangedWeapon,
+} from '../../api/solo'
 import { Icon } from '../Icon'
 import { InventorySlot } from '../inventory/InventorySlot'
 import { DataState } from '../platform/DataState'
@@ -63,6 +67,23 @@ export function filterSoloInventoryItemsByLocation(
     : items
 }
 
+export function buildSoloInventoryLocations(
+  items: SoloInventoryItemGroup[],
+  inventories: SoloInventoryDestination[],
+) {
+  const unique = new Map(inventories.map(inventory => [inventory.key, inventory.label]))
+  items.forEach(item => unique.set(item.destinationKey, item.destinationLabel))
+  return [...unique.entries()]
+    .map(([key, label]) => ({ key, label }))
+    .sort((left, right) => {
+      if (left.label === 'Backpack') return -1
+      if (right.label === 'Backpack') return 1
+      if (left.label === 'Bank Storage') return -1
+      if (right.label === 'Bank Storage') return 1
+      return left.label.localeCompare(right.label)
+    })
+}
+
 function qualityLabel(item: SoloInventoryItemGroup) {
   return item.minQuality === item.maxQuality
     ? String(item.maxQuality)
@@ -71,9 +92,11 @@ function qualityLabel(item: SoloInventoryItemGroup) {
 
 export function SoloInventoryExplorer({
   items,
+  inventories,
   connected,
 }: {
   items: SoloInventoryItemGroup[]
+  inventories: SoloInventoryDestination[]
   connected: boolean
 }) {
   const [query, setQuery] = useState('')
@@ -81,17 +104,10 @@ export function SoloInventoryExplorer({
   const [destinationKey, setDestinationKey] = useState('')
   const [visibleCount, setVisibleCount] = useState(100)
   const [selected, setSelected] = useState<SharedInventoryGroup | null>(null)
-  const locations = useMemo(() => {
-    const unique = new Map<string, string>()
-    items.forEach(item => unique.set(item.destinationKey, item.destinationLabel))
-    return [...unique.entries()]
-      .map(([key, label]) => ({ key, label }))
-      .sort((left, right) => {
-        if (left.label === 'Backpack') return -1
-        if (right.label === 'Backpack') return 1
-        return left.label.localeCompare(right.label)
-      })
-  }, [items])
+  const locations = useMemo(
+    () => buildSoloInventoryLocations(items, inventories),
+    [inventories, items],
+  )
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase()
     const visibleItems = filterSoloInventoryItemsByLocation(items, destinationKey)
@@ -121,7 +137,7 @@ export function SoloInventoryExplorer({
             Current inventory
           </h2>
           <p className="mt-1 text-sm text-text-muted">
-            Browse grouped items already stored in the selected Solo save. This view is read-only.
+            Browse grouped items in the Backpack, Bank Storage, and supported built storage. This view is read-only.
           </p>
         </div>
         <span className="pill border-info/40 bg-info/10 text-info">

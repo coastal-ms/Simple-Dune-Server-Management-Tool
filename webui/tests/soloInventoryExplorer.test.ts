@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildSoloInventoryLocations,
   buildSoloInventoryGroups,
   filterSoloInventoryItemsByLocation,
 } from '../src/components/solo/SoloInventoryExplorer'
@@ -31,18 +32,70 @@ describe('Solo inventory explorer', () => {
         minQuality: 1,
         maxQuality: 2,
       },
+      {
+        inventoryId: 35,
+        destinationKey: 'inventory:35',
+        destinationLabel: 'Bank Storage',
+        destinationKind: 'bank',
+        templateId: 'copper',
+        displayName: 'Copper Ore',
+        totalQuantity: 5,
+        occurrenceCount: 1,
+        minQuality: 0,
+        maxQuality: 0,
+      },
     ]
     const groups = buildSoloInventoryGroups(items)
 
     expect(groups).toHaveLength(1)
     expect(groups[0]).toMatchObject({
       groupKey: 'copper',
-      totalQuantity: 35,
-      occurrenceCount: 3,
-      locationCount: 2,
+      totalQuantity: 40,
+      occurrenceCount: 4,
+      locationCount: 3,
       quality: { min: 0, max: 2, mixed: true },
     })
     expect(filterSoloInventoryItemsByLocation(items, 'inventory:2')).toEqual([items[1]])
+    expect(filterSoloInventoryItemsByLocation(items, 'inventory:35')).toEqual([items[2]])
     expect(filterSoloInventoryItemsByLocation(items, '')).toEqual(items)
+  })
+
+  it('keeps an empty Bank Storage destination visible in the location picker', () => {
+    const items = [{
+      inventoryId: 1,
+      destinationKey: 'inventory:1',
+      destinationLabel: 'Backpack',
+      destinationKind: 'backpack',
+      templateId: 'Copper',
+      displayName: 'Copper Ore',
+      totalQuantity: 10,
+      occurrenceCount: 1,
+      minQuality: 0,
+      maxQuality: 0,
+    }]
+    const inventories = [{
+      id: 1,
+      key: 'inventory:1',
+      label: 'Backpack',
+      kind: 'backpack' as const,
+      itemRows: 1,
+      maxItemCount: 60,
+      maxItemVolume: 1050,
+      usedVolume: 10,
+    }, {
+      id: 11,
+      key: 'inventory:11',
+      label: 'Bank Storage',
+      kind: 'bank' as const,
+      itemRows: 0,
+      maxItemCount: 500,
+      maxItemVolume: 30000,
+      usedVolume: 0,
+    }]
+
+    expect(buildSoloInventoryLocations(items, inventories)).toEqual([
+      { key: 'inventory:1', label: 'Backpack' },
+      { key: 'inventory:11', label: 'Bank Storage' },
+    ])
   })
 })

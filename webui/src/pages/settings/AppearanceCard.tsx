@@ -9,6 +9,8 @@ import {
   THEME_SCHEMA_VERSION,
 } from '../../theme/ThemeContext'
 import { TOKENS, CATEGORY_LABELS, CATEGORY_ORDER, type TokenCategory } from '../../theme/tokens'
+import { FONT_SCALE_OPTIONS, setFontScale, useFontScale, type FontScale } from '../../hooks/useFontScale'
+import { setReducedRoutineUi, useReducedRoutineUi } from '../../hooks/useReducedRoutineUi'
 
 // Group tokens by category once at module load.
 const TOKENS_BY_CATEGORY: Record<TokenCategory, typeof TOKENS> = {
@@ -18,6 +20,8 @@ for (const t of TOKENS) TOKENS_BY_CATEGORY[t.category].push(t)
 
 export function AppearanceCard() {
   const t = useTheme()
+  const fontScale = useFontScale()
+  const reducedRoutineUi = useReducedRoutineUi()
   const { open: expanded, setOpen: setExpanded } = useCardCollapse('settings.appearance', false)
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -97,6 +101,57 @@ export function AppearanceCard() {
               Reset to default
             </button>
           </div>
+
+          <fieldset>
+            <legend className="text-xs font-semibold tracking-wider uppercase text-text-dim mb-2">Text size</legend>
+            <p className="text-sm text-text-dim mb-3">
+              Increase interface text in both Classic and Command Deck. Icons and workspace dimensions stay fixed.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {FONT_SCALE_OPTIONS.map(option => {
+                const id = `interface-text-size-${option}`
+                return (
+                  <div key={option}>
+                    <input
+                      id={id}
+                      type="radio"
+                      name="interface-text-size"
+                      checked={fontScale === option}
+                      onChange={() => setFontScale(option)}
+                      className="peer sr-only"
+                    />
+                    <label
+                      htmlFor={id}
+                      className={[
+                        'block min-h-11 cursor-pointer rounded-lg border px-3 py-2 text-left transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ibad',
+                        fontScale === option
+                          ? 'border-accent bg-accent/10 text-text ring-2 ring-accent/30'
+                          : 'border-border bg-surface-2/30 text-text-muted hover:border-border-bright hover:text-text',
+                      ].join(' ')}
+                    >
+                      <span className="block font-medium">{fontScaleLabel(option)}</span>
+                      <span className="block text-xs text-text-dim mt-1">{fontScalePercent(option)}</span>
+                    </label>
+                  </div>
+                )
+              })}
+            </div>
+          </fieldset>
+
+          <label className="flex items-start gap-3 rounded-lg border border-border bg-surface-2/30 p-3">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={reducedRoutineUi}
+              onChange={event => setReducedRoutineUi(event.target.checked)}
+            />
+            <span>
+              <span className="block font-medium text-text">Reduce routine confirmations</span>
+              <span className="mt-1 block text-sm text-text-dim">
+                Skips only redundant prompts and success notices for safe, reversible actions. Destructive actions, player-disrupting changes, backups, typed confirmations, permissions, warnings, and errors always keep their safeguards.
+              </span>
+            </span>
+          </label>
 
           {/* --- Preset grid ------------------------------------------------ */}
           <div>
@@ -259,6 +314,14 @@ export function AppearanceCard() {
       )}
     </div>
   )
+}
+
+function fontScaleLabel(value: FontScale) {
+  return value === 'default' ? 'Default' : value === 'medium' ? 'Medium' : 'Large'
+}
+
+function fontScalePercent(value: FontScale) {
+  return value === 'default' ? '100%' : value === 'medium' ? '112.5%' : '125%'
 }
 
 // Inline helper: small advisory under the color grid.

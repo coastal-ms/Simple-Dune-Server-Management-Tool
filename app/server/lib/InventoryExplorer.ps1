@@ -578,6 +578,13 @@ function Get-DuneVehicleCargoInventorySql {
     $playerColumns = if ($IncludePlayer) {
         "owner.player_pawn_id::bigint AS player_id, COALESCE(owner.character_name, '') AS player_name,"
     } else { '' }
+    $locationColumns = if ($IncludePlayer) {
+        @"
+,
+            'vehicle'::text AS location_type, v.id::bigint AS location_id,
+            COALESCE(NULLIF(pa.actor_name, ''), a.class, 'Vehicle') AS location_label
+"@
+    } else { '' }
     return @"
     SELECT i.id::bigint AS item_id, i.template_id, i.stack_size,
            COALESCE(i.quality_level, 0) AS quality_level,
@@ -590,7 +597,7 @@ function Get-DuneVehicleCargoInventorySql {
            $playerColumns
            COALESCE(NULLIF(pa.actor_name, ''), a.class, 'Vehicle') AS entity_label,
            COALESCE(owner.character_name, '') AS owner_name,
-           COALESCE(a.map, '') AS map, COALESCE(a.class, '') AS entity_class
+           COALESCE(a.map, '') AS map, COALESCE(a.class, '') AS entity_class$locationColumns
     FROM dune.vehicles v
     JOIN dune.actors a ON a.id = v.id
     JOIN dune.inventories inv ON inv.actor_id = v.id AND inv.inventory_type = 0
@@ -625,7 +632,9 @@ inventory_rows AS (
            'player'::text AS entity_type, ps.player_pawn_id::bigint AS entity_id,
            ps.player_pawn_id::bigint AS player_id, COALESCE(ps.character_name, '') AS player_name,
            COALESCE(ps.character_name, '') AS entity_label, COALESCE(ps.character_name, '') AS owner_name,
-           COALESCE(a.map, '') AS map, ''::text AS entity_class
+           COALESCE(a.map, '') AS map, ''::text AS entity_class,
+           'player'::text AS location_type, inv.id::bigint AS location_id,
+           CASE inv.inventory_type WHEN 30 THEN 'Bank Storage' ELSE 'Backpack' END AS location_label
     FROM dune.items i
     JOIN dune.inventories inv ON inv.id = i.inventory_id
     JOIN dune.player_state ps ON ps.player_pawn_id = inv.actor_id
@@ -643,7 +652,10 @@ inventory_rows AS (
            COALESCE(NULLIF((SELECT MAX(CASE WHEN pa.actor_name NOT LIKE '##%' AND pa.actor_name <> 'None' THEN pa.actor_name END)
                FROM dune.permission_actor pa WHERE pa.actor_id = p.id), ''), NULLIF(($storageClassSql), ''), 'Storage container') AS entity_label,
            COALESCE(owner.character_name, '') AS owner_name, COALESCE(a.map, '') AS map,
-           COALESCE(p.building_type, '') AS entity_class
+           COALESCE(p.building_type, '') AS entity_class,
+           'storage'::text AS location_type, p.id::bigint AS location_id,
+           COALESCE(NULLIF((SELECT MAX(CASE WHEN pa.actor_name NOT LIKE '##%' AND pa.actor_name <> 'None' THEN pa.actor_name END)
+               FROM dune.permission_actor pa WHERE pa.actor_id = p.id), ''), NULLIF(($storageClassSql), ''), 'Storage container') AS location_label
     FROM dune.items i
     JOIN dune.inventories inv ON inv.id = i.inventory_id AND inv.inventory_type = 4
     JOIN dune.placeables p ON p.id = inv.actor_id
@@ -1170,7 +1182,7 @@ player_facets AS (
 grouped AS (
     SELECT lower(trim(r.template_id)) AS group_key, MIN(r.template_id) AS template_id,
            SUM(r.stack_size)::bigint AS total_quantity, COUNT(*)::bigint AS occurrence_count,
-           COUNT(DISTINCT r.entity_type || ':' || r.entity_id::text)::bigint AS location_count,
+           COUNT(DISTINCT r.location_type || ':' || r.location_id::text)::bigint AS location_count,
            MIN(r.quality_level)::integer AS quality_min, MAX(r.quality_level)::integer AS quality_max,
            MIN(COALESCE(meta.value->>'name', r.template_id)) AS sort_name,
            MAX((meta.value->>'tier')::integer) AS item_tier,
@@ -1179,7 +1191,7 @@ grouped AS (
     FROM searched_rows r CROSS JOIN _dst_parameters p
     LEFT JOIN LATERAL jsonb_each(p.catalog_metadata::jsonb) meta ON meta.key = lower(trim(r.template_id))
     WHERE (p.player_id = 0 OR r.player_id = p.player_id)
-      AND (p.location_type = '' OR (r.entity_type = p.location_type AND r.entity_id = p.location_id))
+      AND (p.location_type = '' OR (r.location_type = p.location_type AND r.location_id = p.location_id))
     GROUP BY lower(trim(r.template_id))
 )
 SELECT 'group'::text AS row_kind, grouped.group_key, grouped.template_id, grouped.total_quantity, grouped.occurrence_count,
@@ -1196,6 +1208,16 @@ ORDER BY $($sortSpec.sql) LIMIT (SELECT row_limit FROM _dst_parameters)
 
     $facetSql = @"
 WITH $cte,
+inventory_players AS (
+    SELECT ps.player_pawn_id::bigint AS player_id, COALESCE(ps.character_name, '') AS player_name,
+           COUNT(DISTINCT r.item_id)::bigint AS occurrence_count
+    FROM dune.player_state ps
+    JOIN dune.inventories inv ON inv.actor_id = ps.player_pawn_id AND inv.inventory_type IN (0, 30)
+    CROSS JOIN _dst_parameters p
+    LEFT JOIN searched_rows r ON r.player_id = ps.player_pawn_id
+    WHERE 'player' = ANY(string_to_array(p.entity_types, ','))
+    GROUP BY ps.player_pawn_id, ps.character_name
+),
 search_facets AS (
     SELECT player_id, MAX(player_name) AS player_name, COUNT(*)::bigint AS occurrence_count
     FROM searched_rows WHERE player_id IS NOT NULL AND player_id > 0 GROUP BY player_id
@@ -1207,8 +1229,12 @@ active_facet AS (
 )
 SELECT player_id, player_name, occurrence_count FROM search_facets
 UNION ALL
+SELECT i.player_id, i.player_name, i.occurrence_count FROM inventory_players i
+WHERE NOT EXISTS (SELECT 1 FROM search_facets s WHERE s.player_id = i.player_id)
+UNION ALL
 SELECT a.player_id, a.player_name, a.occurrence_count FROM active_facet a
 WHERE NOT EXISTS (SELECT 1 FROM search_facets s WHERE s.player_id = a.player_id)
+  AND NOT EXISTS (SELECT 1 FROM inventory_players i WHERE i.player_id = a.player_id)
 ORDER BY player_name, player_id LIMIT 50000
 "@
     $effectiveFacetSql = New-DuneInventoryParameterizedSql -Sql $facetSql -Parameters $binding.values -ParameterTypes $binding.types
@@ -1216,22 +1242,39 @@ ORDER BY player_name, player_id LIMIT 50000
     if (-not $facetResult.ok) { return @{ ok = $false; error = $facetResult.error } }
     $locationSql = @"
 WITH $cte,
+player_inventory_locations AS (
+    SELECT 'player'::text AS entity_type, inv.id::bigint AS entity_id,
+           CASE inv.inventory_type WHEN 30 THEN 'Bank Storage' ELSE 'Backpack' END AS entity_label,
+           COALESCE(ps.character_name, '') AS owner_name,
+           ps.player_pawn_id::bigint AS player_id, COALESCE(ps.character_name, '') AS player_name,
+           COUNT(r.item_id)::bigint AS occurrence_count
+    FROM dune.inventories inv
+    JOIN dune.player_state ps ON ps.player_pawn_id = inv.actor_id
+    CROSS JOIN _dst_parameters p
+    LEFT JOIN searched_rows r ON r.location_type = 'player' AND r.location_id = inv.id
+    WHERE inv.inventory_type IN (0, 30)
+      AND 'player' = ANY(string_to_array(p.entity_types, ','))
+      AND (p.player_id = 0 OR ps.player_pawn_id = p.player_id)
+    GROUP BY inv.id, inv.inventory_type, ps.player_pawn_id, ps.character_name
+),
 search_locations AS (
-    SELECT r.entity_type, r.entity_id, MAX(CASE WHEN r.entity_type = 'player' THEN 'Backpack' ELSE r.entity_label END) AS entity_label,
+    SELECT r.location_type AS entity_type, r.location_id AS entity_id, MAX(r.location_label) AS entity_label,
            MAX(r.owner_name) AS owner_name, MAX(r.player_id)::bigint AS player_id, MAX(r.player_name) AS player_name,
            COUNT(*)::bigint AS occurrence_count
     FROM searched_rows r CROSS JOIN _dst_parameters p
-    WHERE (p.player_id = 0 OR r.player_id = p.player_id)
-    GROUP BY r.entity_type, r.entity_id
+    WHERE r.location_type <> 'player' AND (p.player_id = 0 OR r.player_id = p.player_id)
+    GROUP BY r.location_type, r.location_id
+    UNION ALL
+    SELECT * FROM player_inventory_locations
 ),
 active_location AS (
-    SELECT r.entity_type, r.entity_id, MAX(CASE WHEN r.entity_type = 'player' THEN 'Backpack' ELSE r.entity_label END) AS entity_label,
+    SELECT r.location_type AS entity_type, r.location_id AS entity_id, MAX(r.location_label) AS entity_label,
            MAX(r.owner_name) AS owner_name, MAX(r.player_id)::bigint AS player_id, MAX(r.player_name) AS player_name,
            COUNT(*)::bigint AS occurrence_count
     FROM visible_rows r CROSS JOIN _dst_parameters p
-    WHERE p.location_type <> '' AND r.entity_type = p.location_type AND r.entity_id = p.location_id
+    WHERE p.location_type <> '' AND r.location_type = p.location_type AND r.location_id = p.location_id
       AND (p.player_id = 0 OR r.player_id = p.player_id)
-    GROUP BY r.entity_type, r.entity_id
+    GROUP BY r.location_type, r.location_id
 )
 SELECT * FROM search_locations
 UNION ALL
@@ -1249,11 +1292,20 @@ WITH $cte
 SELECT
     (p.player_id = 0 OR EXISTS (
         SELECT 1 FROM visible_rows r WHERE r.player_id = p.player_id
+    ) OR EXISTS (
+        SELECT 1 FROM dune.inventories inv
+        WHERE inv.actor_id = p.player_id AND inv.inventory_type IN (0, 30)
     )) AS player_valid,
     (p.location_type = '' OR EXISTS (
         SELECT 1 FROM visible_rows r
         WHERE (p.player_id = 0 OR r.player_id = p.player_id)
-          AND r.entity_type = p.location_type AND r.entity_id = p.location_id
+          AND r.location_type = p.location_type AND r.location_id = p.location_id
+    ) OR (
+        p.location_type = 'player' AND EXISTS (
+            SELECT 1 FROM dune.inventories inv
+            WHERE inv.id = p.location_id AND inv.inventory_type IN (0, 30)
+              AND (p.player_id = 0 OR inv.actor_id = p.player_id)
+        )
     )) AS location_valid
 FROM _dst_parameters p
 "@
@@ -1315,7 +1367,10 @@ function Invoke-DuneInventoryGroupedPage {
     if ('vehicle' -in $EntityTypes -and $CursorSource -eq 'cache') {
         return @{ ok = $false; status = 409; error = 'Vehicle cargo uses current database reads. Refresh to discard the cache cursor.' }
     }
-    if ('vehicle' -notin $EntityTypes -and $CursorSource -ne 'live' -and
+    # The derived item cache cannot represent empty player inventories. Player
+    # facets must come from the live inventory table so an empty type-30 bank
+    # remains discoverable; storage-only grouped views may still use the cache.
+    if ('vehicle' -notin $EntityTypes -and 'player' -notin $EntityTypes -and $CursorSource -ne 'live' -and
         (Get-Command Invoke-DuneInventoryGroupedCachePage -ErrorAction SilentlyContinue)) {
         $cached = Invoke-DuneInventoryGroupedCachePage `
             -Query $Query `
@@ -1430,7 +1485,7 @@ SELECT r.item_id, r.template_id, r.stack_size, r.quality_level, r.durability, r.
 FROM searched_rows r CROSS JOIN _dst_parameters p
 WHERE lower(trim(r.template_id)) = lower(trim(p.template_id))
   AND (p.player_id = 0 OR r.player_id = p.player_id)
-  AND (p.location_type = '' OR (r.entity_type = p.location_type AND r.entity_id = p.location_id))
+  AND (p.location_type = '' OR (r.location_type = p.location_type AND r.location_id = p.location_id))
   AND $pageWhere
 ORDER BY $($sortSpec.sql) LIMIT (SELECT row_limit FROM _dst_parameters)
 "@
@@ -1478,12 +1533,12 @@ template_rows AS (
     SELECT r.* FROM searched_rows r CROSS JOIN _dst_parameters p
     WHERE lower(trim(r.template_id)) = lower(trim(p.template_id))
 )
-SELECT t.entity_type, t.entity_id, MAX(CASE WHEN t.entity_type = 'player' THEN 'Backpack' ELSE t.entity_label END) AS entity_label,
+SELECT t.location_type AS entity_type, t.location_id AS entity_id, MAX(t.location_label) AS entity_label,
        MAX(t.owner_name) AS owner_name, MAX(t.player_id)::bigint AS player_id, MAX(t.player_name) AS player_name,
        COUNT(*)::bigint AS occurrence_count
 FROM template_rows t CROSS JOIN _dst_parameters p
 WHERE (p.player_id = 0 OR t.player_id = p.player_id)
-GROUP BY t.entity_type, t.entity_id ORDER BY t.entity_type, entity_label, t.entity_id LIMIT 1000
+GROUP BY t.location_type, t.location_id ORDER BY t.location_type, entity_label, t.location_id LIMIT 1000
 "@
     $locationResult = Invoke-DuneSqlQuery -Ip $Ip `
         -Sql (New-DuneInventoryParameterizedSql -Sql $locationSql -Parameters $binding.values -ParameterTypes $binding.types) `
@@ -1502,7 +1557,7 @@ SELECT
     (p.location_type = '' OR EXISTS (
         SELECT 1 FROM template_rows t
         WHERE (p.player_id = 0 OR t.player_id = p.player_id)
-          AND t.entity_type = p.location_type AND t.entity_id = p.location_id
+          AND t.location_type = p.location_type AND t.location_id = p.location_id
     )) AS location_valid
 FROM _dst_parameters p
 "@

@@ -113,7 +113,7 @@ html[data-dst-theme="signal"] .deck-home-heading {
   align-items: center;
   margin-top: 2px;
 }
-html[data-dst-theme="signal"] .deck-home-heading h1 { font-size: 34px; font-weight: 650; }
+html[data-dst-theme="signal"] .deck-home-heading h1 { font-size:calc(34px * var(--dst-font-scale, 1)); font-weight: 650; }
 html[data-dst-theme="signal"] .deck-home-heading p { margin-top: 7px; }
 html[data-dst-theme="signal"] .deck-home-heading > .btn-secondary {
   background: var(--color-success);
@@ -213,7 +213,7 @@ html[data-dst-theme="signal"] .deck-readiness.deck-not-ready {
 html[data-dst-theme="signal"] .deck-world-note { color: var(--color-text-dim); }
 @media (max-width: 767px) {
   html[data-dst-theme="signal"] .deck-home-heading { align-items: flex-start; }
-  html[data-dst-theme="signal"] .deck-home-heading h1 { font-size: 28px; }
+  html[data-dst-theme="signal"] .deck-home-heading h1 { font-size:calc(28px * var(--dst-font-scale, 1)); }
   html[data-dst-theme="signal"] .deck-workbench { margin-top: 0; }
   html[data-dst-theme="signal"] :is(.deck-task-panel, .deck-world-panel) { padding: 18px 14px; }
   html[data-dst-theme="signal"] .deck-system-node { padding: 16px; }

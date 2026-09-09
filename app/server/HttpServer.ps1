@@ -153,6 +153,7 @@ function Test-DunePortalOwnerOnlyPath {
         '/api/diagnostics/cleanup-old-images',
         '/api/diagnostics/cleanup-failed-database-operations',
         '/api/gameplay/players/fresh-start/snapshots-path',
+        '/api/gameplay/vehicles/names',
         '/api/commands/layout',
         '/api/commands/layout/reset',
         '/api/update/migration-notice',

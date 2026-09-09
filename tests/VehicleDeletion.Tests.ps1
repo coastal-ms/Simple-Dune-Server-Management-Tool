@@ -147,6 +147,13 @@ Describe 'Vehicle deletion SQL' {
         $script:fleetSql | Should -Not -Match 'pa\.actor_name, s\.state'
     }
 
+    It 'serializes rename and deletion routes under one lifecycle lock' {
+        $source = Get-Content (Join-Path $PSScriptRoot '..\app\server\routes\VehicleDeletion.ps1') -Raw
+
+        @([regex]::Matches($source, "Invoke-WithDuneLock -Name 'vehicle-lifecycle'")).Count | Should -Be 5
+        $source | Should -Not -Match "Invoke-WithDuneLock -Name 'vehicle-(rename|deletion)'"
+    }
+
     It 'rejects unreadable postflight rather than treating it as absence' -TestCases @(@{ Value = '' }, @{ Value = 'unknown' }, @{ Value = 'true' }) {
         param($Value)
         Mock Invoke-DuneSqlQuery {

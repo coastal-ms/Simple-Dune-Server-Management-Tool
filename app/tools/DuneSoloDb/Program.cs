@@ -1173,6 +1173,8 @@ internal static partial class Program
                     INSERT INTO inventories VALUES (6, 24, 4, 10, 250);
                     INSERT INTO inventories VALUES (7, 25, 4, 25, 1250);
                     INSERT INTO inventories VALUES (8, 10, 15, 1, 0);
+                    INSERT INTO inventories VALUES (35, 10, 30, 100, 5000);
+                    INSERT INTO inventories VALUES (383, 20, 30, 100, 5000);
                     CREATE TABLE items (
                         id INTEGER PRIMARY KEY,
                         inventory_id INTEGER REFERENCES inventories(id),
@@ -1363,6 +1365,16 @@ internal static partial class Program
             {
                 throw new InvalidOperationException(
                     "Built/hologram storage destination filtering is incorrect.");
+            }
+            var bank = inspection.Inventories.SingleOrDefault(value => value.Kind == "bank");
+            if (bank is null
+                || bank.Id != 35
+                || bank.Key != "inventory:35"
+                || bank.Label != "Bank Storage"
+                || inspection.Inventories.Any(value => value.Id == 383))
+            {
+                throw new InvalidOperationException(
+                    "Bank Storage discovery did not select the pawn's type-30 inventory.");
             }
             var initialInventory = inspection.InventoryItems.SingleOrDefault(value =>
                 value.TemplateId == "HighCapacityLiterjon_06"
@@ -1658,6 +1670,31 @@ internal static partial class Program
                     throw new InvalidOperationException(
                         "Picker-only stack-limit fallbacks were not applied correctly.");
                 }
+            }
+
+            File.WriteAllText(
+                planPath,
+                """
+                {"destination":"inventory:35","items":[
+                  {"templateId":"TestResource","quantity":3,"quality":0}
+                ]}
+                """);
+            GrantItems(
+                target,
+                Path.Combine(root, "safety", "before-bank-grant.db"),
+                planPath,
+                catalogPath);
+            var bankGrantInspection = InspectPath(target, catalogPath);
+            var bankGrant = bankGrantInspection.InventoryItems.SingleOrDefault(value =>
+                value.TemplateId == "TestResource"
+                && value.DestinationKey == "inventory:35"
+                && value.DestinationLabel == "Bank Storage");
+            if (bankGrant is null
+                || bankGrant.TotalQuantity != 3
+                || bankGrant.DestinationKind != "bank")
+            {
+                throw new InvalidOperationException(
+                    "Bank Storage item delivery did not use the allowlisted pawn destination.");
             }
 
             File.WriteAllText(
@@ -2209,6 +2246,7 @@ internal static partial class Program
                     "exactly-one-character",
                     "map-seed-from-coriolis-cycle",
                     "custom-storage-labels-with-generic-fallback",
+                    "bank-storage-destination-discovery",
                     "solo-inventory-grouped-read-model",
                     "offline-weapon-ammo-update-with-safety-backup",
                     "retained-backup",
@@ -2216,6 +2254,7 @@ internal static partial class Program
                     "unsupported-wrapper-rejected",
                     "offline-augment-max-with-safety-backup",
                     "offline-item-grant-with-capacity-and-safety-backup",
+                    "offline-bank-storage-item-grant-with-safety-backup",
                     "offline-pre-augmented-item-grant-with-safety-backup",
                     "vehicle-kit-volume-fallbacks-preserve-stock-backpack-grants",
                     "offline-portable-blueprint-import-with-safety-backup",
@@ -2567,6 +2606,35 @@ internal static partial class Program
             }
         }
 
+        using (var bank = connection.CreateCommand())
+        {
+            bank.CommandText = """
+                SELECT inv.id, inv.max_item_count, inv.max_item_volume, COUNT(items.id)
+                FROM inventories AS inv
+                LEFT JOIN items ON items.inventory_id = inv.id
+                WHERE inv.actor_id = $pawn
+                  AND inv.inventory_type = 30
+                  AND COALESCE(inv.max_item_count, 0) > 0
+                GROUP BY inv.id
+                ORDER BY inv.id
+                LIMIT 1;
+                """;
+            bank.Parameters.AddWithValue("$pawn", pawnId);
+            using var reader = bank.ExecuteReader();
+            if (reader.Read())
+            {
+                results.Add(new InventoryDestination(
+                    Id: reader.GetInt64(0),
+                    Key: $"inventory:{reader.GetInt64(0)}",
+                    Label: "Bank Storage",
+                    Kind: "bank",
+                    ItemRows: reader.GetInt64(3),
+                    MaxItemCount: reader.IsDBNull(1) ? 0 : reader.GetInt64(1),
+                    MaxItemVolume: reader.IsDBNull(2) ? 0 : reader.GetDouble(2),
+                    UsedVolume: 0));
+            }
+        }
+
         var permissionName = TableExists(connection, "permission_actor")
             ? """
               COALESCE(MAX(CASE
@@ -2766,7 +2834,7 @@ internal static partial class Program
                 StringComparison.OrdinalIgnoreCase));
         return destination
             ?? throw new InvalidDataException(
-                "The selected backpack or built storage inventory no longer exists.");
+                "The selected backpack, Bank Storage, or built storage inventory no longer exists.");
     }
 
     private static HashSet<int> ReadUsedPositions(

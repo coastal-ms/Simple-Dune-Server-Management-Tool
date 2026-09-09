@@ -19,24 +19,44 @@ export function useApi<T>(path: string, opts: Options = {}): AsyncState<T> {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const mountedRef = useRef(true)
+  const pathRef = useRef(path)
+  const enabledRef = useRef(enabled)
+  const inFlightRef = useRef<{ key: string; promise: Promise<void> } | null>(null)
+  const requestVersionRef = useRef(0)
 
   const lastFetchRef = useRef(0)
+  pathRef.current = path
+  enabledRef.current = enabled
 
   const fetchOnce = useCallback(async () => {
     if (!enabled) return
-    lastFetchRef.current = Date.now()
-    setLoading(true)
-    try {
-      const out = await api<T>(path)
-      if (mountedRef.current) {
-        setData(out)
-        setError(null)
+    const key = path
+    if (inFlightRef.current?.key === key) return inFlightRef.current.promise
+    const requestVersion = ++requestVersionRef.current
+    const request = (async () => {
+      lastFetchRef.current = Date.now()
+      setLoading(true)
+      try {
+        const out = await api<T>(path)
+        if (mountedRef.current && enabledRef.current && pathRef.current === key &&
+            requestVersionRef.current === requestVersion) {
+          setData(out)
+          setError(null)
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (mountedRef.current && enabledRef.current && pathRef.current === key &&
+            requestVersionRef.current === requestVersion) setError(msg)
+      } finally {
+        if (mountedRef.current && enabledRef.current && pathRef.current === key &&
+            requestVersionRef.current === requestVersion) setLoading(false)
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      if (mountedRef.current) setError(msg)
+    })()
+    inFlightRef.current = { key, promise: request }
+    try {
+      await request
     } finally {
-      if (mountedRef.current) setLoading(false)
+      if (inFlightRef.current?.promise === request) inFlightRef.current = null
     }
   }, [path, enabled])
 

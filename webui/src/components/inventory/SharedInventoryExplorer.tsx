@@ -119,7 +119,7 @@ function inventoryItemKey(item: SharedInventoryItem) {
 }
 
 function locationLabel(location: SharedInventoryLocationFacet, allPlayers: boolean, duplicateOrdinal = 0) {
-  const base = location.type === 'player' ? 'Backpack' : location.label || 'Storage box'
+  const base = location.label || (location.type === 'player' ? 'Backpack' : 'Storage box')
   const owner = location.playerName || location.owner
   const owned = allPlayers && owner ? `${base} - ${owner}` : base
   return duplicateOrdinal > 0 ? `${owned} (${duplicateOrdinal})` : owned
@@ -346,7 +346,7 @@ export function SharedInventoryExplorer({
     <WorkspaceSection id="shared-inventory" title={title} description={description}>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="pill border-info/40 text-info">Inventory catalog</span>
-        {entityTypes.map(type => <span key={type} className="pill border-border text-text-muted">{type === 'player' ? 'Player backpacks' : type === 'vehicle' ? 'Vehicle cargo (read-only)' : 'Storage boxes'}</span>)}
+        {entityTypes.map(type => <span key={type} className="pill border-border text-text-muted">{type === 'player' ? 'Player backpacks and banks' : type === 'vehicle' ? 'Vehicle cargo (read-only)' : 'Storage boxes'}</span>)}
         {canManageBases && entityTypes.includes('storage') && <span className="pill border-accent/40 text-accent-bright">Box names editable</span>}
         {current && <FreshnessBadge state={current.freshness.state} observedAt={current.freshness.observedAt} label={current.data.mode === 'demo' ? 'Demo inventory' : 'Live database'} />}
       </div>

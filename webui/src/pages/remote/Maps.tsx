@@ -9,6 +9,7 @@ import {
   type RemoteMapEntry,
   type RemoteMapsResponse,
 } from '../../api/remote'
+import { confirmRoutineAction } from '../../hooks/useReducedRoutineUi'
 
 // Mobile-first map control surface (issue #74).
 //
@@ -123,7 +124,7 @@ export function RemoteMaps() {
   }
 
   const onFixPartitions = async () => {
-    if (!window.confirm('Re-run the partition-cleanup helper on the VM?\n\nIdempotent — skips any map with a running pod.')) return
+    if (!confirmRoutineAction('Re-run the partition-cleanup helper on the VM?\n\nIdempotent — skips any map with a running pod.')) return
     setGlobalAction({ busy: 'fix', message: null, isError: false })
     try {
       const r = await fixPartitions()

@@ -2028,7 +2028,7 @@ export interface VehicleFleetRow {
   subtype?: string
   subtype_source?: 'catalog' | 'actor-class'
   ownership_status?: 'owned' | 'unowned' | 'ambiguous'
-  permissions?: Array<{ player_id: string; rank: number; character_name: string | null }>
+  permissions?: Array<{ player_id: string; rank: number; character_name: string | null; online_status?: string | null; player_state_count?: number }>
   module_count?: number
   recovery_count?: number
   recovery_durability?: number | null
@@ -2038,6 +2038,7 @@ export interface VehicleFleetRow {
   cargo_max_item_count?: number | null
   cargo_max_item_volume?: number | null
   target_revision?: string
+  rename_blocked_reason?: string | null
   deletion_blocked_reason?: string | null
 }
 
@@ -2067,7 +2068,7 @@ export interface VehicleDeletionQueue {
 }
 
 export function getVehicleFleet() {
-  return api<{ vehicles: VehicleFleetRow[]; total: number; source: DataSource; observed_at?: string; stale_after_seconds?: number }>('/api/gameplay/vehicles')
+  return api<{ vehicles: VehicleFleetRow[]; total: number; source: DataSource; observed_at?: string; stale_after_seconds?: number; database_scope?: string }>('/api/gameplay/vehicles')
 }
 
 export function getVehicleIntegrity(vehicleId: number) {
@@ -2081,6 +2082,24 @@ export function deleteVehicles(vehicleIds: number[]) {
       {
         method: 'POST',
         body: JSON.stringify({ confirmed: true, vehicle_ids: vehicleIds }),
+      },
+    ),
+  )
+}
+
+export interface VehicleNameChange {
+  vehicle_id: number
+  expected_current_name: string
+  name: string
+}
+
+export function saveVehicleNames(changes: VehicleNameChange[], databaseScope: string) {
+  return withOnlinePlayerGuard(force =>
+    api<{ ok: true; renamed: number; restart_started: true; message: string }>(
+      `/api/gameplay/vehicles/names${force ? '?force=true' : ''}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ changes, database_scope: databaseScope }),
       },
     ),
   )

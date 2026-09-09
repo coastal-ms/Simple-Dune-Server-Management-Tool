@@ -80,6 +80,7 @@
     "http DELETE /api/gameplay/item-packages": "reversible-write",
     "http DELETE /api/setup/hyperv-lan/credential": "reversible-write"
     ,"http POST /api/gameplay/vehicles/delete": "destructive"
+    ,"http POST /api/gameplay/vehicles/names": "transactional-write"
     ,"http POST /api/gameplay/vehicles/deletions": "reversible-write"
     ,"http DELETE /api/gameplay/vehicles/deletions/{id}": "reversible-write"
   },
@@ -131,6 +132,7 @@
     "http POST /api/system/dependencies/install": "operation.health.manage",
     "http PUT /api/gameplay/welcome-back": "player.manage",
     "http POST /api/gameplay/vehicles/delete": "vehicle.delete",
+    "http POST /api/gameplay/vehicles/names": "vehicle.rename",
     "http POST /api/gameplay/vehicles/deletions/process": "vehicle.delete",
     "ws CONNECT /ws/terminal": "host.powershell.execute"
   },
@@ -186,7 +188,7 @@
     { "source": "Terminal.ps1", "capabilityId": "host.powershell", "routeCount": 1, "sha256": "5d7ac95f866d37d8b7d5b1a1cfd35275ccac7a2f990f2ad2b80409717ad56873" },
     { "source": "Update.ps1", "capabilityId": "operation.update", "routeCount": 5, "sha256": "f36f04a90e402b7d61b641af83055a0bb311cff4430d53db2fed83b2fafa403d" },
     { "source": "WelcomeBack.ps1", "capabilityId": "player.view", "routeCount": 2, "sha256": "11fa0ecec93f3c7fc5cc14a31ff4a30d52784cc298907fdfd30137ef918c05d1" },
-    { "source": "VehicleDeletion.ps1", "capabilityId": "player.manage", "routeCount": 7, "sha256": "50f3e11646255a651ddc2aa9ba3cc3000f24006c9c10d9b00ae225b313e3e011" },
+    { "source": "VehicleDeletion.ps1", "capabilityId": "player.manage", "routeCount": 8, "sha256": "c08d41440af91f471d052018a4242b02d013a90c892183209c5e0bf459e6256d" },
     { "source": "WorldRestart.ps1", "capabilityId": "operation.world-restart", "routeCount": 6, "sha256": "75ad55755646bd8b462c030ca712d02734e9a779d101c41b4eba8a4c00849200" }
   ]
 }
