@@ -12,39 +12,39 @@
   color:var(--color-text); background:var(--color-base);
 }
 .spatial-workspace .spatial-dock { padding:3px; border-radius:2px; border-color:var(--portal-rule); box-shadow:none; background:var(--color-surface); }
-.spatial-workspace .spatial-dock :is(a,button) { padding:6px 10px; min-height:44px; gap:3px; border-radius:1px; font-size:10px; }
+.spatial-workspace .spatial-dock :is(a,button) { padding:6px 10px; min-height:44px; gap:3px; border-radius:1px; font-size:calc(10px * var(--dst-font-scale, 1)); }
 .spatial-workspace .spatial-dock a[aria-current="page"] { background:color-mix(in srgb,var(--portal-selection) 17%,var(--color-surface)); box-shadow:inset 0 -2px var(--portal-selection); }
 .spatial-workspace .spatial-stage-controls button[aria-pressed="true"] { background:color-mix(in srgb,var(--portal-selection) 17%,var(--color-surface)); }
 .spatial-tool-portal > .spatial-header { min-height:56px; padding:6px var(--portal-gutter); gap:16px; border-bottom:1px solid var(--portal-rule); background:var(--color-base); }
-.spatial-tool-portal .spatial-brand > span { font-size:28px; }
-.spatial-tool-portal .spatial-brand strong { font-size:18px; }
-.spatial-tool-portal .spatial-brand strong span { font-size:7px; }
+.spatial-tool-portal .spatial-brand > span { font-size:calc(28px * var(--dst-font-scale, 1)); }
+.spatial-tool-portal .spatial-brand strong { font-size:calc(18px * var(--dst-font-scale, 1)); }
+.spatial-tool-portal .spatial-brand strong span { font-size:calc(7px * var(--dst-font-scale, 1)); }
 .spatial-tool-portal .spatial-server-name { padding-left:16px; }
-.spatial-tool-portal .spatial-server-name > span { font-size:13px; }
-.spatial-tool-portal .spatial-server-name small { margin-top:2px; font-size:10px; }
+.spatial-tool-portal .spatial-server-name > span { font-size:calc(13px * var(--dst-font-scale, 1)); }
+.spatial-tool-portal .spatial-server-name small { margin-top:2px; font-size:calc(10px * var(--dst-font-scale, 1)); }
 .spatial-tool-portal .spatial-header-actions { gap:4px; }
 .spatial-tool-portal .spatial-header-actions > :is(button,a) { min-height:40px; padding:7px 10px; border-radius:2px; }
-.spatial-tool-portal .spatial-palette select { border-radius:2px; padding:7px; font-size:12px; }
+.spatial-tool-portal .spatial-palette select { border-radius:2px; padding:7px; font-size:calc(12px * var(--dst-font-scale, 1)); }
 .spatial-tool-portal > .spatial-workarea { display:grid; grid-template-rows:minmax(0,1fr) auto; width:100%; height:100%; min-height:0; max-width:none; margin:0; padding:0 var(--portal-gutter); }
 .spatial-tool-scroll { min-height:0; min-width:0; overflow:auto; overscroll-behavior:contain; padding:10px 0 16px; scrollbar-gutter:stable; scroll-padding-block:8px; }
 .spatial-tool-portal .spatial-bottom { position:static; padding:6px 0 max(6px,env(safe-area-inset-bottom)); border-top:1px solid var(--portal-rule); gap:12px; background:var(--color-base); }
 .spatial-tool-portal .spatial-dock-slot { height:auto; }
 .spatial-tool-portal .spatial-dock { position:static; }
 .spatial-tool-portal .spatial-system-label { display:none; }
-.spatial-tool-portal .spatial-infrastructure { font-size:10px; }
-.portal-status-error { margin-bottom:8px; padding:8px 10px; border:1px solid var(--color-warning); color:var(--color-warning); font-size:12px; }
+.spatial-tool-portal .spatial-infrastructure { font-size:calc(10px * var(--dst-font-scale, 1)); }
+.portal-status-error { margin-bottom:8px; padding:8px 10px; border:1px solid var(--color-warning); color:var(--color-warning); font-size:calc(12px * var(--dst-font-scale, 1)); }
 .portal-domain-toolbar { display:flex; align-items:center; gap:16px; min-height:44px; margin-bottom:4px; border-bottom:1px solid var(--portal-rule); }
-.portal-domain-toolbar h1,.spatial-tool-portal .workspace-heading h1 { font-size:22px; font-weight:550; line-height:1.25; letter-spacing:-.02em; }
+.portal-domain-toolbar h1,.spatial-tool-portal .workspace-heading h1 { font-size:calc(22px * var(--dst-font-scale, 1)); font-weight:550; line-height:1.25; letter-spacing:-.02em; }
 .portal-domain-toolbar nav { margin-left:auto; }
-.portal-domain-toolbar select { min-height:36px; padding:6px 24px 6px 10px; background:var(--color-surface); border:1px solid var(--portal-rule); border-radius:1px; font-size:12px; }
+.portal-domain-toolbar select { min-height:36px; padding:6px 24px 6px 10px; background:var(--color-surface); border:1px solid var(--portal-rule); border-radius:1px; font-size:calc(12px * var(--dst-font-scale, 1)); }
 .portal-heading-actions { display:flex; justify-content:flex-end; align-items:center; gap:8px; margin:4px 0; }
 .spatial-tool-portal .workspace-heading { min-height:44px; align-items:center; gap:12px; margin:0 0 10px; padding-bottom:8px; border-bottom:1px solid var(--portal-rule); }
 .spatial-tool-portal .workspace-heading > div:first-child { display:flex; align-items:baseline; flex-wrap:wrap; gap:6px 14px; min-width:0; }
-.spatial-tool-portal .workspace-heading p { margin:0; font-size:12px; }
+.spatial-tool-portal .workspace-heading p { margin:0; font-size:calc(12px * var(--dst-font-scale, 1)); }
 .spatial-tool-portal .workspace-heading-actions { min-width:0; }
 .spatial-tool-portal .gameconfig-header-actions { flex-wrap:wrap; }
 .spatial-tool-portal .gameconfig-guidance { display:block; padding:8px 10px; margin-bottom:10px; }
-.spatial-tool-portal .gameconfig-guidance summary { font-size:12px; line-height:1.6; cursor:pointer; color:var(--color-warning); }
+.spatial-tool-portal .gameconfig-guidance summary { font-size:calc(12px * var(--dst-font-scale, 1)); line-height:1.6; cursor:pointer; color:var(--color-warning); }
 .spatial-tool-portal .gameconfig-guidance summary span { color:var(--color-text); text-decoration:underline; text-underline-offset:3px; white-space:nowrap; }
 .spatial-tool-portal .gameconfig-guidance > svg { display:none; }
 .spatial-tool-portal .gameconfig-guidance[open] > div { margin-top:10px; }
@@ -62,18 +62,18 @@
 .spatial-tool-portal .settings-config-field > .btn-secondary { grid-column:2; grid-row:1; margin:0; }
 .portal-workspace-tabs { min-width:0; overflow-x:auto; margin-bottom:8px; border-bottom:1px solid var(--color-border); }
 .portal-workspace-tabs > div { display:flex; width:max-content; min-width:100%; }
-.portal-workspace-tabs a { min-height:36px; padding:7px 12px; font-size:12px; border-radius:0; }
+.portal-workspace-tabs a { min-height:36px; padding:7px 12px; font-size:calc(12px * var(--dst-font-scale, 1)); border-radius:0; }
 .portal-workspace-tabs a[aria-current="page"] { border-color:var(--portal-selection); color:var(--color-text); background:color-mix(in srgb,var(--portal-selection) 14%,transparent); }
 .spatial-tool-portal .workspace-section { margin-bottom:18px; }
 .spatial-tool-portal .workspace-section > div:first-child { margin-bottom:8px; }
-.spatial-tool-portal .workspace-section h2 { font-size:14px; }
-.spatial-tool-portal .workspace-section p { font-size:12px; }
+.spatial-tool-portal .workspace-section h2 { font-size:calc(14px * var(--dst-font-scale, 1)); }
+.spatial-tool-portal .workspace-section p { font-size:calc(12px * var(--dst-font-scale, 1)); }
 .spatial-tool-portal .workspace-section-nav { margin-bottom:10px; padding:3px; border-radius:1px; box-shadow:none; border-color:var(--portal-rule); }
 .spatial-tool-portal .workspace-section-strip button { min-height:36px; padding:7px 10px; border-radius:0; }
 .spatial-tool-portal .workspace-section-strip button[aria-pressed="true"] { background:color-mix(in srgb,var(--portal-selection) 15%,var(--color-surface)); box-shadow:inset 0 -2px var(--portal-selection); }
 .spatial-tool-portal .workspace-section-collapse { width:36px; height:36px; border-radius:1px; }
 .spatial-tool-portal [data-portal-section-inactive] { display:none !important; }
-.portal-sections-overview { min-height:36px; padding:6px 10px; white-space:nowrap; border:1px solid var(--color-border); font-size:12px; }
+.portal-sections-overview { min-height:36px; padding:6px 10px; white-space:nowrap; border:1px solid var(--color-border); font-size:calc(12px * var(--dst-font-scale, 1)); }
 .spatial-tool-portal .card { border-radius:2px; box-shadow:none; }
 .spatial-tool-portal .sticky.bottom-0 { bottom:0; }
 body:has(.spatial-tool-portal) .viewport-notice { bottom:84px; }
@@ -89,7 +89,7 @@ body:has(.spatial-tool-portal) .viewport-notice { bottom:84px; }
   .spatial-workspace.spatial-tool-portal { --portal-gutter:10px; }
   .spatial-tool-portal > .spatial-header { gap:8px; padding-block:4px; }
   .spatial-tool-portal .spatial-header-actions > :is(button,a) { padding:8px; min-width:40px; min-height:44px; }
-  .spatial-tool-portal .spatial-brand strong { font-size:16px; }
+  .spatial-tool-portal .spatial-brand strong { font-size:calc(16px * var(--dst-font-scale, 1)); }
   .spatial-tool-portal .spatial-palette { padding:0; }
   .spatial-tool-portal .spatial-palette select { max-width:116px; min-height:44px; }
   .spatial-tool-portal .spatial-infrastructure { display:none; }

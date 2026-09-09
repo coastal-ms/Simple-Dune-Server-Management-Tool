@@ -1,12 +1,12 @@
 .spatial-dashboard-content { display:flex; flex-direction:column; min-height:0; height:100%; gap:8px; }
 .spatial-dashboard-summary { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-shrink:0; padding:9px 0; }
 .spatial-dashboard-summary dl { display:flex; flex-wrap:wrap; gap:8px 24px; min-width:0; }
-.spatial-dashboard-summary dl > div { display:flex; align-items:baseline; gap:7px; font-size:12px; }
+.spatial-dashboard-summary dl > div { display:flex; align-items:baseline; gap:7px; font-size:calc(12px * var(--dst-font-scale, 1)); }
 .spatial-dashboard-summary dt { color:var(--color-text-muted); }
 .spatial-dashboard-summary dd { color:var(--color-text); font-weight:500; }
-.spatial-dashboard-observation { display:flex; align-items:center; gap:10px; color:var(--color-text-muted); font-size:11px; white-space:nowrap; }
+.spatial-dashboard-observation { display:flex; align-items:center; gap:10px; color:var(--color-text-muted); font-size:calc(11px * var(--dst-font-scale, 1)); white-space:nowrap; }
 .spatial-dashboard-observation button { display:grid; place-items:center; width:36px; height:36px; border:1px solid var(--color-border); border-radius:5px; flex-shrink:0; }
-.spatial-dashboard-error { flex-shrink:0; max-height:44px; overflow:auto; padding:6px 10px; font-size:11px; color:var(--color-warning); }
+.spatial-dashboard-error { flex-shrink:0; max-height:44px; overflow:auto; padding:6px 10px; font-size:calc(11px * var(--dst-font-scale, 1)); color:var(--color-warning); }
 .spatial-dashboard-surface { flex:1; min-height:0; min-width:0; border:1px solid var(--color-border); border-radius:8px; overflow:hidden; }
 .spatial-stage-fit { height:100% !important; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
 .spatial-stage-fit .spatial-globe-viewport { display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; }
@@ -15,59 +15,59 @@
 .spatial-stage-fit .spatial-map-names,.spatial-stage-fit .spatial-detail-label-layer { inset:0; }
 .spatial-stage-fit .spatial-map-name strong { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .spatial-stage-fit .spatial-globe-caption { top:12px; left:16px; right:auto; text-align:left; }
-.spatial-stage-fit .spatial-globe-caption h1 { font-size:20px; }
-.spatial-stage-fit .spatial-globe-caption > span { font-size:10px; }
-.spatial-stage-fit .spatial-interaction-hint { top:16px; left:160px; right:16px; text-align:right; font-size:10px; }
-.spatial-stage-fit .spatial-schematic-label { left:16px; bottom:10px; font-size:7px; }
-.spatial-stage-fit .spatial-stage-rest { padding:64px 16px 28px; justify-content:center; font-size:12px; }
+.spatial-stage-fit .spatial-globe-caption h1 { font-size:calc(20px * var(--dst-font-scale, 1)); }
+.spatial-stage-fit .spatial-globe-caption > span { font-size:calc(10px * var(--dst-font-scale, 1)); }
+.spatial-stage-fit .spatial-interaction-hint { top:16px; left:160px; right:16px; text-align:right; font-size:calc(10px * var(--dst-font-scale, 1)); }
+.spatial-stage-fit .spatial-schematic-label { left:16px; bottom:10px; font-size:calc(7px * var(--dst-font-scale, 1)); }
+.spatial-stage-fit .spatial-stage-rest { padding:64px 16px 28px; justify-content:center; font-size:calc(12px * var(--dst-font-scale, 1)); }
 .spatial-stage-fit .spatial-stage-controls { position:static; flex-shrink:0; display:flex; flex-wrap:nowrap; max-width:none; width:100%; padding:8px; gap:8px; border-top:1px solid var(--color-border); background:var(--color-surface); translate:none !important; }
 .spatial-stage-fit .spatial-control-list { display:flex; align-items:center; gap:6px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:thin; }
-.spatial-stage-fit .spatial-stage-controls :is(button,select) { min-height:36px; flex-shrink:0; white-space:nowrap; font-size:11px; }
+.spatial-stage-fit .spatial-stage-controls :is(button,select) { min-height:36px; flex-shrink:0; white-space:nowrap; font-size:calc(11px * var(--dst-font-scale, 1)); }
 .spatial-stage-fit .spatial-stage-controls select { max-width:180px; }
 .spatial-zoom-controls { display:flex; align-items:center; gap:4px; flex-shrink:0; }
-.spatial-zoom-controls output { min-width:38px; text-align:center; font-size:11px; font-variant-numeric:tabular-nums; }
+.spatial-zoom-controls output { min-width:38px; text-align:center; font-size:calc(11px * var(--dst-font-scale, 1)); font-variant-numeric:tabular-nums; }
 .spatial-stage-fit .spatial-layout-editor { flex-shrink:0; padding:5px 8px; gap:8px; border-top:1px solid var(--color-border); }
 .spatial-stage-fit .spatial-layout-editor > div:first-child { flex:0 1 auto; }
-.spatial-stage-fit .spatial-layout-editor strong { font-size:11px; }
+.spatial-stage-fit .spatial-layout-editor strong { font-size:calc(11px * var(--dst-font-scale, 1)); }
 .spatial-stage-fit .spatial-layout-editor button { min-height:36px; padding:6px 10px; }
 .spatial-stage-fit .spatial-layout-nudges button { width:36px; height:36px; padding:0; }
-.spatial-stage-fit .spatial-layout-notice { flex-shrink:0; max-height:48px; overflow:auto; padding:5px 10px; font-size:10px; }
+.spatial-stage-fit .spatial-layout-notice { flex-shrink:0; max-height:48px; overflow:auto; padding:5px 10px; font-size:calc(10px * var(--dst-font-scale, 1)); }
 .spatial-dashboard-roster { position:absolute; z-index:3; left:16px; bottom:30px; max-width:min(310px,calc(100% - 32px)); max-height:42%; display:flex; flex-direction:column; pointer-events:none; text-shadow:0 1px 3px var(--color-base),0 2px 5px var(--color-base); }
 .spatial-dashboard-roster ul { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
 .spatial-dashboard-roster li { margin:3px 0; }
 .spatial-dashboard-roster button { display:block; width:max-content; max-width:100%; padding:1px 0; text-align:left; pointer-events:auto; background:none; text-shadow:inherit; touch-action:pan-y; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .spatial-dashboard-roster button[aria-pressed="true"] .spatial-roster-line { text-decoration:underline; text-underline-offset:3px; }
-.spatial-dashboard-roster .spatial-roster-line { font-size:11px; font-weight:500; color:var(--color-text-muted); }
+.spatial-dashboard-roster .spatial-roster-line { font-size:calc(11px * var(--dst-font-scale, 1)); font-weight:500; color:var(--color-text-muted); }
 .spatial-dashboard-roster [data-ready="Ready"] { color:var(--color-success); }
 .spatial-dashboard-roster [data-ready="Not ready"] { color:var(--color-warning); }
-.spatial-dashboard-roster > p { margin-top:5px; font-size:11px; color:var(--color-text-muted); }
+.spatial-dashboard-roster > p { margin-top:5px; font-size:calc(11px * var(--dst-font-scale, 1)); color:var(--color-text-muted); }
 .spatial-dashboard-roster .spatial-roster-stale { color:var(--color-warning); }
 .spatial-dashboard-inspector { position:absolute; inset:8px 8px auto auto; z-index:5; width:250px; max-width:calc(100% - 16px); max-height:min(320px,calc(100% - 16px)); display:flex; flex-direction:column; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); box-shadow:-6px 6px 18px #0002; }
 .spatial-dashboard-inspector[hidden] { display:none; }
 .spatial-dashboard-inspector > header { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-bottom:1px solid var(--color-border); flex-shrink:0; }
-.spatial-dashboard-inspector h2 { font-size:16px; font-weight:550; overflow-wrap:anywhere; }
+.spatial-dashboard-inspector h2 { font-size:calc(16px * var(--dst-font-scale, 1)); font-weight:550; overflow-wrap:anywhere; }
 .spatial-dashboard-inspector header button { width:36px; height:36px; display:grid; place-items:center; flex-shrink:0; }
 .spatial-dashboard-inspector-body { min-height:0; overflow:auto; overscroll-behavior:contain; padding:12px; }
-.spatial-dashboard-inspector-body > p { font-size:10px; color:var(--color-text-muted); line-height:1.5; margin-bottom:8px; }
+.spatial-dashboard-inspector-body > p { font-size:calc(10px * var(--dst-font-scale, 1)); color:var(--color-text-muted); line-height:1.5; margin-bottom:8px; }
 .spatial-dashboard-inspector-body .spatial-map-observed { margin-top:12px; }
-.spatial-dashboard-inspector-body > dl > div { display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-bottom:1px solid var(--color-border); font-size:11px; }
+.spatial-dashboard-inspector-body > dl > div { display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-bottom:1px solid var(--color-border); font-size:calc(11px * var(--dst-font-scale, 1)); }
 .spatial-dashboard-inspector dt { color:var(--color-text-muted); }
 .spatial-dashboard-inspector dd { text-align:right; overflow-wrap:anywhere; }
 .spatial-dashboard-inspector .spatial-map-details { margin-bottom:12px; }
 @media(max-width:767px) {
   .spatial-dashboard-summary { flex-wrap:wrap; gap:3px; padding:3px 0; }
   .spatial-dashboard-summary dl { width:100%; justify-content:space-between; gap:4px 10px; }
-  .spatial-dashboard-summary dl > div { font-size:10px; gap:4px; }
-  .spatial-dashboard-observation { width:100%; justify-content:space-between; font-size:10px; }
+  .spatial-dashboard-summary dl > div { font-size:calc(10px * var(--dst-font-scale, 1)); gap:4px; }
+  .spatial-dashboard-observation { width:100%; justify-content:space-between; font-size:calc(10px * var(--dst-font-scale, 1)); }
   .spatial-dashboard-observation button { height:28px; width:32px; }
   .spatial-dashboard-roster { left:16px; bottom:26px; max-width:calc(100% - 32px); max-height:34%; }
-  .spatial-dashboard-roster .spatial-roster-line { font-size:10px; }
-  .spatial-stage-fit .spatial-globe-caption h1 { font-size:16px; }
+  .spatial-dashboard-roster .spatial-roster-line { font-size:calc(10px * var(--dst-font-scale, 1)); }
+  .spatial-stage-fit .spatial-globe-caption h1 { font-size:calc(16px * var(--dst-font-scale, 1)); }
   .spatial-stage-fit .spatial-stage-controls :is(button,select) { min-height:44px; }
   .spatial-stage-fit .spatial-stage-controls select { max-width:145px; }
   .spatial-stage-fit .spatial-layout-editor > div:first-child { display:none; }
   .spatial-stage-fit .spatial-map-name { max-width:110px; }
-  .spatial-stage-fit .spatial-map-name strong { font-size:11px; }
-  .spatial-stage-fit .spatial-map-name span { font-size:9px; }
+  .spatial-stage-fit .spatial-map-name strong { font-size:calc(11px * var(--dst-font-scale, 1)); }
+  .spatial-stage-fit .spatial-map-name span { font-size:calc(9px * var(--dst-font-scale, 1)); }
   .spatial-dashboard-inspector { width:250px; }
 }

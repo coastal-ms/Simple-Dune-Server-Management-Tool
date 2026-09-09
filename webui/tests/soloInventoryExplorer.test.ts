@@ -31,18 +31,31 @@ describe('Solo inventory explorer', () => {
         minQuality: 1,
         maxQuality: 2,
       },
+      {
+        inventoryId: 35,
+        destinationKey: 'inventory:35',
+        destinationLabel: 'Bank Storage',
+        destinationKind: 'bank',
+        templateId: 'copper',
+        displayName: 'Copper Ore',
+        totalQuantity: 5,
+        occurrenceCount: 1,
+        minQuality: 0,
+        maxQuality: 0,
+      },
     ]
     const groups = buildSoloInventoryGroups(items)
 
     expect(groups).toHaveLength(1)
     expect(groups[0]).toMatchObject({
       groupKey: 'copper',
-      totalQuantity: 35,
-      occurrenceCount: 3,
-      locationCount: 2,
+      totalQuantity: 40,
+      occurrenceCount: 4,
+      locationCount: 3,
       quality: { min: 0, max: 2, mixed: true },
     })
     expect(filterSoloInventoryItemsByLocation(items, 'inventory:2')).toEqual([items[1]])
+    expect(filterSoloInventoryItemsByLocation(items, 'inventory:35')).toEqual([items[2]])
     expect(filterSoloInventoryItemsByLocation(items, '')).toEqual(items)
   })
 })

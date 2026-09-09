@@ -11,6 +11,7 @@ import type { BgState, BgGameServer } from '../api/types'
 import { getLinks, type LinksResponse } from '../api/links'
 import { api, ApiError } from '../api/client'
 import { mapLabel } from '../util/mapLabel'
+import { HealthRefreshControl } from '../components/HealthRefreshControl'
 
 const BG_STYLES: Record<BgState | 'unknown', { cls: string; label: string }> = {
   running:  { cls: 'text-success', label: 'Running'  },
@@ -277,6 +278,7 @@ export function Dashboard() {
         title="Server Health"
         icon="LayoutDashboard"
         description="Live VM, battlegroup, and port status."
+        actions={<HealthRefreshControl />}
       />
 
       <VmMemoryPressureBanner vmRunning={Boolean(vm?.running)} />

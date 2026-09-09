@@ -37,6 +37,36 @@
 }
 
 @layer base {
+  [data-dst-font-scale="default"] { --dst-font-scale: 1; }
+  [data-dst-font-scale="medium"] { --dst-font-scale: 1.125; }
+  [data-dst-font-scale="large"] { --dst-font-scale: 1.25; }
+
+  [data-dst-font-scale] {
+    --text-xs: calc(0.75rem * var(--dst-font-scale));
+    --text-xs--line-height: calc(1rem * var(--dst-font-scale));
+    --text-sm: calc(0.875rem * var(--dst-font-scale));
+    --text-sm--line-height: calc(1.25rem * var(--dst-font-scale));
+    --text-base: calc(1rem * var(--dst-font-scale));
+    --text-base--line-height: calc(1.5rem * var(--dst-font-scale));
+    --text-lg: calc(1.125rem * var(--dst-font-scale));
+    --text-lg--line-height: calc(1.75rem * var(--dst-font-scale));
+    --text-xl: calc(1.25rem * var(--dst-font-scale));
+    --text-xl--line-height: calc(1.75rem * var(--dst-font-scale));
+    --text-2xl: calc(1.5rem * var(--dst-font-scale));
+    --text-2xl--line-height: calc(2rem * var(--dst-font-scale));
+    --text-3xl: calc(1.875rem * var(--dst-font-scale));
+    --text-3xl--line-height: calc(2.25rem * var(--dst-font-scale));
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+  }
+
+  [data-dst-font-scale] [class~="text-[8px]"] { font-size: calc(8px * var(--dst-font-scale)); }
+  [data-dst-font-scale] [class~="text-[9px]"] { font-size: calc(9px * var(--dst-font-scale)); }
+  [data-dst-font-scale] [class~="text-[10px]"] { font-size: calc(10px * var(--dst-font-scale)); }
+  [data-dst-font-scale] [class~="text-[11px]"] { font-size: calc(11px * var(--dst-font-scale)); }
+  [data-dst-font-scale] [class~="text-[12px]"] { font-size: calc(12px * var(--dst-font-scale)); }
+  [data-dst-font-scale] [class~="text-[13px]"] { font-size: calc(13px * var(--dst-font-scale)); }
+
   [data-section-nav-id] {
     scroll-margin-top: 4rem;
   }

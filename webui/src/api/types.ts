@@ -31,6 +31,7 @@ export type BgGameServer = {
 
 export type BattlegroupSnapshot = {
   available: boolean
+  observedAt?: string
   reason?: string
   output?: string
   exitCode?: number

@@ -121,7 +121,7 @@ export function SoloInventoryExplorer({
             Current inventory
           </h2>
           <p className="mt-1 text-sm text-text-muted">
-            Browse grouped items already stored in the selected Solo save. This view is read-only.
+            Browse grouped items in the Backpack, Bank Storage, and supported built storage. This view is read-only.
           </p>
         </div>
         <span className="pill border-info/40 bg-info/10 text-info">

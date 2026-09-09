@@ -28,6 +28,7 @@ import { useCommandDeck } from '../hooks/useCommandDeck'
 import { useStatus } from '../hooks/useStatus'
 import { useApi } from '../hooks/useApi'
 import { api, PlayerGuardCancelledError, withOnlinePlayerGuard } from '../api/client'
+import { showRoutineSuccess } from '../hooks/useReducedRoutineUi'
 import { isLocalViewer } from '../util/viewer'
 import type { Command, CommandsResponse } from '../api/types'
 import { usePortalAuth } from '../auth/PortalAuthGate'
@@ -573,7 +574,7 @@ export function Commands() {
       setLocalNames(null)
       setLocalSections(null)
       await cmdsState.refresh()
-      showToast('ok', 'Layout reset to default.')
+      showRoutineSuccess(showToast, 'Layout reset to default.')
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       showToast('err', `Reset failed: ${msg}`)

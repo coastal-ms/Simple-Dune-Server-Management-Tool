@@ -6,7 +6,7 @@ import { MarketTab } from '../src/pages/gameplay/MarketTab'
 import VehiclesWorkspace from '../src/pages/workspaces/VehiclesWorkspace'
 import {
   getBases, getMarketItems, getMarketStats, getMarketCategories, getMarketListings, getMarketSales,
-  getVehicleFleet, getVehicleIntegrity, repairVehicle, deleteVehicles, destroyClaim,
+  getVehicleFleet, getVehicleIntegrity, repairVehicle, saveVehicleNames, deleteVehicles, destroyClaim,
 } from '../src/api/gameplay'
 import { COMMAND_DECK_KEY } from '../src/hooks/useCommandDeck'
 import { isLocalViewer } from '../src/util/viewer'
@@ -16,7 +16,7 @@ vi.mock('../src/hooks/useStatus', () => ({ useStatus: () => ({ status: { bg: { s
 vi.mock('../src/api/gameplay', async importOriginal => ({
   ...await importOriginal<typeof import('../src/api/gameplay')>(),
   getBases: vi.fn(), getMarketItems: vi.fn(), getMarketStats: vi.fn(), getMarketCategories: vi.fn(), getMarketListings: vi.fn(), getMarketSales: vi.fn(),
-  getVehicleFleet: vi.fn(), getVehicleIntegrity: vi.fn(), repairVehicle: vi.fn(), deleteVehicles: vi.fn(), destroyClaim: vi.fn(),
+  getVehicleFleet: vi.fn(), getVehicleIntegrity: vi.fn(), repairVehicle: vi.fn(), saveVehicleNames: vi.fn(), deleteVehicles: vi.fn(), destroyClaim: vi.fn(),
 }))
 beforeEach(() => {
   vi.mocked(isLocalViewer).mockReturnValue(true)
@@ -29,9 +29,10 @@ beforeEach(() => {
   vi.mocked(getMarketCategories).mockResolvedValue({ categories: ['items/resources'] })
   vi.mocked(getMarketListings).mockResolvedValue({ source: 'live', listings: [] })
   vi.mocked(getMarketSales).mockResolvedValue({ source: 'live', sales: [] })
-  vi.mocked(getVehicleFleet).mockResolvedValue({ source: 'live', total: 1, observed_at: new Date().toISOString(), stale_after_seconds: 20, vehicles: [{ id: 7, class: 'Buggy', subtype: 'Buggy', vehicle_name: 'Scout', owners: 'Aster', map: 'Survival_1', actor_state: 'Active', target_revision: 'b'.repeat(32), cargo_hold_count: 1, cargo_stack_count: 2, module_count: 4, permissions: [{ player_id: '11', rank: 1, character_name: 'Aster' }, { player_id: '12', rank: 2, character_name: 'Chani' }] }] })
+  vi.mocked(getVehicleFleet).mockResolvedValue({ source: 'live', total: 1, observed_at: new Date().toISOString(), stale_after_seconds: 20, database_scope: 'a'.repeat(64), vehicles: [{ id: 7, class: 'Buggy', subtype: 'Buggy', vehicle_name: 'Scout', owners: 'Aster', map: 'Survival_1', actor_state: 'Active', target_revision: 'b'.repeat(32), cargo_hold_count: 1, cargo_stack_count: 2, module_count: 4, permissions: [{ player_id: '11', rank: 1, character_name: 'Aster', online_status: 'Offline', player_state_count: 1 }, { player_id: '12', rank: 2, character_name: 'Chani', online_status: 'Offline', player_state_count: 1 }] }] })
   vi.mocked(getVehicleIntegrity).mockResolvedValue({ source: 'live', observed_at: new Date().toISOString(), modules: [{ id: '8', template_id: 'Chassis', current_durability: null, max_durability: 100, decayed_max_durability: 80, repair_max_durability: 100 }] })
   vi.mocked(repairVehicle).mockResolvedValue({ ok: true, message: 'Repaired 4 vehicle modules.' })
+  vi.mocked(saveVehicleNames).mockResolvedValue({ ok: true, renamed: 1, restart_started: true, message: 'Saved 1 vehicle name change and launched the battlegroup restart.' })
   vi.mocked(deleteVehicles).mockResolvedValue({ ok: true, message: 'Vehicle deleted.', processed: 1, failed: 0 })
 })
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); vi.restoreAllMocks(); window.history.replaceState({}, '', '/') })
@@ -77,6 +78,43 @@ describe('Record-focused gameplay workspaces', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search vehicle fleet' }), { target: { value: 'absent' } })
     expect(screen.queryByRole('button', { name: 'Inspect Scout' })).not.toBeInTheDocument()
     expect(screen.queryByText('Demo Data')).not.toBeInTheDocument()
+  })
+  it('edits and saves active vehicle names as one restart-backed batch without a confirmation modal', async () => {
+    const user = userEvent.setup()
+    render(<VehiclesWorkspace />)
+    await screen.findByRole('button', { name: 'Inspect Scout' })
+    await user.click(screen.getByRole('button', { name: 'Edit Vehicle Names' }))
+    expect(screen.getByText('Battlegroup restart required:')).toBeInTheDocument()
+    const name = screen.getByRole('textbox', { name: 'Vehicle name' })
+    await user.clear(name)
+    await user.type(name, 'Desert Runner')
+    await user.click(screen.getByRole('button', { name: 'Save Vehicle Names' }))
+    await waitFor(() => expect(saveVehicleNames).toHaveBeenCalledWith([
+      { vehicle_id: 7, expected_current_name: 'Scout', name: 'Desert Runner' },
+    ], 'a'.repeat(64)))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(await screen.findByText('Saved 1 vehicle name change and launched the battlegroup restart.')).toBeInTheDocument()
+    expect(screen.getByText('Battlegroup restart required:')).toBeInTheDocument()
+  })
+  it('refuses editing for online or unresolved vehicle owners and shows the reason', async () => {
+    vi.mocked(getVehicleFleet).mockResolvedValue({
+      source: 'live',
+      total: 1,
+      database_scope: 'a'.repeat(64),
+      vehicles: [{
+        id: 7,
+        class: 'Buggy',
+        vehicle_name: 'Scout',
+        actor_state: 'Active',
+        rename_blocked_reason: 'Every owning player must be Offline before renaming this vehicle.',
+      }],
+    })
+    render(<VehiclesWorkspace />)
+    await screen.findByRole('button', { name: 'Inspect Scout' })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Vehicle Names' }))
+    expect(screen.queryByRole('textbox', { name: 'Vehicle name' })).not.toBeInTheDocument()
+    expect(screen.getByText('Every owning player must be Offline before renaming this vehicle.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save Vehicle Names' })).toBeDisabled()
   })
   it('separates recovery records from the active fleet', async () => {
     vi.mocked(getVehicleFleet).mockResolvedValue({

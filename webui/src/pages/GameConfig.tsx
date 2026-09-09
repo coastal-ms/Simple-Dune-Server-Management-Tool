@@ -8,6 +8,7 @@ import { ViewportNotice } from '../components/ViewportNotice'
 import { useStatus } from '../hooks/useStatus'
 import { useCommandDeck } from '../hooks/useCommandDeck'
 import { api } from '../api/client'
+import { confirmRoutineAction } from '../hooks/useReducedRoutineUi'
 import { ServerNameCard } from './gameconfig/ServerNameCard'
 import { TimeOfDayLockPanel } from './gameconfig/TwilightLockEvidenceCard'
 import {
@@ -1203,7 +1204,7 @@ export function GameConfig({ mode = 'standard' }: { mode?: 'standard' | 'experim
       const engineStatus = clientInfo?.engineEnabled
         ? 'Client Engine.ini management is currently ON.'
         : 'Client Engine.ini management is currently OFF.'
-      const ok = window.confirm(
+      const ok = confirmRoutineAction(
         `Save ${count} Experimental setting${count === 1 ? '' : 's'}?\n\n`
         + (experimentalPage
             ? 'These are written to the server UserGame.ini or UserEngine.ini as labeled. Nothing on the server changes until you restart the battlegroup — use “Apply INIs & restart” in the bar at the bottom of this page. Saving on its own does not disconnect anyone.\n\n'

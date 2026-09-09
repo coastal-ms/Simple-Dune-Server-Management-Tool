@@ -5,6 +5,7 @@ import { CollapsibleCard } from '../components/CollapsibleCard'
 import { useStatus } from '../hooks/useStatus'
 import { VmInfoCard } from './database/VmInfoCard'
 import { api } from '../api/client'
+import { showRoutineSuccess } from '../hooks/useReducedRoutineUi'
 import { isLocalViewer } from '../util/viewer'
 import {
   getDbInfo,
@@ -183,7 +184,7 @@ export function Database() {
     try {
       const r = await api<FixMapsResult>('/api/maps/fix-partitions', { method: 'POST' })
       setFixMapsOut(r)
-      showToast('ok', 'Partition cleanup ran — see the output below.')
+      showRoutineSuccess(showToast, 'Partition cleanup ran — see the output below.')
       window.setTimeout(() => { void forceRefresh() }, 1500)
     } catch (e) {
       showToast('err', `Fix failed: ${e instanceof Error ? e.message : String(e)}`)
@@ -1185,7 +1186,7 @@ function BackupScheduleCard({ vmRunning, showToast }: BackupScheduleCardProps) {
       setDraftKeepLast(updated.keepLast > 0 ? updated.keepLast : (updated.preset === 'Off' ? 8 : 0))
       setDraftKeepDumpPods(updated.keepLastPods ?? 10)
       setDraftKeepDumpDays(updated.keepDaysPods ?? 0)
-      showToast('ok', draftPreset === 'Off' ? 'Schedule disabled.' : `Schedule saved.`)
+      showRoutineSuccess(showToast, draftPreset === 'Off' ? 'Schedule disabled.' : 'Schedule saved.')
       // Refresh history + pod list in the background so the user sees the new
       // schedule reflected immediately when the next cron run lands.
       void getBackupHistory({ recent: 200, logLines: 50 }).then(setHistory).catch(() => {})
@@ -1952,9 +1953,9 @@ function BackupMirrorCard({ vmRunning, showToast }: BackupMirrorCardProps) {
         lastCopiedCount: r.lastCopiedCount,
       })
       if (next && !r.folder) {
-        showToast('ok', 'Mirror enabled — pick a folder to start copying backups.')
+        showRoutineSuccess(showToast, 'Mirror enabled — pick a folder to start copying backups.')
       } else {
-        showToast('ok', next ? 'Local backup mirror enabled.' : 'Local backup mirror disabled.')
+        showRoutineSuccess(showToast, next ? 'Local backup mirror enabled.' : 'Local backup mirror disabled.')
       }
     } catch (e) {
       showToast('err', e instanceof Error ? e.message : String(e))
@@ -1974,7 +1975,7 @@ function BackupMirrorCard({ vmRunning, showToast }: BackupMirrorCardProps) {
         lastError: r.lastError,
         lastCopiedCount: r.lastCopiedCount,
       })
-      showToast('ok', 'Mirror folder saved.')
+      showRoutineSuccess(showToast, 'Mirror folder saved.')
     } catch (e) {
       showToast('err', e instanceof Error ? e.message : String(e))
     } finally {

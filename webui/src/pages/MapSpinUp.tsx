@@ -23,6 +23,7 @@ import { getMapSpinUp, setMapSpinUp, type SpinUpMap } from '../api/mapSpinUp'
 import { fixOnDemandPartitions, getMapState, restartMapPods, type MapState } from '../api/maps'
 import { SpicefieldsCard } from './gameconfig/SpicefieldsCard'
 import { useStatus } from '../hooks/useStatus'
+import { confirmRoutineAction } from '../hooks/useReducedRoutineUi'
 
 // Map SpinUp section names → on-demand map keys that expose a live, schedulable
 // pod state via GET /api/maps/{key}. Only these three report whether a pod is
@@ -217,7 +218,7 @@ export function MapSpinUp({ embedded = false }: { embedded?: boolean }) {
   }, [tracking, refresh, stopTracking])
 
   const onFixPartitions = useCallback(async () => {
-    const ok = window.confirm(
+    const ok = confirmRoutineAction(
       'Clear stuck partition pins on the on-demand maps (Deep Desert, Arrakeen, '
       + 'Harko Village) so the director can re-assign partitions and spin them up '
       + 'on demand?\n\n'

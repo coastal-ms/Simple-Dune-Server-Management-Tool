@@ -6,7 +6,9 @@ import { statusLabel } from '../../util/statusLabel'
 import { Icon } from '../../components/Icon'
 import SpatialFrame from '../../layout/SpatialFrame'
 import SpatialStage from './SpatialStage'
+import SpatialMapDetails from './SpatialMapDetails'
 import { spatialLayers, spatialLocationKind, spatialNodes, spatialStatusOrder } from './spatialModel'
+import { HealthRefreshControl } from '../../components/HealthRefreshControl'
 import './spatial.css'
 import './spatialDashboard.css'
 
@@ -19,7 +21,8 @@ export default function SpatialHome({ onDetails, startEnabled = false }: { onDet
   const { worlds, locations } = spatialLayers(nodes)
   const active = nodes.find(node => node.id === selection) ?? locations.find(node => spatialLocationKind(node.map) === 'hagga') ?? worlds[0] ?? locations[0]
   const hasSelection = nodes.some(node => node.id === selection)
-  const stamp = status?.ts ? new Date(status.ts) : null
+  const observation = status?.bg?.observedAt || status?.ts
+  const stamp = observation ? new Date(observation) : null
   const knownStamp = stamp && Number.isFinite(stamp.getTime()) ? stamp.toLocaleString() : 'Not reported'
   const shortStamp = stamp && Number.isFinite(stamp.getTime()) ? stamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Not reported'
   const stale = !!(error || refreshError)
@@ -57,9 +60,13 @@ export default function SpatialHome({ onDetails, startEnabled = false }: { onDet
         <div><dt>Reported players</dt><dd>{active?.players ?? 'Unknown'}</dd></div>
         <div><dt>Server age</dt><dd>{active?.age || 'Not reported'}</dd></div>
       </dl>
-      <p className="spatial-map-observed">{stale ? 'Last available observation' : 'Observed'}: {knownStamp}</p>
-      {instances > 1 && <p>{instances} instances share this map ID. Count is from the selected status row.</p>}
-      <p>Per-map latency and heartbeat: not reported.</p>
+      <SpatialMapDetails
+        node={active}
+        selected={hasSelection}
+        instances={instances}
+        observedAt={knownStamp}
+        stale={stale}
+      />
       <Link to="/map" className="spatial-primary">Open map workspace<Icon name="ArrowUpRight" size={16} /></Link>
       <Link to="/pods" className="spatial-secondary">Inspect workloads<Icon name="ArrowUpRight" size={15} /></Link>
     </div>
@@ -68,6 +75,7 @@ export default function SpatialHome({ onDetails, startEnabled = false }: { onDet
     <div className="spatial-dashboard-content">
       <section className="spatial-dashboard-summary" aria-label="Server status summary">
         <dl>{summary.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{statusLabel(value)}</dd></div>)}</dl>
+        <HealthRefreshControl />
         <div className="spatial-dashboard-observation">
           <span title={knownStamp}>{stale ? 'Last available' : loading ? 'Refreshing' : 'Observed'} {shortStamp}</span>
           <button type="button" disabled={loading} onClick={() => {

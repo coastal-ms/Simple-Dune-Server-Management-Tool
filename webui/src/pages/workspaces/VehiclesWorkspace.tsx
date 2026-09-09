@@ -5,6 +5,7 @@ import {
   getVehicleFleet,
   getVehicleIntegrity,
   repairVehicle,
+  saveVehicleNames,
   type VehicleFleetRow,
   type DataSource,
   type VehicleIntegrity,
@@ -35,7 +36,16 @@ function errorMessage(error: unknown) {
 }
 
 function isRecoveryRecord(vehicle: VehicleFleetRow) {
-  return (vehicle.actor_state ?? '').split(',').some(state => state.trim() === 'VehicleRecovery')
+  return (vehicle.actor_state ?? '').split(',').some(state => ['VehicleRecovery', 'VehicleBackup'].includes(state.trim()))
+}
+
+function vehicleNameError(name: string) {
+  const trimmed = name.trim()
+  if (!trimmed) return 'Enter a vehicle name.'
+  if (trimmed.length > 64) return 'Use 64 characters or fewer.'
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) return 'Control characters are not allowed.'
+  if (trimmed.startsWith('##') || trimmed === 'None') return 'This name is reserved by the game.'
+  return ''
 }
 
 function VehicleFleetWorkspace() {
@@ -56,6 +66,10 @@ function VehicleFleetWorkspace() {
   const integrityRefresh = useRef<() => Promise<void>>(async () => {})
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<number>>(new Set())
   const [deleteTargets, setDeleteTargets] = useState<VehicleFleetRow[]>([])
+  const [databaseScope, setDatabaseScope] = useState('')
+  const [editingNames, setEditingNames] = useState(false)
+  const [nameDrafts, setNameDrafts] = useState<Record<number, string>>({})
+  const [renameWarningUntil, setRenameWarningUntil] = useState(0)
 
   const load = useCallback(async () => {
     setError('')
@@ -67,6 +81,7 @@ function VehicleFleetWorkspace() {
       setSource(fleet.source)
       setObservedAt(fleet.observed_at)
       setStaleAfterSeconds(fleet.stale_after_seconds ?? 20)
+      setDatabaseScope(fleet.database_scope ?? '')
       setReadFailed(false)
     } catch (loadError: unknown) {
       setReadFailed(true)
@@ -124,10 +139,11 @@ function VehicleFleetWorkspace() {
 
   const loading = vehicles === null
   const selectedVehicle = vehicles?.find(vehicle => vehicle.id === selectedId)
+  const activeVehicles = vehicles?.filter(vehicle => !isRecoveryRecord(vehicle)) ?? []
   const matchingVehicles = vehicles?.filter(vehicle => `${vehicleLabel(vehicle)} ${vehicle.subtype ?? ''} ${vehicle.owners ?? ''} ${vehicle.permissions?.map(permission => permission.character_name).join(' ') ?? ''} ${vehicle.map ?? ''} ${vehicle.id}`.toLowerCase().includes(search.trim().toLowerCase())) ?? []
   const visibleVehicles = matchingVehicles.filter(vehicle => !isRecoveryRecord(vehicle))
   const recoveryVehicles = matchingVehicles.filter(isRecoveryRecord)
-  const fleetCount = vehicles?.filter(vehicle => !isRecoveryRecord(vehicle)).length ?? 0
+  const fleetCount = activeVehicles.length
   const recoveryCount = (vehicles?.length ?? 0) - fleetCount
   const operationFeedback = <>
     {error && <ViewportNotice kind="err" text={error} onDismiss={() => setError('')} />}
@@ -140,6 +156,66 @@ function VehicleFleetWorkspace() {
     {busy === `repair:${vehicle.id}` ? 'Repairing...' : 'Repair vehicle'}
   </button>
   const selectedVehicles = visibleVehicles.filter(vehicle => selectedForDeletion.has(vehicle.id))
+  const renameChanges = activeVehicles.flatMap(vehicle => {
+    const draft = nameDrafts[vehicle.id]
+    const name = draft?.trim() ?? ''
+    const current = vehicle.vehicle_name ?? ''
+    if (draft === undefined || name === current || vehicle.rename_blocked_reason) return []
+    return [{ vehicle_id: vehicle.id, expected_current_name: current, name }]
+  })
+  const invalidRename = activeVehicles.some(vehicle => {
+    const draft = nameDrafts[vehicle.id]
+    return draft !== undefined && draft.trim() !== (vehicle.vehicle_name ?? '') && Boolean(vehicleNameError(draft))
+  })
+  const showRenameWarning = editingNames || busy === 'rename' || renameWarningUntil > now
+  const toggleNameEditing = () => {
+    if (editingNames) {
+      setEditingNames(false)
+      setNameDrafts({})
+      return
+    }
+    setError('')
+    setMessage('')
+    setNameDrafts(Object.fromEntries(activeVehicles.map(vehicle => [vehicle.id, vehicle.vehicle_name ?? ''])))
+    setEditingNames(true)
+  }
+  const saveNames = async () => {
+    if (!databaseScope || renameChanges.length === 0 || invalidRename) return
+    const changes = renameChanges
+    setBusy('rename')
+    setError('')
+    setMessage('')
+    try {
+      const result = await saveVehicleNames(changes, databaseScope)
+      setVehicles(current => current?.map(vehicle => {
+        const changed = changes.find(change => change.vehicle_id === vehicle.id)
+        return changed ? { ...vehicle, vehicle_name: changed.name } : vehicle
+      }) ?? null)
+      setEditingNames(false)
+      setNameDrafts({})
+      setRenameWarningUntil(Date.now() + 5_000)
+      setMessage(result.message)
+    } catch (renameError) {
+      if (renameError instanceof ApiError && typeof renameError.body === 'object' && renameError.body &&
+          'committed' in renameError.body && (renameError.body as { committed?: boolean }).committed) {
+        setVehicles(current => current?.map(vehicle => {
+          const changed = changes.find(change => change.vehicle_id === vehicle.id)
+          return changed ? { ...vehicle, vehicle_name: changed.name } : vehicle
+        }) ?? null)
+        setEditingNames(false)
+        setNameDrafts({})
+        setRenameWarningUntil(Date.now() + 5_000)
+      }
+      setError(errorMessage(renameError))
+    } finally {
+      setBusy(null)
+    }
+  }
+  const renameWarningBanner = showRenameWarning ? (
+    <div className="mb-3 rounded-lg border-2 border-warning bg-warning/15 px-4 py-3 text-sm text-text" role="status">
+      <strong className="text-warning">Battlegroup restart required:</strong> Saving vehicle-name changes writes every edited name as one exact database batch, then immediately launches one battlegroup restart so the committed names persist. Keep all players offline until Server Health reports the battlegroup is back.
+    </div>
+  ) : null
 
   if (loading && unavailable) {
     return (
@@ -176,7 +252,7 @@ function VehicleFleetWorkspace() {
       <WorkspaceSection
         id="vehicles-fleet"
         title="Vehicle fleet"
-        description="Persisted game-database fleet, including unclaimed vehicles. In-memory gameplay may be newer than the last database save. Destructive controls are host-local only."
+        description="Persisted game-database fleet with guarded name editing, repair, cargo inspection, and removal. In-memory gameplay may be newer than the last database save."
       >
         {loading && !error && <DataState state="loading" title="Loading vehicle fleet" />}
         {!selectedVehicle && operationFeedback}
@@ -195,6 +271,14 @@ function VehicleFleetWorkspace() {
                 <SourceBadge source={source ?? undefined} />
               </div>
               <div className="flex flex-wrap gap-2">
+                <button className="btn-secondary" disabled={busy !== null || source !== 'live' || !databaseScope} onClick={toggleNameEditing}>
+                  <Icon name="Pencil" size={14} />
+                  Edit Vehicle Names
+                </button>
+                <button className="btn-primary" disabled={busy !== null || !editingNames || renameChanges.length === 0 || invalidRename} onClick={() => { void saveNames() }}>
+                  <Icon name={busy === 'rename' ? 'Loader2' : 'Save'} size={14} className={busy === 'rename' ? 'animate-spin' : undefined} />
+                  Save Vehicle Names
+                </button>
                 {local && <button
                   className="btn-danger"
                   disabled={busy !== null || source !== 'live' || selectedVehicles.length === 0}
@@ -212,8 +296,9 @@ function VehicleFleetWorkspace() {
                 </button>
               </div>
             </div>
+            {!selectedVehicle && renameWarningBanner}
             <p className="mb-3 text-xs text-warning">Deleting one or more selected vehicles requires one restart of the entire battlegroup.</p>
-            {!fresh && <p className="mb-3 text-xs text-text-muted">Displayed values may be older than the game. Repair and delete recheck current database state when run.</p>}
+            {!fresh && <p className="mb-3 text-xs text-text-muted">Displayed values may be older than the game. Rename, repair, and delete recheck current database state when run.</p>}
             <label className="operations-search"><Icon name="Search" size={17} /><input type="search" aria-label="Search vehicle fleet" placeholder="Vehicle, subtype, permission holder, map or ID" value={search} onChange={event => setSearch(event.target.value)} /></label>
             {visibleVehicles.length === 0 ? (
               <DataState state="empty" title={search.trim() ? 'No active vehicles match this search' : 'No active vehicles found'} />
@@ -239,9 +324,23 @@ function VehicleFleetWorkspace() {
                               }}
                             />
                           </label>}
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="break-words font-semibold text-text">{vehicleLabel(vehicle)}</h3>
+                            {editingNames && !vehicle.rename_blocked_reason ? (
+                              <label className="block min-w-0 flex-1 text-xs text-text-muted">
+                                Vehicle name
+                                <input
+                                  className="input mt-1 w-full"
+                                  value={nameDrafts[vehicle.id] ?? vehicle.vehicle_name ?? ''}
+                                  maxLength={64}
+                                  aria-invalid={Boolean(vehicleNameError(nameDrafts[vehicle.id] ?? vehicle.vehicle_name ?? ''))}
+                                  onChange={event => setNameDrafts(current => ({ ...current, [vehicle.id]: event.target.value }))}
+                                />
+                                {vehicleNameError(nameDrafts[vehicle.id] ?? vehicle.vehicle_name ?? '') && (
+                                  <span className="mt-1 block text-warning">{vehicleNameError(nameDrafts[vehicle.id] ?? vehicle.vehicle_name ?? '')}</span>
+                                )}
+                              </label>
+                            ) : <h3 className="break-words font-semibold text-text">{vehicleLabel(vehicle)}</h3>}
                             {vehicle.actor_state && <span className="pill border-border text-text-muted">{vehicle.actor_state}</span>}
                           </div>
                           <p className="mt-1 break-all font-mono text-xs text-text-dim">Actor {vehicle.id}</p>
@@ -258,6 +357,7 @@ function VehicleFleetWorkspace() {
                             </div>
                           </dl>
                           {vehicle.deletion_blocked_reason && <p className="mt-2 text-xs text-warning">{vehicle.deletion_blocked_reason}</p>}
+                          {editingNames && vehicle.rename_blocked_reason && <p className="mt-2 text-xs text-warning">{vehicle.rename_blocked_reason}</p>}
                           </div>
                         </div>
                         <button className="btn-secondary shrink-0" onClick={() => setSelectedId(vehicle.id)} aria-label={`Inspect ${vehicleLabel(vehicle)}`}>Inspect vehicle<Icon name="ArrowUpRight" size={15} /></button>
@@ -296,6 +396,24 @@ function VehicleFleetWorkspace() {
       {selectedVehicle && <DetailPanel open title={vehicleLabel(selectedVehicle)} onClose={() => setSelectedId(null)}>
         {operationFeedback}
         <SourceBadge source={source ?? undefined} />
+        {renameWarningBanner}
+        {editingNames && !isRecoveryRecord(selectedVehicle) && (
+          <label className="mt-4 block text-sm font-medium text-text">
+            Vehicle name
+            <input
+              className="input mt-1 w-full"
+              value={nameDrafts[selectedVehicle.id] ?? selectedVehicle.vehicle_name ?? ''}
+              maxLength={64}
+              disabled={Boolean(selectedVehicle.rename_blocked_reason)}
+              aria-invalid={Boolean(vehicleNameError(nameDrafts[selectedVehicle.id] ?? selectedVehicle.vehicle_name ?? ''))}
+              onChange={event => setNameDrafts(current => ({ ...current, [selectedVehicle.id]: event.target.value }))}
+            />
+            {selectedVehicle.rename_blocked_reason && <span className="mt-1 block text-xs text-warning">{selectedVehicle.rename_blocked_reason}</span>}
+            {!selectedVehicle.rename_blocked_reason && vehicleNameError(nameDrafts[selectedVehicle.id] ?? selectedVehicle.vehicle_name ?? '') && (
+              <span className="mt-1 block text-xs text-warning">{vehicleNameError(nameDrafts[selectedVehicle.id] ?? selectedVehicle.vehicle_name ?? '')}</span>
+            )}
+          </label>
+        )}
         <dl className="my-5 space-y-4 text-sm">
           <div><dt className="text-text-muted">Actor</dt><dd>{selectedVehicle.id}</dd></div>
           <div><dt className="text-text-muted">Class</dt><dd>{selectedVehicle.class || 'Not reported'}</dd></div>

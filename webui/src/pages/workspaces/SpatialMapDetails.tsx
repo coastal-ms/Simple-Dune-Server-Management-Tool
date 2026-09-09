@@ -1,5 +1,6 @@
 import type { Player, PlayersResponse } from '../../api/gameplay'
 import { useApi } from '../../hooks/useApi'
+import { useHealthRefreshPreset } from '../../hooks/useHealthRefresh'
 import { mapLabel } from '../../util/mapLabel'
 import { LOCATION_VISUALS, spatialLocationKind, type SpatialNode } from './spatialModel'
 
@@ -11,14 +12,19 @@ export function connectedMapUsers(players: Player[], map: string) {
   return players.filter(player => player.online_status.toLowerCase() === 'online' && names.has(player.map.trim().toLowerCase()))
 }
 
-export default function SpatialMapDetails({ node, selected, instances, observedAt, stale }: {
+export default function SpatialMapDetails({ node, selected, instances, observedAt, stale, refreshIntervalMs }: {
   node: SpatialNode | undefined
   selected: boolean
   instances: number
   observedAt: string
   stale: boolean
+  refreshIntervalMs?: number
 }) {
-  const roster = useApi<PlayersResponse>('/api/gameplay/players', { enabled: selected && !!node, intervalMs: 30_000 })
+  const refreshPreset = useHealthRefreshPreset()
+  const roster = useApi<PlayersResponse>('/api/gameplay/players', {
+    enabled: selected && !!node,
+    intervalMs: refreshIntervalMs ?? refreshPreset.mapPlayersIntervalMs,
+  })
   const users = node && roster.data ? connectedMapUsers(roster.data.players, node.map) : []
   const sample = roster.data?.source === 'demo'
   const failure = roster.error || roster.data?.liveError

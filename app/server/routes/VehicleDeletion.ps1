@@ -7,7 +7,11 @@ Register-DuneRoute -Method GET -Path '/api/gameplay/vehicles' -Handler {
         if (-not $ctx.ok) { Write-DuneError -Response $res -Status 503 -Message $ctx.message; return }
         $result = Get-DuneVehicleFleetLive -Ip $ctx.ip
         if (-not $result.ok) { Write-DuneError -Response $res -Status 503 -Message $result.error; return }
-        Write-DuneJson -Response $res -Body @{ vehicles = @($result.vehicles); total = $result.total; source = 'live'; observed_at = $result.observed_at; stale_after_seconds = $result.stale_after_seconds }
+        Write-DuneJson -Response $res -Body @{
+            vehicles = @($result.vehicles); total = $result.total; source = 'live'
+            observed_at = $result.observed_at; stale_after_seconds = $result.stale_after_seconds
+            database_scope = $result.database_scope
+        }
     } catch {
         Write-DuneError -Response $res -Status 500 -Message "Vehicle fleet failed: $($_.Exception.Message)"
     }
@@ -27,6 +31,35 @@ Register-DuneRoute -Method GET -Path '/api/gameplay/vehicles/{id}/integrity' -Ha
         Write-DuneJson -Response $res -Body $result
     } catch {
         Write-DuneError -Response $res -Status 500 -Message "Vehicle integrity failed: $($_.Exception.Message)"
+    }
+}
+
+Register-DuneRoute -Method POST -Path '/api/gameplay/vehicles/names' -Handler {
+    param($req, $res, $routeParams, $body)
+    try {
+        $changes = @((Get-DuneBodyValue -Body $body -Name 'changes'))
+        $databaseScope = [string](Get-DuneBodyValue -Body $body -Name 'database_scope')
+        if ($changes.Count -lt 1 -or $changes.Count -gt 100) {
+            Write-DuneError -Response $res -Status 400 -Message 'Change between 1 and 100 vehicle names at once.'; return
+        }
+        if ($databaseScope -cnotmatch '^[a-f0-9]{64}$') {
+            Write-DuneError -Response $res -Status 400 -Message 'Refresh the fleet before saving vehicle names.'; return
+        }
+        if (-not (Test-DuneDisruptiveActionGuard -Req $req -Res $res -Action 'saving vehicle names and restarting the battlegroup')) { return }
+
+        $ctx = Get-DuneDbContext
+        if (-not $ctx.ok) { Write-DuneError -Response $res -Status 503 -Message $ctx.message; return }
+        $result = Invoke-WithDuneLock -Name 'vehicle-rename' -TimeoutSec 5 -Script {
+            Invoke-DuneVehicleRenameBatch -Ip $ctx.ip -Changes $changes -DatabaseScope $databaseScope
+        }
+        if (-not $result.ok) {
+            $status = if ($result.status) { [int]$result.status } else { 409 }
+            Write-DuneJson -Response $res -Status $status -Body $result
+            return
+        }
+        Write-DuneJson -Response $res -Status 202 -Body $result
+    } catch {
+        Write-DuneError -Response $res -Status 500 -Message "Save vehicle names failed: $($_.Exception.Message)"
     }
 }
 

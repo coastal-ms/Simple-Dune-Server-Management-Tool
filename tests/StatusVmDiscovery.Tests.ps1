@@ -123,6 +123,19 @@ Describe 'Get-DuneBattlegroupSnapshotFresh VM reuse' {
 
         $r.available | Should -BeFalse
         $r.reason | Should -Match 'does not exist'
+        $r.observedAt | Should -Match '^\d{4}-\d{2}-\d{2}T'
         Should -Invoke Get-DuneVmStatus -Times 0
+    }
+
+    It 'preserves the original observation timestamp while serving the cached snapshot' {
+        $script:DuneApiLockTable = $null
+        $script:DuneBattlegroupSnapshotCache = $null
+        $script:DuneBattlegroupSnapshotFetched = [datetime]::MinValue
+        $snapshot = @{ available = $true; observedAt = '2026-09-09T04:00:00.0000000Z' }
+
+        Set-DuneBattlegroupSnapshotCacheEntry -Snapshot $snapshot
+        $cached = Get-DuneBattlegroupSnapshotCached
+
+        $cached.observedAt | Should -Be $snapshot.observedAt
     }
 }

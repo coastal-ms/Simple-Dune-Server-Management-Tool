@@ -14,6 +14,7 @@ BeforeAll {
     }
     function Invoke-DuneBackupShell { throw 'Live SSH is forbidden in this test.' }
     function Find-V6DbPod { param($Ip, [switch]$Force); throw 'Live database discovery is forbidden in this test.' }
+    function Invoke-DuneBattlegroupRestart { throw 'Live battlegroup restart is forbidden in this test.' }
     $script:scopeKey = 'a' * 64
     $script:DuneGameplayItemNames = @{ Copper = 'Copper' }
     $script:DuneGameplayItemRules = @{}
@@ -77,6 +78,87 @@ Describe 'Vehicle lifecycle host safety' {
         $source | Should -Match '\$body.*vehicle_ids'
         $source | Should -Match 'Select between 1 and 100 vehicles'
         $source | Should -Match "Test-DuneDisruptiveActionGuard"
+        $source | Should -Match "-Path '/api/gameplay/vehicles/names' -Handler"
+    }
+
+    It 'validates vehicle names with the existing game-safe rules' {
+        (Test-DuneVehicleRenameName -Name '  Desert Runner  ').name | Should -Be 'Desert Runner'
+        (Test-DuneVehicleRenameName -Name '').ok | Should -BeFalse
+        (Test-DuneVehicleRenameName -Name ('x' * 65)).ok | Should -BeFalse
+        (Test-DuneVehicleRenameName -Name "bad`nname").ok | Should -BeFalse
+        (Test-DuneVehicleRenameName -Name '##reserved').ok | Should -BeFalse
+        (Test-DuneVehicleRenameName -Name 'None').ok | Should -BeFalse
+    }
+
+    It 'writes one exact batch, reads it back after commit, and launches one restart' {
+        Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; world = 'sh-test' } }
+        $script:renameQueries = @()
+        Mock Invoke-DuneSqlQuery {
+            param($Sql, $ReadOnly)
+            $script:renameQueries += @{ sql = $Sql; readOnly = [bool]$ReadOnly }
+            if ($ReadOnly) {
+                return @{ ok = $true; columns = @('vehicle_id', 'actor_name'); rows = @(@('42', 'Desert Runner'), @('43', 'Sand Runner')) }
+            }
+            return @{ ok = $true; columns = @(); rows = @() }
+        }
+        Mock Invoke-DuneBattlegroupRestart { @{ ok = $true; message = 'Restart launched.' } }
+
+        $result = Invoke-DuneVehicleRenameBatch -Ip fixture -DatabaseScope $script:scopeKey -Changes @(
+            @{ vehicle_id = 42; expected_current_name = 'Scout'; name = 'Desert Runner' }
+            @{ vehicle_id = 43; expected_current_name = 'Hauler'; name = 'Sand Runner' }
+        )
+
+        $result.ok | Should -BeTrue -Because $result.error
+        $result.renamed | Should -Be 2
+        $result.restart_started | Should -BeTrue
+        $script:renameQueries.Count | Should -Be 2
+        $script:renameQueries[0].sql | Should -Match 'BEGIN;'
+        $script:renameQueries[0].sql | Should -Match 'COMMIT;'
+        $script:renameQueries[0].sql | Should -Match 'permission_actor_rank'
+        $script:renameQueries[0].sql | Should -Match "online_status IS DISTINCT FROM 'Offline'"
+        $script:renameQueries[0].sql | Should -Match 'recovered_vehicles'
+        $script:renameQueries[0].sql | Should -Match 'backup_vehicles'
+        $script:renameQueries[0].sql | Should -Match "'Scout'::text, 'Desert Runner'::text"
+        $script:renameQueries[0].sql | Should -Match "'Hauler'::text, 'Sand Runner'::text"
+        Should -Invoke Invoke-DuneBattlegroupRestart -Times 1
+    }
+
+    It 'reports a committed batch truthfully when restart launch fails' {
+        Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; world = 'sh-test' } }
+        Mock Invoke-DuneSqlQuery {
+            param($ReadOnly)
+            if ($ReadOnly) {
+                return @{ ok = $true; columns = @('vehicle_id', 'actor_name'); rows = @(,@('42', 'Desert Runner')) }
+            }
+            return @{ ok = $true; columns = @(); rows = @() }
+        }
+        Mock Invoke-DuneBattlegroupRestart { throw 'restart unavailable' }
+        $result = Invoke-DuneVehicleRenameBatch -Ip fixture -DatabaseScope $script:scopeKey -Changes @(
+            @{ vehicle_id = 42; expected_current_name = 'Scout'; name = 'Desert Runner' }
+        )
+        $result.ok | Should -BeFalse
+        $result.committed | Should -BeTrue
+        $result.error | Should -Match 'were committed'
+        $result.error | Should -Match 'restart unavailable'
+    }
+
+    It 'still launches the required restart when committed readback fails' {
+        Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; world = 'sh-test' } }
+        Mock Invoke-DuneSqlQuery {
+            param($ReadOnly)
+            if ($ReadOnly) { return @{ ok = $false; error = 'readback unavailable' } }
+            return @{ ok = $true; columns = @(); rows = @() }
+        }
+        Mock Invoke-DuneBattlegroupRestart { @{ ok = $true; message = 'Restart launched.' } }
+        $result = Invoke-DuneVehicleRenameBatch -Ip fixture -DatabaseScope $script:scopeKey -Changes @(
+            @{ vehicle_id = 42; expected_current_name = 'Scout'; name = 'Desert Runner' }
+        )
+        $result.ok | Should -BeFalse
+        $result.committed | Should -BeTrue
+        $result.restart_started | Should -BeTrue
+        $result.error | Should -Match 'readback unavailable'
+        $result.error | Should -Match 'restart was launched'
+        Should -Invoke Invoke-DuneBattlegroupRestart -Times 1
     }
 
     It 'rejects old inventory-cache cursors for vehicle reads' {
@@ -228,6 +310,7 @@ Describe 'Vehicle lifecycle PostgreSQL model' -Skip:(-not $env:DST_TEST_POSTGRES
     BeforeEach {
         Mock Get-DuneVehicleHostScope { @{ key = $script:scopeKey; namespace = 'funcom-seabass-sh-test'; world = 'sh-test' } }
         Mock Test-DuneVehicleWindowStopped { @{ ok = $true } }
+        Mock Invoke-DuneBattlegroupRestart { @{ ok = $true; message = 'Restart launched.' } }
         Mock Invoke-DuneSqlQuery {
             param($Sql, $ReadOnly)
             if ($ReadOnly) { $Sql = Wrap-DuneReadOnlySql -Sql $Sql }
@@ -252,7 +335,7 @@ CREATE TABLE dune.items (
     id bigint PRIMARY KEY, inventory_id bigint REFERENCES dune.inventories(id) ON DELETE CASCADE,
     template_id text, stack_size int, quality_level int, stats jsonb
 );
-CREATE TABLE dune.player_state (player_pawn_id bigint, player_controller_id bigint, character_name text, account_id bigint);
+CREATE TABLE dune.player_state (player_pawn_id bigint, player_controller_id bigint, character_name text, account_id bigint, online_status text);
 CREATE TABLE dune.permission_actor (actor_id bigint PRIMARY KEY, actor_type int, actor_name text);
 CREATE TABLE dune.permission_actor_rank (permission_actor_id bigint, player_id bigint, rank int);
 CREATE TABLE dune.recovered_vehicles (vehicle_id bigint REFERENCES dune.vehicles(id) ON DELETE CASCADE, character_id bigint, chassis_durability numeric);
@@ -275,7 +358,7 @@ $$;
 INSERT INTO dune.actors VALUES (42, 'BP_Buggy_C', 'Hagga', NULL), (43, 'BP_Unknown_C', 'Hagga', NULL),
     (100, 'BP_Player_C', 'Hagga', 900), (200, 'BP_Container_C', 'Hagga', NULL);
 INSERT INTO dune.vehicles VALUES (42), (43);
-INSERT INTO dune.player_state VALUES (100, 101, 'Owner', 900), (110, 111, 'Shared', 901);
+INSERT INTO dune.player_state VALUES (100, 101, 'Owner', 900, 'Offline'), (110, 111, 'Shared', 901, 'Offline');
 INSERT INTO dune.permission_actor VALUES (42, 2, 'Scout');
 INSERT INTO dune.permission_actor_rank VALUES (42, 101, 1), (42, 111, 2);
 INSERT INTO dune.actor_state VALUES (42, 'Default'), (42, 'Default');
@@ -307,6 +390,7 @@ INSERT INTO dune.overmap_players VALUES (42);
         $claimed = $fleet.vehicles | Where-Object id -eq 42
         $claimed.owners | Should -Be 'Owner'
         $claimed.permissions.Count | Should -Be 2
+        $claimed.permissions[0].online_status | Should -Be 'Offline'
         $claimed.subtype | Should -Be 'Buggy'
         $claimed.subtype_source | Should -Be 'catalog'
         $claimed.actor_state | Should -Be 'Default'
@@ -316,6 +400,44 @@ INSERT INTO dune.overmap_players VALUES (42);
         $integrity.ok | Should -BeTrue -Because $integrity.error
         $integrity.modules[0].current_durability | Should -Be 25
         $integrity.modules[1].current_durability | Should -BeNullOrEmpty
+    }
+
+    It 'renames an exact active vehicle and rejects stale expected names' {
+        [void](Invoke-TestVehicleSql -Sql 'DELETE FROM dune.recovered_vehicles WHERE vehicle_id = 42; DELETE FROM dune.backup_vehicles WHERE vehicle_id = 42;')
+        $renamed = Invoke-DuneVehicleRenameBatch -Ip fixture -DatabaseScope $script:scopeKey -Changes @(
+            @{ vehicle_id = 42; expected_current_name = 'Scout'; name = 'Desert Runner' }
+        )
+        $renamed.ok | Should -BeTrue -Because $renamed.error
+        $renamed.restart_started | Should -BeTrue
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].vehicle_name | Should -Be 'Desert Runner'
+        $stale = Invoke-DuneVehicleRenameBatch -Ip fixture -DatabaseScope $script:scopeKey -Changes @(
+            @{ vehicle_id = 42; expected_current_name = 'Scout'; name = 'Old Target' }
+        )
+        $stale.ok | Should -BeFalse
+        $stale.error | Should -Match 'changed'
+        Should -Invoke Invoke-DuneBattlegroupRestart -Times 1
+    }
+
+    It 'blocks online, unresolved, backup, and recovery vehicle names without partial writes' {
+        $online = Invoke-DuneVehicleRenameBatch -Ip fixture -DatabaseScope $script:scopeKey -Changes @(
+            @{ vehicle_id = 42; expected_current_name = 'Scout'; name = 'Online Rename' }
+        )
+        $online.ok | Should -BeFalse
+        $online.error | Should -Match 'Backed-up or recovery'
+        [void](Invoke-TestVehicleSql -Sql "DELETE FROM dune.recovered_vehicles; DELETE FROM dune.backup_vehicles; UPDATE dune.player_state SET online_status = 'Online' WHERE player_controller_id = 101;")
+        $online = Invoke-DuneVehicleRenameBatch -Ip fixture -DatabaseScope $script:scopeKey -Changes @(
+            @{ vehicle_id = 42; expected_current_name = 'Scout'; name = 'Online Rename' }
+        )
+        $online.ok | Should -BeFalse
+        $online.error | Should -Match 'Offline'
+        [void](Invoke-TestVehicleSql -Sql "UPDATE dune.player_state SET online_status = 'Offline' WHERE player_controller_id = 101; DELETE FROM dune.player_state WHERE player_controller_id = 101;")
+        $unresolved = Invoke-DuneVehicleRenameBatch -Ip fixture -DatabaseScope $script:scopeKey -Changes @(
+            @{ vehicle_id = 42; expected_current_name = 'Scout'; name = 'Unknown Owner' }
+        )
+        $unresolved.ok | Should -BeFalse
+        $unresolved.error | Should -Match 'resolve exactly once'
+        (Get-DuneVehicleFleetLive -Ip fixture -VehicleId 42).vehicles[0].vehicle_name | Should -Be 'Scout'
+        Should -Invoke Invoke-DuneBattlegroupRestart -Times 0
     }
 
     It 'excludes component, player and placeable holds from all vehicle cargo projections' {

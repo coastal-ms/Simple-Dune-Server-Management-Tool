@@ -59,6 +59,16 @@ describe('Solo cosmetic grants', () => {
         maxItemVolume: 1000,
         usedVolume: 100,
       },
+      {
+        id: 35,
+        key: 'inventory:35',
+        label: 'Bank Storage',
+        kind: 'bank',
+        itemRows: 0,
+        maxItemCount: 100,
+        maxItemVolume: 5000,
+        usedVolume: 0,
+      },
     ] as const
 
     expect(getSoloCosmeticBackpackDestination([...inventories])).toBe('inventory:1')

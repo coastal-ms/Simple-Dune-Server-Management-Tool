@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { useApi } from './useApi'
 import type { StatusSnapshot } from '../api/types'
 import { api } from '../api/client'
+import { useHealthRefreshPreset } from './useHealthRefresh'
 
 type StatusCtx = {
   status: StatusSnapshot | null
@@ -58,7 +59,8 @@ export function writeCachedStatus(
 }
 
 export function StatusProvider({ children }: { children: ReactNode }) {
-  const s = useApi<StatusSnapshot>('/api/status', { intervalMs: 10_000 })
+  const refreshPreset = useHealthRefreshPreset()
+  const s = useApi<StatusSnapshot>('/api/status', { intervalMs: refreshPreset.statusIntervalMs })
   const [cachedStatus] = useState<StatusSnapshot | null>(() => readCachedStatus())
 
   useEffect(() => {
