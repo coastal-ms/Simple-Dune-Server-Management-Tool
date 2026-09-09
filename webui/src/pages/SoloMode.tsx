@@ -1810,7 +1810,11 @@ export function SoloMode() {
       )}
       {tab === 'inventory' && (
         <div className="space-y-4">
-          <SoloInventoryExplorer items={inspection?.inventoryItems ?? []} connected={connected} />
+          <SoloInventoryExplorer
+            items={inspection?.inventoryItems ?? []}
+            inventories={inspection?.inventories ?? []}
+            connected={connected}
+          />
           <SoloWeaponAmmoEditor
             weapons={inspection?.rangedWeapons ?? []}
             disabled={!canMutateActiveProfile || gameRunning || busy !== null}
