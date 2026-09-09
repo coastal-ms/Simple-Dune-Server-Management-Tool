@@ -89,6 +89,10 @@ describe('Record-focused gameplay workspaces', () => {
     const name = screen.getByRole('textbox', { name: 'New vehicle name' })
     expect(name).toHaveClass('border-2', 'border-accent/70', 'bg-surface')
     await user.clear(name)
+    await user.type(name, '##Desert Runner')
+    expect(screen.getByText('Remove the leading ## and enter a custom name.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save Vehicle Names' })).toBeDisabled()
+    await user.clear(name)
     await user.type(name, 'Desert Runner')
     await user.click(screen.getByRole('button', { name: 'Save Vehicle Names' }))
     await waitFor(() => expect(saveVehicleNames).toHaveBeenCalledWith([

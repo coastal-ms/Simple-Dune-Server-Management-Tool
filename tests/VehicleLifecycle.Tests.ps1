@@ -86,7 +86,9 @@ Describe 'Vehicle lifecycle host safety' {
         (Test-DuneVehicleRenameName -Name '').ok | Should -BeFalse
         (Test-DuneVehicleRenameName -Name ('x' * 65)).ok | Should -BeFalse
         (Test-DuneVehicleRenameName -Name "bad`nname").ok | Should -BeFalse
-        (Test-DuneVehicleRenameName -Name '##reserved').ok | Should -BeFalse
+        $reservedPrefix = Test-DuneVehicleRenameName -Name '##reserved'
+        $reservedPrefix.ok | Should -BeFalse
+        $reservedPrefix.error | Should -Be 'Remove the leading ## and enter a custom name.'
         (Test-DuneVehicleRenameName -Name 'None').ok | Should -BeFalse
     }
 

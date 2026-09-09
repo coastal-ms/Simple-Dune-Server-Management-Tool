@@ -240,9 +240,8 @@ function Test-DuneVehicleRenameName {
     if (-not $trimmed) { return @{ ok = $false; error = 'name is required.' } }
     if ($trimmed.Length -gt 64) { return @{ ok = $false; error = 'name must be 64 characters or fewer.' } }
     if ($trimmed -match '[\x00-\x1F\x7F]') { return @{ ok = $false; error = 'name cannot contain control characters.' } }
-    if ($trimmed.StartsWith('##') -or $trimmed -eq 'None') {
-        return @{ ok = $false; error = 'name is reserved by the game.' }
-    }
+    if ($trimmed.StartsWith('##')) { return @{ ok = $false; error = 'Remove the leading ## and enter a custom name.' } }
+    if ($trimmed -eq 'None') { return @{ ok = $false; error = 'name is reserved by the game.' } }
     return @{ ok = $true; name = $trimmed }
 }
 
