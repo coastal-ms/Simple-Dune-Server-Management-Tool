@@ -9,44 +9,62 @@ Introductory copy.
 
 - Pending change.
 
-## [14.2.0] - 2026-08-20
+## [15.0.0] - 2026-09-01
 
-- Recent release.
+- Newest release.
 
-## [13.0.0] - 2026-07-30
+## [14.0.0] - 2026-08-01
 
-- Oldest detailed release.
+- Second release.
 
-## [12.21.3] - 2026-07-27
+## [13.0.0] - 2026-07-01
 
-- Legacy detail that should be removed.
+- Third release.
 
-## [14.0.0] - unexpected ordering
+## [12.0.0] - 2026-06-01
 
-- Content after the cutoff should not return.
+- Fourth release.
+
+## [11.0.0] - 2026-05-01
+
+- First hidden release.
 `;
 
 const trimmed = trimChangelogForSite(source);
 assert.match(trimmed, /^# Changelog/m);
 assert.match(trimmed, /^## \[Unreleased\]/m);
-assert.match(trimmed, /^## \[14\.2\.0\]/m);
+assert.match(trimmed, /^## \[15\.0\.0\]/m);
+assert.match(trimmed, /^## \[14\.0\.0\]/m);
 assert.match(trimmed, /^## \[13\.0\.0\]/m);
-assert.doesNotMatch(trimmed, /^## \[12\.21\.3\]/m);
-assert.doesNotMatch(trimmed, /Legacy detail that should be removed/);
-assert.doesNotMatch(trimmed, /unexpected ordering/);
-assert.match(trimmed, /^## Legacy releases \(v1-v12\)$/m);
+assert.match(trimmed, /^## \[12\.0\.0\]/m);
+assert.doesNotMatch(trimmed, /^## \[11\.0\.0\]/m);
+assert.doesNotMatch(trimmed, /First hidden release/);
+assert.match(trimmed, /^## Earlier releases$/m);
 assert.match(
   trimmed,
   /https:\/\/github\.com\/coastal-ms\/DST-DuneServerTool\/blob\/main\/CHANGELOG\.md/,
 );
 
-const currentOnly = `# Changelog
+const nextRelease = source.replace(
+  "## [15.0.0]",
+  "## [16.0.0] - 2026-10-01\n\n- New rolling release.\n\n## [15.0.0]",
+);
+const rolled = trimChangelogForSite(nextRelease);
+assert.match(rolled, /^## \[16\.0\.0\]/m);
+assert.match(rolled, /^## \[13\.0\.0\]/m);
+assert.doesNotMatch(rolled, /^## \[12\.0\.0\]/m);
+
+const fewerThanFour = `# Changelog
 
 ## [Unreleased]
 
-## [13.0.0] - 2026-07-30
+## [3.0.0] - 2026-03-01
+
+## [2.0.0] - 2026-02-01
+
+## [1.0.0] - 2026-01-01
 `;
-assert.equal(trimChangelogForSite(currentOnly), currentOnly);
+assert.equal(trimChangelogForSite(fewerThanFour), fewerThanFour);
 
 const malformed = `# Changelog
 
